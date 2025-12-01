@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>相机跟随测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            overflow-x: hidden;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #4a9eff;
+            margin-bottom: 10px;
+        }
+        
+        .info {
+            text-align: center;
+            color: #888;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        
+        .canvas-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        
+        canvas {
+            border: 2px solid #4a9eff;
+            background: #0f0c29;
+            display: block;
+        }
+        
+        .controls {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        .control-group label {
+            display: inline-block;
+            width: 150px;
+            color: #4a9eff;
+        }
+        
+        button {
+            background: #4a9eff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        button:hover {
+            background: #357abd;
+        }
+        
+        input[type="range"] {
+            width: 200px;
+            vertical-align: middle;
+        }
+        
+        .value-display {
+            display: inline-block;
+            width: 60px;
+            text-align: right;
+            color: #fff;
+        }
+        
+        .stats {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        
+        .stat-item {
+            padding: 8px;
+            background: #0f0c29;
+            border-radius: 4px;
+        }
+        
+        .stat-label {
+            color: #4a9eff;
+            margin-right: 10px;
+        }
+        
+        .instructions {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .instructions h3 {
+            color: #4a9eff;
+            margin-top: 0;
+        }
+        
+        .instructions ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        
+        .instructions li {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 相机跟随系统测试</h1>
+        <div class="info">测试相机平滑跟随和边界限制功能</div>
+        
+        <div class="canvas-container">
+            <canvas id="gameCanvas" width="1280" height="720"></canvas>
+        </div>
+        
+        <div class="controls">
+            <h3 style="color: #4a9eff; margin-top: 0;">相机控制</h3>
+            
+            <div class="control-group">
+                <label>跟随速度:</label>
+                <input type="range" id="followSpeed" min="0.01" max="1" step="0.01" value="0.1">
+                <span class="value-display" id="followSpeedValue">0.10</span>
+            </div>
+            
+            <div class="control-group">
+                <label>死区大小 X:</label>
+                <input type="range" id="deadzoneX" min="0" max="300" step="10" value="100">
+                <span class="value-display" id="deadzoneXValue">100</span>
+            </div>
+            
+            <div class="control-group">
+                <label>死区大小 Y:</label>
+                <input type="range" id="deadzoneY" min="0" max="300" step="10" value="100">
+                <span class="value-display" id="deadzoneYValue">100</span>
+            </div>
+            
+            <div class="control-group">
+                <button id="resetCamera">重置相机</button>
+                <button id="centerCamera">居中相机</button>
+                <button id="toggleDebug">切换调试模式</button>
+            </div>
+        </div>
+        
+        <div class="stats">
+            <h3 style="color: #4a9eff; margin-top: 0;">实时状态</h3>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <span class="stat-label">玩家位置:</span>
+                    <span id="playerPos">-</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">相机位置:</span>
+                    <span id="cameraPos">-</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">距离差:</span>
+                    <span id="distance">-</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">FPS:</span>
+                    <span id="fps">-</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="instructions">
+            <h3>📖 使用说明</h3>
+            <ul>
+                <li><strong>WASD 或 方向键</strong> - 移动玩家角色</li>
+                <li><strong>鼠标点击</strong> - 点击移动到目标位置</li>
+                <li><strong>跟随速度</strong> - 调整相机跟随的平滑度（越大越快）</li>
+                <li><strong>死区大小</strong> - 调整相机开始跟随的距离阈值</li>
+                <li>玩家移动到地图边缘时，相机会自动限制在地图范围内</li>
+                <li>调试模式下会显示相机视野范围和死区</li>
+            </ul>
+        </div>
+    </div>
+
+    <script type="module">
+        import { Entity } from './src/ecs/Entity.js';
+        import { TransformComponent } from './src/ecs/components/TransformComponent.js';
+        import { SpriteComponent } from './src/ecs/components/SpriteComponent.js';
+        import { MovementComponent } from './src/ecs/components/MovementComponent.js';
+        import { InputManager } from './src/core/InputManager.js';
+        import { RenderSystem } from './src/rendering/RenderSystem.js';
+        import { MovementSystem } from './src/systems/MovementSystem.js';
+
+        // 获取Canvas和上下文
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 地图配置
+        const MAP_WIDTH = 3000;
+        const MAP_HEIGHT = 2000;
+        const TILE_SIZE = 64;
+
+        // 创建输入管理器
+        const inputManager = new InputManager(canvas);
+
+        // 创建渲染系统
+        const renderSystem = new RenderSystem(ctx, null, canvas.width, canvas.height);
+        const camera = renderSystem.getCamera();
+
+        // 设置相机边界（地图边界）
+        camera.setBounds(0, 0, MAP_WIDTH, MAP_HEIGHT);
+
+        // 创建移动系统
+        const movementSystem = new MovementSystem({
+            inputManager: inputManager,
+            camera: camera,
+            mapBounds: {
+                minX: 0,
+                minY: 0,
+                maxX: MAP_WIDTH,
+                maxY: MAP_HEIGHT
+            }
+        });
+
+        // 创建玩家实体
+        const player = new Entity('player-1', 'player');
+        
+        // 添加变换组件
+        const transform = new TransformComponent(MAP_WIDTH / 2, MAP_HEIGHT / 2);
+        player.addComponent('transform', transform);
+        
+        // 添加精灵组件
+        const sprite = new SpriteComponent();
+        sprite.color = '#4a9eff';
+        sprite.width = 32;
+        sprite.height = 32;
+        sprite.visible = true;
+        player.addComponent('sprite', sprite);
+        
+        // 添加移动组件
+        const movement = new MovementComponent(200);
+        player.addComponent('movement', movement);
+
+        // 设置玩家实体（这会自动设置相机跟随）
+        movementSystem.setPlayerEntity(player);
+
+        // 实体列表
+        const entities = [player];
+
+        // 创建一些静态障碍物作为参考
+        for (let i = 0; i < 20; i++) {
+            const obstacle = new Entity(`obstacle-${i}`, 'obstacle');
+            const obstacleTransform = new TransformComponent(
+                Math.random() * MAP_WIDTH,
+                Math.random() * MAP_HEIGHT
+            );
+            const obstacleSprite = new SpriteComponent();
+            obstacleSprite.color = '#ff6b6b';
+            obstacleSprite.width = 48;
+            obstacleSprite.height = 48;
+            obstacleSprite.visible = true;
+            
+            obstacle.addComponent('transform', obstacleTransform);
+            obstacle.addComponent('sprite', obstacleSprite);
+            entities.push(obstacle);
+        }
+
+        // 调试模式
+        let debugMode = false;
+        renderSystem.setDebugMode(debugMode);
+
+        // 控制面板
+        const followSpeedSlider = document.getElementById('followSpeed');
+        const followSpeedValue = document.getElementById('followSpeedValue');
+        const deadzoneXSlider = document.getElementById('deadzoneX');
+        const deadzoneXValue = document.getElementById('deadzoneXValue');
+        const deadzoneYSlider = document.getElementById('deadzoneY');
+        const deadzoneYValue = document.getElementById('deadzoneYValue');
+
+        followSpeedSlider.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            camera.followSpeed = value;
+            followSpeedValue.textContent = value.toFixed(2);
+        });
+
+        deadzoneXSlider.addEventListener('input', (e) => {
+            const value = parseInt(e.target.value);
+            camera.deadzone.x = value;
+            deadzoneXValue.textContent = value;
+        });
+
+        deadzoneYSlider.addEventListener('input', (e) => {
+            const value = parseInt(e.target.value);
+            camera.deadzone.y = value;
+            deadzoneYValue.textContent = value;
+        });
+
+        document.getElementById('resetCamera').addEventListener('click', () => {
+            camera.setPosition(MAP_WIDTH / 2, MAP_HEIGHT / 2);
+        });
+
+        document.getElementById('centerCamera').addEventListener('click', () => {
+            const playerTransform = player.getComponent('transform');
+            camera.setPosition(playerTransform.position.x, playerTransform.position.y);
+        });
+
+        document.getElementById('toggleDebug').addEventListener('click', () => {
+            debugMode = !debugMode;
+            renderSystem.setDebugMode(debugMode);
+        });
+
+        // 性能监控
+        let lastTime = performance.now();
+        let frameCount = 0;
+        let fps = 0;
+        let fpsUpdateTime = 0;
+
+        // 游戏循环
+        function gameLoop(currentTime) {
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+
+            // 更新FPS
+            frameCount++;
+            fpsUpdateTime += deltaTime;
+            if (fpsUpdateTime >= 1.0) {
+                fps = Math.round(frameCount / fpsUpdateTime);
+                frameCount = 0;
+                fpsUpdateTime = 0;
+            }
+
+            // 更新系统
+            movementSystem.update(deltaTime, entities);
+            renderSystem.update(deltaTime);
+
+            // 渲染
+            renderSystem.render(entities);
+
+            // 渲染地图边界
+            renderMapBounds();
+
+            // 渲染调试信息
+            if (debugMode) {
+                renderDebugInfo();
+            }
+
+            // 更新UI
+            updateStats();
+
+            // 清除输入状态
+            inputManager.update();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 渲染地图边界
+        function renderMapBounds() {
+            ctx.save();
+            
+            // 应用相机变换
+            const halfWidth = camera.width / 2;
+            const halfHeight = camera.height / 2;
+            ctx.translate(
+                halfWidth - camera.position.x,
+                halfHeight - camera.position.y
+            );
+
+            // 绘制地图边界
+            ctx.strokeStyle = '#ff6b6b';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+
+            // 绘制地图中心点
+            ctx.fillStyle = '#ffff00';
+            ctx.beginPath();
+            ctx.arc(MAP_WIDTH / 2, MAP_HEIGHT / 2, 8, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        // 渲染调试信息
+        function renderDebugInfo() {
+            ctx.save();
+            
+            // 应用相机变换
+            const halfWidth = camera.width / 2;
+            const halfHeight = camera.height / 2;
+            ctx.translate(
+                halfWidth - camera.position.x,
+                halfHeight - camera.position.y
+            );
+
+            const playerTransform = player.getComponent('transform');
+
+            // 绘制相机中心点
+            ctx.fillStyle = '#00ff00';
+            ctx.beginPath();
+            ctx.arc(camera.position.x, camera.position.y, 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 绘制相机视野范围
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([10, 5]);
+            ctx.strokeRect(
+                camera.position.x - halfWidth,
+                camera.position.y - halfHeight,
+                camera.width,
+                camera.height
+            );
+            ctx.setLineDash([]);
+
+            // 绘制死区
+            ctx.strokeStyle = '#ffff00';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(
+                camera.position.x - camera.deadzone.x,
+                camera.position.y - camera.deadzone.y,
+                camera.deadzone.x * 2,
+                camera.deadzone.y * 2
+            );
+
+            // 绘制玩家到相机的连线
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(playerTransform.position.x, playerTransform.position.y);
+            ctx.lineTo(camera.position.x, camera.position.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.restore();
+        }
+
+        // 更新统计信息
+        function updateStats() {
+            const playerTransform = player.getComponent('transform');
+            
+            document.getElementById('playerPos').textContent = 
+                `(${Math.round(playerTransform.position.x)}, ${Math.round(playerTransform.position.y)})`;
+            
+            document.getElementById('cameraPos').textContent = 
+                `(${Math.round(camera.position.x)}, ${Math.round(camera.position.y)})`;
+            
+            const dx = playerTransform.position.x - camera.position.x;
+            const dy = playerTransform.position.y - camera.position.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            document.getElementById('distance').textContent = 
+                `${Math.round(distance)} px`;
+            
+            document.getElementById('fps').textContent = fps;
+        }
+
+        // 启动游戏循环
+        console.log('Starting camera follow test...');
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>

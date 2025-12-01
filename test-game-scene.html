@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>游戏场景测试 - Game Scene Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: #ffffff;
+            overflow: hidden;
+        }
+
+        #gameCanvas {
+            display: block;
+            background: #2d5016;
+            margin: 0 auto;
+        }
+
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 5px;
+            max-width: 300px;
+        }
+
+        #controls h2 {
+            margin-bottom: 10px;
+            font-size: 18px;
+            color: #ffaa00;
+        }
+
+        #controls p {
+            margin: 5px 0;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .key {
+            display: inline-block;
+            padding: 2px 6px;
+            background: #333;
+            border: 1px solid #666;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 11px;
+        }
+
+        #stats {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 5px;
+            min-width: 200px;
+        }
+
+        #stats h3 {
+            margin-bottom: 10px;
+            font-size: 16px;
+            color: #00ff88;
+        }
+
+        #stats p {
+            margin: 5px 0;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="1280" height="720"></canvas>
+    
+    <div id="controls">
+        <h2>🎮 游戏场景测试</h2>
+        <p><strong>移动:</strong> <span class="key">WASD</span> 或方向键</p>
+        <p><strong>点击移动:</strong> 鼠标左键</p>
+        <p><strong>选择目标:</strong> 点击敌人</p>
+        <p><strong>攻击:</strong> 自动攻击选中目标</p>
+        <p><strong>技能:</strong></p>
+        <p><span class="key">1</span> 普通攻击</p>
+        <p><span class="key">2</span> 强力斩击</p>
+        <p><span class="key">3</span> 冲锋</p>
+        <p><span class="key">4</span> 防御姿态</p>
+    </div>
+
+    <div id="stats">
+        <h3>📊 统计信息</h3>
+        <p>FPS: <span id="fps">60</span></p>
+        <p>实体数: <span id="entities">0</span></p>
+        <p>粒子数: <span id="particles">0</span></p>
+        <p>玩家位置: <span id="playerPos">0, 0</span></p>
+    </div>
+
+    <script type="module">
+        import { GameEngine } from './src/core/GameEngine.js';
+        import { GameScene } from './src/scenes/GameScene.js';
+
+        // 创建游戏引擎
+        const canvas = document.getElementById('gameCanvas');
+        const engine = new GameEngine(canvas);
+
+        // 准备角色数据
+        const characterData = {
+            id: 'player_1',
+            name: '测试战士',
+            class: 'warrior',
+            level: 5,
+            exp: 0,
+            stats: {
+                hp: 150,
+                maxHp: 150,
+                mp: 50,
+                maxMp: 50,
+                attack: 15,
+                defense: 10,
+                speed: 100
+            },
+            skills: ['basic_attack', 'warrior_slash', 'warrior_charge', 'warrior_defense'],
+            position: { x: 400, y: 300 }
+        };
+
+        // 初始化并启动游戏引擎
+        async function startGame() {
+            await engine.init();
+            engine.start();
+            
+            // 等待一帧后切换场景
+            setTimeout(() => {
+                engine.sceneManager.switchTo('Game', { character: characterData });
+            }, 100);
+        }
+
+        startGame();
+
+        // FPS 计算
+        let lastTime = performance.now();
+        let frameCount = 0;
+        let fps = 60;
+
+        // 更新统计信息
+        function updateStats() {
+            // 计算FPS
+            const currentTime = performance.now();
+            frameCount++;
+            
+            if (currentTime - lastTime >= 1000) {
+                fps = Math.round(frameCount * 1000 / (currentTime - lastTime));
+                frameCount = 0;
+                lastTime = currentTime;
+            }
+
+            // 更新显示
+            document.getElementById('fps').textContent = fps;
+            
+            // 获取当前场景
+            const currentScene = engine.sceneManager?.getCurrentScene();
+            if (currentScene && currentScene.name === 'Game') {
+                document.getElementById('entities').textContent = currentScene.entities?.length || 0;
+                
+                if (currentScene.particleSystem) {
+                    document.getElementById('particles').textContent = currentScene.particleSystem.getActiveCount();
+                }
+                
+                if (currentScene.player) {
+                    const transform = currentScene.player.getComponent('transform');
+                    if (transform) {
+                        const x = Math.round(transform.position.x);
+                        const y = Math.round(transform.position.y);
+                        document.getElementById('playerPos').textContent = `${x}, ${y}`;
+                    }
+                }
+            }
+
+            requestAnimationFrame(updateStats);
+        }
+
+        updateStats();
+
+        console.log('游戏场景测试启动');
+    </script>
+</body>
+</html>

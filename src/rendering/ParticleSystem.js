@@ -1,0 +1,220 @@
+import { Particle } from './Particle.js';
+
+/**
+ * ParticleSystem - 粒子系统
+ * 管理粒子池，创建和更新粒子
+ */
+export class ParticleSystem {
+  /**
+   * @param {number} [maxParticles=1000] - 最大粒子数量
+   */
+  constructor(maxParticles = 1000) {
+    this.maxParticles = maxParticles;
+    this.particles = [];
+    this.particlePool = [];
+    
+    // 预创建粒子池
+    this.initializePool();
+  }
+
+  /**
+   * 初始化粒子池
+   */
+  initializePool() {
+    for (let i = 0; i < this.maxParticles; i++) {
+      const particle = new Particle({
+        position: { x: 0, y: 0 },
+        velocity: { x: 0, y: 0 },
+        life: 0,
+        size: 1,
+        color: '#ffffff'
+      });
+      particle.active = false;
+      this.particlePool.push(particle);
+    }
+  }
+
+  /**
+   * 从池中获取粒子
+   * @returns {Particle|null}
+   */
+  getParticleFromPool() {
+    // 先尝试从池中获取
+    if (this.particlePool.length > 0) {
+      return this.particlePool.pop();
+    }
+    
+    // 如果池为空，尝试回收不活跃的粒子
+    for (let i = 0; i < this.particles.length; i++) {
+      if (!this.particles[i].active) {
+        const particle = this.particles.splice(i, 1)[0];
+        return particle;
+      }
+    }
+    
+    // 如果达到最大数量，返回 null
+    if (this.particles.length >= this.maxParticles) {
+      return null;
+    }
+    
+    // 创建新粒子
+    return new Particle({
+      position: { x: 0, y: 0 },
+      velocity: { x: 0, y: 0 },
+      life: 0,
+      size: 1,
+      color: '#ffffff'
+    });
+  }
+
+  /**
+   * 归还粒子到池中
+   * @param {Particle} particle
+   */
+  returnParticleToPool(particle) {
+    particle.active = false;
+    this.particlePool.push(particle);
+  }
+
+  /**
+   * 发射单个粒子
+   * @param {Object} config - 粒子配置
+   */
+  emit(config) {
+    const particle = this.getParticleFromPool();
+    if (particle) {
+      particle.reset(config);
+      this.particles.push(particle);
+    }
+  }
+
+  /**
+   * 发射粒子爆发
+   * @param {Object} config - 基础粒子配置
+   * @param {number} count - 粒子数量
+   * @param {Object} [spread] - 扩散配置
+   */
+  emitBurst(config, count, spread = {}) {
+    const {
+      velocityRange = { min: 50, max: 150 },
+      angleRange = { min: 0, max: Math.PI * 2 },
+      sizeRange = { min: config.size * 0.5, max: config.size * 1.5 },
+      lifeRange = { min: config.life * 0.8, max: config.life * 1.2 }
+    } = spread;
+
+    for (let i = 0; i < count; i++) {
+      const angle = angleRange.min + Math.random() * (angleRange.max - angleRange.min);
+      const speed = velocityRange.min + Math.random() * (velocityRange.max - velocityRange.min);
+      
+      this.emit({
+        ...config,
+        velocity: {
+          x: Math.cos(angle) * speed,
+          y: Math.sin(angle) * speed
+        },
+        size: sizeRange.min + Math.random() * (sizeRange.max - sizeRange.min),
+        life: lifeRange.min + Math.random() * (lifeRange.max - lifeRange.min)
+      });
+    }
+  }
+
+  /**
+   * 创建持续发射器
+   * @param {Object} config - 发射器配置
+   * @returns {Object} 发射器对象
+   */
+  createEmitter(config) {
+    const emitter = {
+      position: { ...config.position },
+      particleConfig: { ...config.particleConfig },
+      rate: config.rate || 10, // 每秒发射粒子数
+      duration: config.duration || Infinity,
+      active: true,
+      elapsed: 0,
+      accumulator: 0
+    };
+
+    return emitter;
+  }
+
+  /**
+   * 更新发射器
+   * @param {Object} emitter - 发射器对象
+   * @param {number} deltaTime - 时间增量（秒）
+   */
+  updateEmitter(emitter, deltaTime) {
+    if (!emitter.active) return;
+
+    emitter.elapsed += deltaTime;
+    if (emitter.elapsed >= emitter.duration) {
+      emitter.active = false;
+      return;
+    }
+
+    emitter.accumulator += deltaTime;
+    const interval = 1 / emitter.rate;
+
+    while (emitter.accumulator >= interval) {
+      this.emit({
+        ...emitter.particleConfig,
+        position: { ...emitter.position }
+      });
+      emitter.accumulator -= interval;
+    }
+  }
+
+  /**
+   * 更新所有粒子
+   * @param {number} deltaTime - 时间增量（秒）
+   */
+  update(deltaTime) {
+    // 更新所有活跃粒子
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const particle = this.particles[i];
+      particle.update(deltaTime);
+      
+      // 移除不活跃的粒子
+      if (!particle.active) {
+        this.returnParticleToPool(particle);
+        this.particles.splice(i, 1);
+      }
+    }
+  }
+
+  /**
+   * 渲染所有粒子
+   * @param {CanvasRenderingContext2D} ctx - Canvas 渲染上下文
+   * @param {Object} camera - 相机对象
+   */
+  render(ctx, camera) {
+    for (const particle of this.particles) {
+      particle.render(ctx, camera);
+    }
+  }
+
+  /**
+   * 清除所有粒子
+   */
+  clear() {
+    for (const particle of this.particles) {
+      this.returnParticleToPool(particle);
+    }
+    this.particles = [];
+  }
+
+  /**
+   * 获取活跃粒子数量
+   * @returns {number}
+   */
+  getActiveCount() {
+    return this.particles.length;
+  }
+
+  /**
+   * 获取池中粒子数量
+   * @returns {number}
+   */
+  getPoolCount() {
+    return this.particlePool.length;
+  }
+}

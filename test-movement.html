@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>移动系统测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        h1 {
+            color: #4a9eff;
+            margin-bottom: 10px;
+        }
+        
+        .info {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            max-width: 800px;
+        }
+        
+        .info h3 {
+            margin-top: 0;
+            color: #4a9eff;
+        }
+        
+        .info ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        
+        canvas {
+            border: 2px solid #4a9eff;
+            border-radius: 8px;
+            background: #0f0c29;
+            display: block;
+            margin-bottom: 20px;
+        }
+        
+        .stats {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-width: 800px;
+            width: 100%;
+        }
+        
+        .stats div {
+            margin: 5px 0;
+        }
+        
+        .label {
+            color: #4a9eff;
+            display: inline-block;
+            width: 150px;
+        }
+    </style>
+</head>
+<body>
+    <h1>移动系统测试</h1>
+    
+    <div class="info">
+        <h3>操作说明：</h3>
+        <ul>
+            <li><strong>WASD 或 方向键</strong>：键盘移动（蓝色方块）</li>
+            <li><strong>鼠标左键点击</strong>：点击移动到目标位置</li>
+            <li>红色方块：障碍物（不可穿过）</li>
+            <li>绿色边界：地图边界</li>
+        </ul>
+    </div>
+    
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    
+    <div class="stats">
+        <div><span class="label">位置:</span> <span id="position">-</span></div>
+        <div><span class="label">速度:</span> <span id="velocity">-</span></div>
+        <div><span class="label">移动状态:</span> <span id="moving">-</span></div>
+        <div><span class="label">移动类型:</span> <span id="movementType">-</span></div>
+        <div><span class="label">朝向:</span> <span id="facing">-</span></div>
+        <div><span class="label">相机位置:</span> <span id="camera">-</span></div>
+        <div><span class="label">FPS:</span> <span id="fps">-</span></div>
+    </div>
+
+    <script type="module">
+        import { Entity } from './src/ecs/Entity.js';
+        import { TransformComponent } from './src/ecs/components/TransformComponent.js';
+        import { MovementComponent } from './src/ecs/components/MovementComponent.js';
+        import { SpriteComponent } from './src/ecs/components/SpriteComponent.js';
+        import { MovementSystem } from './src/systems/MovementSystem.js';
+        import { InputManager } from './src/core/InputManager.js';
+        import { Camera } from './src/rendering/Camera.js';
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 创建输入管理器
+        const inputManager = new InputManager(canvas);
+
+        // 创建相机
+        const camera = new Camera(400, 300, 800, 600);
+
+        // 创建碰撞地图（简单的障碍物）
+        const mapWidth = 25;
+        const mapHeight = 19;
+        const tileSize = 32;
+        const collisionMap = Array(mapHeight).fill(null).map(() => Array(mapWidth).fill(false));
+
+        // 添加一些障碍物
+        for (let i = 5; i < 10; i++) {
+            collisionMap[5][i] = true;
+            collisionMap[13][i] = true;
+        }
+        for (let i = 6; i < 13; i++) {
+            collisionMap[i][5] = true;
+            collisionMap[i][9] = true;
+        }
+
+        // 创建移动系统
+        const movementSystem = new MovementSystem({
+            inputManager,
+            camera,
+            mapBounds: { minX: 0, minY: 0, maxX: mapWidth * tileSize, maxY: mapHeight * tileSize },
+            collisionMap,
+            tileSize
+        });
+
+        // 创建玩家实体
+        const player = new Entity('player', 'player');
+        player.addComponent(new TransformComponent(400, 300));
+        player.addComponent(new MovementComponent({ speed: 150 }));
+        player.addComponent(new SpriteComponent());
+
+        movementSystem.setPlayerEntity(player);
+
+        // 设置相机边界
+        camera.setBounds(0, 0, mapWidth * tileSize, mapHeight * tileSize);
+
+        // 实体列表
+        const entities = [player];
+
+        // FPS计算
+        let lastTime = performance.now();
+        let frameCount = 0;
+        let fps = 0;
+        let fpsTime = 0;
+
+        // 游戏循环
+        function gameLoop(currentTime) {
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+
+            // 计算FPS
+            frameCount++;
+            fpsTime += deltaTime;
+            if (fpsTime >= 1) {
+                fps = frameCount;
+                frameCount = 0;
+                fpsTime = 0;
+            }
+
+            // 更新
+            movementSystem.update(deltaTime, entities);
+            inputManager.update();
+
+            // 渲染
+            render();
+
+            // 更新统计信息
+            updateStats();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function render() {
+            // 清空画布
+            ctx.fillStyle = '#0f0c29';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 获取相机视野
+            const viewBounds = camera.getViewBounds();
+
+            // 绘制网格
+            ctx.strokeStyle = '#1a1a3e';
+            ctx.lineWidth = 1;
+            for (let x = 0; x < mapWidth; x++) {
+                for (let y = 0; y < mapHeight; y++) {
+                    const worldX = x * tileSize;
+                    const worldY = y * tileSize;
+                    const screenPos = camera.worldToScreen(worldX, worldY);
+                    ctx.strokeRect(screenPos.x, screenPos.y, tileSize, tileSize);
+                }
+            }
+
+            // 绘制地图边界
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 3;
+            const topLeft = camera.worldToScreen(0, 0);
+            const bottomRight = camera.worldToScreen(mapWidth * tileSize, mapHeight * tileSize);
+            ctx.strokeRect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
+
+            // 绘制障碍物
+            ctx.fillStyle = '#ff4444';
+            for (let y = 0; y < mapHeight; y++) {
+                for (let x = 0; x < mapWidth; x++) {
+                    if (collisionMap[y][x]) {
+                        const worldX = x * tileSize;
+                        const worldY = y * tileSize;
+                        const screenPos = camera.worldToScreen(worldX, worldY);
+                        ctx.fillRect(screenPos.x, screenPos.y, tileSize, tileSize);
+                    }
+                }
+            }
+
+            // 绘制玩家
+            const transform = player.getComponent('transform');
+            const movement = player.getComponent('movement');
+            const screenPos = camera.worldToScreen(transform.position.x, transform.position.y);
+
+            // 玩家方块
+            ctx.fillStyle = '#4a9eff';
+            ctx.fillRect(screenPos.x - 15, screenPos.y - 15, 30, 30);
+
+            // 玩家朝向指示
+            ctx.fillStyle = '#ffffff';
+            const facing = movement.facing;
+            let indicatorX = screenPos.x;
+            let indicatorY = screenPos.y;
+            if (facing === 'up') indicatorY -= 20;
+            else if (facing === 'down') indicatorY += 20;
+            else if (facing === 'left') indicatorX -= 20;
+            else if (facing === 'right') indicatorX += 20;
+            ctx.beginPath();
+            ctx.arc(indicatorX, indicatorY, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 绘制目标点（如果有）
+            if (movement.targetPosition) {
+                const targetScreen = camera.worldToScreen(movement.targetPosition.x, movement.targetPosition.y);
+                ctx.strokeStyle = '#ffff00';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(targetScreen.x, targetScreen.y, 10, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // 绘制路径线
+                ctx.strokeStyle = '#ffff0066';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(screenPos.x, screenPos.y);
+                ctx.lineTo(targetScreen.x, targetScreen.y);
+                ctx.stroke();
+            }
+
+            // 绘制速度向量
+            if (movement.isMoving) {
+                ctx.strokeStyle = '#00ff00';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(screenPos.x, screenPos.y);
+                ctx.lineTo(
+                    screenPos.x + movement.velocity.x * 0.3,
+                    screenPos.y + movement.velocity.y * 0.3
+                );
+                ctx.stroke();
+            }
+        }
+
+        function updateStats() {
+            const transform = player.getComponent('transform');
+            const movement = player.getComponent('movement');
+
+            document.getElementById('position').textContent = 
+                `(${transform.position.x.toFixed(1)}, ${transform.position.y.toFixed(1)})`;
+            
+            document.getElementById('velocity').textContent = 
+                `(${movement.velocity.x.toFixed(1)}, ${movement.velocity.y.toFixed(1)})`;
+            
+            document.getElementById('moving').textContent = 
+                movement.isMoving ? '是' : '否';
+            
+            document.getElementById('movementType').textContent = 
+                movement.movementType === 'keyboard' ? '键盘' :
+                movement.movementType === 'path' ? '点击' : '无';
+            
+            document.getElementById('facing').textContent = 
+                movement.facing === 'up' ? '上' :
+                movement.facing === 'down' ? '下' :
+                movement.facing === 'left' ? '左' :
+                movement.facing === 'right' ? '右' : '-';
+            
+            document.getElementById('camera').textContent = 
+                `(${camera.position.x.toFixed(1)}, ${camera.position.y.toFixed(1)})`;
+            
+            document.getElementById('fps').textContent = fps;
+        }
+
+        // 启动游戏循环
+        console.log('移动系统测试启动');
+        gameLoop(performance.now());
+    </script>
+</body>
+</html>

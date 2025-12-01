@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>场景切换诊断工具</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #ffffff;
+            font-family: 'Courier New', monospace;
+        }
+        h1 { color: #4a9eff; }
+        .section {
+            background: #0f0c29;
+            border: 2px solid #4a9eff;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        button {
+            background: #4a9eff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        button:hover { background: #357abd; }
+        .success { color: #51cf66; }
+        .error { color: #ff4444; }
+        .warning { color: #ffaa00; }
+        pre {
+            background: #000;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .step { margin: 10px 0; padding: 10px; background: #1e1e3e; border-radius: 3px; }
+        .step-number { 
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            background: #4a9eff;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 30px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 场景切换诊断工具</h1>
+    
+    <div class="section">
+        <h2>步骤 1: 检查游戏引擎</h2>
+        <button onclick="checkGameEngine()">运行检查</button>
+        <div id="engineCheck"></div>
+    </div>
+
+    <div class="section">
+        <h2>步骤 2: 测试场景切换（无数据）</h2>
+        <button onclick="testSceneSwitchNoData()">测试切换到游戏场景</button>
+        <div id="switchNoData"></div>
+    </div>
+
+    <div class="section">
+        <h2>步骤 3: 测试场景切换（带角色数据）</h2>
+        <button onclick="testSceneSwitchWithData()">测试切换到游戏场景（带数据）</button>
+        <div id="switchWithData"></div>
+    </div>
+
+    <div class="section">
+        <h2>步骤 4: 完整流程测试</h2>
+        <button onclick="testFullFlow()">运行完整测试</button>
+        <div id="fullFlow"></div>
+    </div>
+
+    <div class="section">
+        <h2>实时日志</h2>
+        <button onclick="clearLog()">清空日志</button>
+        <pre id="log"></pre>
+    </div>
+
+    <script type="module">
+        import { GameEngine } from './src/core/GameEngine.js';
+
+        let gameEngine = null;
+        const logDiv = document.getElementById('log');
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? '#ff4444' : type === 'success' ? '#51cf66' : type === 'warning' ? '#ffaa00' : '#ffffff';
+            logDiv.innerHTML += `<span style="color: ${color}">[${timestamp}] ${message}</span>\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        window.clearLog = function() {
+            logDiv.innerHTML = '';
+        };
+
+        window.checkGameEngine = async function() {
+            const div = document.getElementById('engineCheck');
+            div.innerHTML = '<p>检查中...</p>';
+            
+            try {
+                log('开始检查游戏引擎...', 'info');
+                
+                // 创建临时canvas
+                const canvas = document.createElement('canvas');
+                canvas.width = 1280;
+                canvas.height = 720;
+                document.body.appendChild(canvas);
+                canvas.style.display = 'none';
+                
+                gameEngine = new GameEngine(canvas);
+                window.gameEngine = gameEngine;
+                
+                log('✓ GameEngine 实例创建成功', 'success');
+                
+                await gameEngine.init();
+                log('✓ GameEngine 初始化成功', 'success');
+                
+                gameEngine.start();
+                log('✓ GameEngine 启动成功', 'success');
+                
+                // 检查场景管理器
+                if (gameEngine.sceneManager) {
+                    log('✓ SceneManager 存在', 'success');
+                    
+                    const currentScene = gameEngine.sceneManager.getCurrentScene();
+                    log(`✓ 当前场景: ${currentScene ? currentScene.name : 'None'}`, 'success');
+                    
+                    // 检查注册的场景
+                    const scenes = Array.from(gameEngine.sceneManager.scenes.keys());
+                    log(`✓ 已注册场景: ${scenes.join(', ')}`, 'success');
+                } else {
+                    log('✗ SceneManager 不存在', 'error');
+                }
+                
+                div.innerHTML = '<p class="success">✓ 所有检查通过！</p>';
+                
+            } catch (error) {
+                log(`✗ 错误: ${error.message}`, 'error');
+                div.innerHTML = `<p class="error">✗ 检查失败: ${error.message}</p>`;
+            }
+        };
+
+        window.testSceneSwitchNoData = function() {
+            const div = document.getElementById('switchNoData');
+            
+            if (!gameEngine) {
+                div.innerHTML = '<p class="error">请先运行步骤1</p>';
+                return;
+            }
+            
+            log('测试场景切换（无数据）...', 'info');
+            
+            try {
+                const beforeScene = gameEngine.sceneManager.getCurrentScene();
+                log(`切换前场景: ${beforeScene ? beforeScene.name : 'None'}`, 'info');
+                
+                gameEngine.sceneManager.switchTo('Game');
+                
+                // 等待转场完成
+                setTimeout(() => {
+                    const afterScene = gameEngine.sceneManager.getCurrentScene();
+                    log(`切换后场景: ${afterScene ? afterScene.name : 'None'}`, 'info');
+                    
+                    if (afterScene && afterScene.name === 'Game') {
+                        log('✓ 场景切换成功', 'success');
+                        div.innerHTML = '<p class="success">✓ 测试通过</p>';
+                    } else {
+                        log('✗ 场景切换失败', 'error');
+                        div.innerHTML = '<p class="error">✗ 测试失败</p>';
+                    }
+                }, 1000);
+                
+            } catch (error) {
+                log(`✗ 错误: ${error.message}`, 'error');
+                div.innerHTML = `<p class="error">✗ ${error.message}</p>`;
+            }
+        };
+
+        window.testSceneSwitchWithData = function() {
+            const div = document.getElementById('switchWithData');
+            
+            if (!gameEngine) {
+                div.innerHTML = '<p class="error">请先运行步骤1</p>';
+                return;
+            }
+            
+            log('测试场景切换（带角色数据）...', 'info');
+            
+            try {
+                const testCharacter = {
+                    id: 'test_' + Date.now(),
+                    name: '测试角色',
+                    class: 'warrior',
+                    level: 1,
+                    stats: { hp: 150, maxHp: 150, mp: 50, maxMp: 50 }
+                };
+                
+                log(`创建测试角色: ${JSON.stringify(testCharacter)}`, 'info');
+                
+                const dataToPass = { character: testCharacter };
+                log(`准备传递的数据对象: ${JSON.stringify(dataToPass)}`, 'info');
+                log(`数据对象的 character 属性: ${JSON.stringify(dataToPass.character)}`, 'info');
+                
+                gameEngine.sceneManager.switchTo('Game', dataToPass);
+                
+                // 等待转场完成
+                setTimeout(() => {
+                    const gameScene = gameEngine.sceneManager.getCurrentScene();
+                    
+                    if (gameScene && gameScene.name === 'Game') {
+                        log('✓ 切换到游戏场景成功', 'success');
+                        
+                        log(`GameScene.character 的值: ${JSON.stringify(gameScene.character)}`, 'info');
+                        
+                        if (gameScene.character) {
+                            log(`✓ 角色数据已传递: ${gameScene.character.name}`, 'success');
+                            div.innerHTML = '<p class="success">✓ 测试通过 - 角色数据正确传递</p>';
+                        } else {
+                            log('✗ 角色数据未传递', 'error');
+                            log(`GameScene 对象: ${JSON.stringify({name: gameScene.name, character: gameScene.character})}`, 'error');
+                            div.innerHTML = '<p class="error">✗ 测试失败 - 角色数据丢失</p>';
+                        }
+                    } else {
+                        log('✗ 未能切换到游戏场景', 'error');
+                        div.innerHTML = '<p class="error">✗ 测试失败</p>';
+                    }
+                }, 1000);
+                
+            } catch (error) {
+                log(`✗ 错误: ${error.message}`, 'error');
+                log(`错误堆栈: ${error.stack}`, 'error');
+                div.innerHTML = `<p class="error">✗ ${error.message}</p>`;
+            }
+        };
+
+        window.testFullFlow = function() {
+            const div = document.getElementById('fullFlow');
+            div.innerHTML = '<p>运行完整测试...</p>';
+            
+            if (!gameEngine) {
+                div.innerHTML = '<p class="error">请先运行步骤1</p>';
+                return;
+            }
+            
+            log('=== 开始完整流程测试 ===', 'info');
+            
+            const steps = [
+                { name: '切换到登录场景', scene: 'Login', data: null },
+                { name: '切换到角色选择场景', scene: 'Character', data: null },
+                { name: '切换到游戏场景（带数据）', scene: 'Game', data: { 
+                    character: { 
+                        id: 'full_test', 
+                        name: '完整测试角色', 
+                        class: 'mage', 
+                        level: 5 
+                    } 
+                }}
+            ];
+            
+            let currentStep = 0;
+            
+            function runNextStep() {
+                if (currentStep >= steps.length) {
+                    log('=== 完整流程测试完成 ===', 'success');
+                    div.innerHTML = '<p class="success">✓ 所有测试通过</p>';
+                    return;
+                }
+                
+                const step = steps[currentStep];
+                log(`步骤 ${currentStep + 1}: ${step.name}`, 'info');
+                
+                gameEngine.sceneManager.switchTo(step.scene, step.data);
+                
+                setTimeout(() => {
+                    const currentScene = gameEngine.sceneManager.getCurrentScene();
+                    
+                    if (currentScene && currentScene.name === step.scene) {
+                        log(`✓ ${step.name} 成功`, 'success');
+                        
+                        if (step.data && step.data.character && currentScene.character) {
+                            log(`✓ 角色数据: ${currentScene.character.name}`, 'success');
+                        }
+                        
+                        currentStep++;
+                        runNextStep();
+                    } else {
+                        log(`✗ ${step.name} 失败`, 'error');
+                        div.innerHTML = `<p class="error">✗ 测试在步骤 ${currentStep + 1} 失败</p>`;
+                    }
+                }, 1000);
+            }
+            
+            runNextStep();
+        };
+
+        // 自动运行步骤1
+        log('页面加载完成，准备运行诊断...', 'info');
+    </script>
+</body>
+</html>

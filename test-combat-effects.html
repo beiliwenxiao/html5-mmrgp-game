@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>战斗特效测试</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #1a1a1a;
+      color: #fff;
+    }
+    
+    #gameCanvas {
+      border: 2px solid #444;
+      display: block;
+      margin: 20px auto;
+      background: #000;
+      cursor: crosshair;
+    }
+    
+    .controls {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #2a2a2a;
+      border-radius: 8px;
+    }
+    
+    .button-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 10px;
+      margin: 20px 0;
+    }
+    
+    button {
+      padding: 15px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+    }
+    
+    button:hover {
+      background: #45a049;
+    }
+    
+    button.skill {
+      background: #2196F3;
+    }
+    
+    button.skill:hover {
+      background: #0b7dda;
+    }
+    
+    button.danger {
+      background: #f44336;
+    }
+    
+    button.danger:hover {
+      background: #da190b;
+    }
+    
+    .stats {
+      margin-top: 20px;
+      padding: 15px;
+      background: #333;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+    
+    .stats div {
+      margin: 5px 0;
+    }
+    
+    h2 {
+      margin-top: 0;
+      color: #4CAF50;
+    }
+    
+    h3 {
+      color: #2196F3;
+      margin-top: 20px;
+    }
+    
+    .info {
+      padding: 15px;
+      background: #333;
+      border-radius: 4px;
+      margin-top: 20px;
+    }
+    
+    .info ul {
+      margin: 10px 0;
+      padding-left: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1 style="text-align: center;">战斗特效系统测试</h1>
+  
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  
+  <div class="controls">
+    <h2>战斗特效测试</h2>
+    
+    <h3>伤害数字</h3>
+    <div class="button-grid">
+      <button onclick="testDamageNumber()">普通伤害</button>
+      <button onclick="testCritical()">暴击伤害</button>
+      <button onclick="testHeal()">治疗效果</button>
+      <button onclick="testMultipleDamage()">连续伤害</button>
+    </div>
+    
+    <h3>技能特效</h3>
+    <div class="button-grid">
+      <button class="skill" onclick="testFireball()">🔥 火球术</button>
+      <button class="skill" onclick="testIcebolt()">❄️ 冰锥术</button>
+      <button class="skill" onclick="testLightning()">⚡ 闪电链</button>
+      <button class="skill" onclick="testArrow()">🏹 箭矢</button>
+      <button class="skill" onclick="testHeavyStrike()">💥 重击</button>
+      <button class="skill" onclick="testShield()">🛡️ 魔法护盾</button>
+    </div>
+    
+    <h3>其他特效</h3>
+    <div class="button-grid">
+      <button onclick="testBlock()">格挡</button>
+      <button onclick="testDodge()">闪避</button>
+      <button onclick="testFlash()">受击闪烁</button>
+      <button class="danger" onclick="clearAll()">清除所有特效</button>
+    </div>
+    
+    <div class="stats">
+      <h3>统计信息</h3>
+      <div>FPS: <span id="fps">0</span></div>
+      <div>活跃粒子数: <span id="activeParticles">0</span></div>
+      <div>伤害数字数: <span id="damageNumbers">0</span></div>
+      <div>闪烁效果数: <span id="flashEffects">0</span></div>
+      <div>鼠标位置: <span id="mousePos">-</span></div>
+    </div>
+    
+    <div class="info">
+      <h3>使用说明</h3>
+      <ul>
+        <li>点击画布任意位置触发特效</li>
+        <li>使用按钮测试不同的战斗特效</li>
+        <li>观察伤害数字的飘字动画</li>
+        <li>查看技能投射物和命中效果</li>
+        <li>测试受击闪烁效果</li>
+      </ul>
+    </div>
+  </div>
+
+  <script type="module">
+    import { ParticleSystem } from './src/rendering/ParticleSystem.js';
+    import { SkillEffects } from './src/rendering/SkillEffects.js';
+    import { CombatEffects } from './src/rendering/CombatEffects.js';
+    import { Camera } from './src/rendering/Camera.js';
+    import { Entity } from './src/ecs/Entity.js';
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // 初始化系统
+    const particleSystem = new ParticleSystem(3000);
+    const skillEffects = new SkillEffects(particleSystem);
+    const combatEffects = new CombatEffects(particleSystem);
+    const camera = new Camera(0, 0, canvas.width, canvas.height);
+    
+    // 测试实体
+    const testEntity = new Entity('test');
+    
+    // 投射物列表
+    const projectiles = [];
+    
+    // 鼠标位置
+    let mouseX = canvas.width / 2;
+    let mouseY = canvas.height / 2;
+    
+    // FPS 计算
+    let lastTime = performance.now();
+    let frameCount = 0;
+    let fps = 0;
+    
+    // 鼠标事件
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouseX = e.clientX - rect.left;
+      mouseY = e.clientY - rect.top;
+      document.getElementById('mousePos').textContent = `${Math.floor(mouseX)}, ${Math.floor(mouseY)}`;
+    });
+    
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      testDamageNumberAt(x, y);
+    });
+    
+    // 测试函数
+    window.testDamageNumber = function() {
+      testDamageNumberAt(mouseX, mouseY);
+    };
+    
+    function testDamageNumberAt(x, y) {
+      const damage = Math.floor(Math.random() * 100) + 50;
+      combatEffects.createDamageNumber(damage, { x, y }, 'damage');
+    }
+    
+    window.testCritical = function() {
+      const damage = Math.floor(Math.random() * 200) + 150;
+      combatEffects.createCriticalEffect({ x: mouseX, y: mouseY }, damage);
+    };
+    
+    window.testHeal = function() {
+      const heal = Math.floor(Math.random() * 80) + 30;
+      combatEffects.createHealEffect({ x: mouseX, y: mouseY }, heal);
+    };
+    
+    window.testMultipleDamage = function() {
+      for (let i = 0; i < 5; i++) {
+        setTimeout(() => {
+          const x = mouseX + (Math.random() - 0.5) * 100;
+          const y = mouseY + (Math.random() - 0.5) * 100;
+          const damage = Math.floor(Math.random() * 50) + 20;
+          combatEffects.createDamageNumber(damage, { x, y }, 'damage');
+        }, i * 200);
+      }
+    };
+    
+    window.testFireball = function() {
+      const startX = 100;
+      const startY = canvas.height / 2;
+      const projectile = skillEffects.playSkillEffect(
+        'fireball',
+        { x: startX, y: startY },
+        { x: mouseX, y: mouseY },
+        400
+      );
+      if (projectile) {
+        projectiles.push(projectile);
+      }
+    };
+    
+    window.testIcebolt = function() {
+      const startX = 100;
+      const startY = canvas.height / 2;
+      const projectile = skillEffects.playSkillEffect(
+        'icebolt',
+        { x: startX, y: startY },
+        { x: mouseX, y: mouseY },
+        350
+      );
+      if (projectile) {
+        projectiles.push(projectile);
+      }
+    };
+    
+    window.testLightning = function() {
+      const startX = 100;
+      const startY = canvas.height / 2;
+      skillEffects.playSkillEffect(
+        'lightning',
+        { x: startX, y: startY },
+        { x: mouseX, y: mouseY }
+      );
+    };
+    
+    window.testArrow = function() {
+      const startX = 100;
+      const startY = canvas.height / 2;
+      const projectile = skillEffects.playSkillEffect(
+        'arrow',
+        { x: startX, y: startY },
+        { x: mouseX, y: mouseY },
+        600
+      );
+      if (projectile) {
+        projectiles.push(projectile);
+      }
+    };
+    
+    window.testHeavyStrike = function() {
+      skillEffects.playSkillEffect(
+        'heavyStrike',
+        { x: mouseX, y: mouseY },
+        { x: mouseX, y: mouseY }
+      );
+    };
+    
+    window.testShield = function() {
+      skillEffects.playCastEffect('shield', { x: mouseX, y: mouseY });
+    };
+    
+    window.testBlock = function() {
+      combatEffects.createBlockEffect({ x: mouseX, y: mouseY });
+    };
+    
+    window.testDodge = function() {
+      combatEffects.createDodgeEffect({ x: mouseX, y: mouseY });
+    };
+    
+    window.testFlash = function() {
+      combatEffects.createFlashEffect(testEntity, 500, '#ff0000');
+    };
+    
+    window.clearAll = function() {
+      particleSystem.clear();
+      combatEffects.clear();
+      projectiles.length = 0;
+    };
+    
+    // 游戏循环
+    function gameLoop(currentTime) {
+      const deltaTime = (currentTime - lastTime) / 1000;
+      lastTime = currentTime;
+      
+      // 计算 FPS
+      frameCount++;
+      if (frameCount >= 60) {
+        fps = Math.round(1 / deltaTime);
+        frameCount = 0;
+      }
+      
+      // 更新
+      particleSystem.update(deltaTime);
+      combatEffects.update(deltaTime);
+      
+      // 更新投射物
+      for (let i = projectiles.length - 1; i >= 0; i--) {
+        const active = skillEffects.updateProjectileEffect(projectiles[i], deltaTime);
+        if (!active) {
+          projectiles.splice(i, 1);
+        }
+      }
+      
+      // 渲染
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // 绘制中心标记
+      ctx.strokeStyle = '#444';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(canvas.width / 2, 0);
+      ctx.lineTo(canvas.width / 2, canvas.height);
+      ctx.moveTo(0, canvas.height / 2);
+      ctx.lineTo(canvas.width, canvas.height / 2);
+      ctx.stroke();
+      
+      // 绘制鼠标位置
+      ctx.strokeStyle = '#666';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(mouseX, mouseY, 20, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // 渲染粒子
+      particleSystem.render(ctx, camera);
+      
+      // 渲染战斗特效
+      combatEffects.render(ctx, camera);
+      
+      // 更新统计信息
+      document.getElementById('fps').textContent = fps;
+      document.getElementById('activeParticles').textContent = particleSystem.getActiveCount();
+      document.getElementById('damageNumbers').textContent = combatEffects.getActiveDamageNumberCount();
+      document.getElementById('flashEffects').textContent = combatEffects.getActiveFlashEffectCount();
+      
+      requestAnimationFrame(gameLoop);
+    }
+    
+    // 启动游戏循环
+    requestAnimationFrame(gameLoop);
+    
+    console.log('战斗特效测试页面已加载');
+    console.log('点击画布或使用按钮测试各种特效');
+  </script>
+</body>
+</html>

@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>粒子系统测试</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #1a1a1a;
+      color: #fff;
+    }
+    
+    #gameCanvas {
+      border: 2px solid #444;
+      display: block;
+      margin: 20px auto;
+      background: #000;
+      cursor: crosshair;
+    }
+    
+    .controls {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #2a2a2a;
+      border-radius: 8px;
+    }
+    
+    .control-group {
+      margin: 15px 0;
+    }
+    
+    .control-group label {
+      display: inline-block;
+      width: 150px;
+      margin-right: 10px;
+    }
+    
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    
+    button:hover {
+      background: #45a049;
+    }
+    
+    button.danger {
+      background: #f44336;
+    }
+    
+    button.danger:hover {
+      background: #da190b;
+    }
+    
+    .stats {
+      margin-top: 20px;
+      padding: 15px;
+      background: #333;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+    
+    .stats div {
+      margin: 5px 0;
+    }
+    
+    input[type="range"] {
+      width: 200px;
+      vertical-align: middle;
+    }
+    
+    input[type="color"] {
+      vertical-align: middle;
+      cursor: pointer;
+    }
+    
+    .preset-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1 style="text-align: center;">粒子系统测试</h1>
+  
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  
+  <div class="controls">
+    <h2>控制面板</h2>
+    
+    <div class="control-group">
+      <label>粒子颜色:</label>
+      <input type="color" id="particleColor" value="#ff6600">
+    </div>
+    
+    <div class="control-group">
+      <label>粒子大小:</label>
+      <input type="range" id="particleSize" min="1" max="20" value="5">
+      <span id="sizeValue">5</span>
+    </div>
+    
+    <div class="control-group">
+      <label>粒子生命周期(ms):</label>
+      <input type="range" id="particleLife" min="100" max="5000" value="1000" step="100">
+      <span id="lifeValue">1000</span>
+    </div>
+    
+    <div class="control-group">
+      <label>粒子速度:</label>
+      <input type="range" id="particleSpeed" min="10" max="300" value="100">
+      <span id="speedValue">100</span>
+    </div>
+    
+    <div class="control-group">
+      <label>重力:</label>
+      <input type="range" id="particleGravity" min="0" max="500" value="100">
+      <span id="gravityValue">100</span>
+    </div>
+    
+    <div class="control-group">
+      <label>爆发粒子数:</label>
+      <input type="range" id="burstCount" min="5" max="100" value="30">
+      <span id="burstValue">30</span>
+    </div>
+    
+    <div class="control-group">
+      <button onclick="testSingleParticle()">发射单个粒子</button>
+      <button onclick="testBurst()">粒子爆发</button>
+      <button onclick="testEmitter()">持续发射器</button>
+      <button onclick="stopEmitter()">停止发射器</button>
+      <button onclick="clearParticles()" class="danger">清除所有粒子</button>
+    </div>
+    
+    <div class="preset-buttons">
+      <h3 style="width: 100%;">预设效果:</h3>
+      <button onclick="presetFirework()">🎆 烟花</button>
+      <button onclick="presetFire()">🔥 火焰</button>
+      <button onclick="presetSnow()">❄️ 雪花</button>
+      <button onclick="presetExplosion()">💥 爆炸</button>
+      <button onclick="presetMagic()">✨ 魔法</button>
+      <button onclick="presetSmoke()">💨 烟雾</button>
+    </div>
+    
+    <div class="stats">
+      <h3>统计信息</h3>
+      <div>FPS: <span id="fps">0</span></div>
+      <div>活跃粒子数: <span id="activeParticles">0</span></div>
+      <div>池中粒子数: <span id="poolParticles">0</span></div>
+      <div>鼠标位置: <span id="mousePos">-</span></div>
+    </div>
+    
+    <div style="margin-top: 20px; padding: 15px; background: #333; border-radius: 4px;">
+      <h3>使用说明</h3>
+      <ul>
+        <li>点击画布任意位置发射粒子爆发</li>
+        <li>使用控制面板调整粒子参数</li>
+        <li>尝试不同的预设效果</li>
+        <li>观察粒子池的工作方式</li>
+      </ul>
+    </div>
+  </div>
+
+  <script type="module">
+    import { ParticleSystem } from './src/rendering/ParticleSystem.js';
+    import { Camera } from './src/rendering/Camera.js';
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // 初始化粒子系统
+    const particleSystem = new ParticleSystem(2000);
+    
+    // 初始化相机
+    const camera = new Camera(0, 0, canvas.width, canvas.height);
+    
+    // 鼠标位置
+    let mouseX = 0;
+    let mouseY = 0;
+    
+    // 发射器
+    let currentEmitter = null;
+    
+    // FPS 计算
+    let lastTime = performance.now();
+    let frameCount = 0;
+    let fps = 0;
+    
+    // 更新滑块显示值
+    document.getElementById('particleSize').addEventListener('input', (e) => {
+      document.getElementById('sizeValue').textContent = e.target.value;
+    });
+    
+    document.getElementById('particleLife').addEventListener('input', (e) => {
+      document.getElementById('lifeValue').textContent = e.target.value;
+    });
+    
+    document.getElementById('particleSpeed').addEventListener('input', (e) => {
+      document.getElementById('speedValue').textContent = e.target.value;
+    });
+    
+    document.getElementById('particleGravity').addEventListener('input', (e) => {
+      document.getElementById('gravityValue').textContent = e.target.value;
+    });
+    
+    document.getElementById('burstCount').addEventListener('input', (e) => {
+      document.getElementById('burstValue').textContent = e.target.value;
+    });
+    
+    // 鼠标事件
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouseX = e.clientX - rect.left;
+      mouseY = e.clientY - rect.top;
+      document.getElementById('mousePos').textContent = `${Math.floor(mouseX)}, ${Math.floor(mouseY)}`;
+    });
+    
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      testBurstAt(x, y);
+    });
+    
+    // 测试函数
+    window.testSingleParticle = function() {
+      const color = document.getElementById('particleColor').value;
+      const size = parseInt(document.getElementById('particleSize').value);
+      const life = parseInt(document.getElementById('particleLife').value);
+      const speed = parseInt(document.getElementById('particleSpeed').value);
+      const gravity = parseInt(document.getElementById('particleGravity').value);
+      
+      const angle = Math.random() * Math.PI * 2;
+      particleSystem.emit({
+        position: { x: canvas.width / 2, y: canvas.height / 2 },
+        velocity: { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed },
+        life: life,
+        size: size,
+        color: color,
+        gravity: gravity
+      });
+    };
+    
+    window.testBurst = function() {
+      testBurstAt(canvas.width / 2, canvas.height / 2);
+    };
+    
+    function testBurstAt(x, y) {
+      const color = document.getElementById('particleColor').value;
+      const size = parseInt(document.getElementById('particleSize').value);
+      const life = parseInt(document.getElementById('particleLife').value);
+      const speed = parseInt(document.getElementById('particleSpeed').value);
+      const gravity = parseInt(document.getElementById('particleGravity').value);
+      const count = parseInt(document.getElementById('burstCount').value);
+      
+      particleSystem.emitBurst({
+        position: { x, y },
+        velocity: { x: 0, y: 0 },
+        life: life,
+        size: size,
+        color: color,
+        gravity: gravity
+      }, count, {
+        velocityRange: { min: speed * 0.5, max: speed * 1.5 }
+      });
+    }
+    
+    window.testEmitter = function() {
+      if (currentEmitter && currentEmitter.active) {
+        return;
+      }
+      
+      const color = document.getElementById('particleColor').value;
+      const size = parseInt(document.getElementById('particleSize').value);
+      const life = parseInt(document.getElementById('particleLife').value);
+      const speed = parseInt(document.getElementById('particleSpeed').value);
+      const gravity = parseInt(document.getElementById('particleGravity').value);
+      
+      currentEmitter = particleSystem.createEmitter({
+        position: { x: canvas.width / 2, y: canvas.height / 2 },
+        particleConfig: {
+          position: { x: canvas.width / 2, y: canvas.height / 2 },
+          velocity: { x: 0, y: -speed },
+          life: life,
+          size: size,
+          color: color,
+          gravity: gravity
+        },
+        rate: 30,
+        duration: 5
+      });
+    };
+    
+    window.stopEmitter = function() {
+      if (currentEmitter) {
+        currentEmitter.active = false;
+      }
+    };
+    
+    window.clearParticles = function() {
+      particleSystem.clear();
+      if (currentEmitter) {
+        currentEmitter.active = false;
+      }
+    };
+    
+    // 预设效果
+    window.presetFirework = function() {
+      const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff'];
+      const x = canvas.width / 2;
+      const y = canvas.height / 2;
+      
+      colors.forEach((color, i) => {
+        setTimeout(() => {
+          particleSystem.emitBurst({
+            position: { x, y },
+            velocity: { x: 0, y: 0 },
+            life: 2000,
+            size: 4,
+            color: color,
+            gravity: 50
+          }, 50, {
+            velocityRange: { min: 100, max: 200 }
+          });
+        }, i * 200);
+      });
+    };
+    
+    window.presetFire = function() {
+      if (currentEmitter && currentEmitter.active) return;
+      
+      currentEmitter = particleSystem.createEmitter({
+        position: { x: canvas.width / 2, y: canvas.height - 50 },
+        particleConfig: {
+          position: { x: canvas.width / 2, y: canvas.height - 50 },
+          velocity: { x: 0, y: -150 },
+          life: 1000,
+          size: 8,
+          color: '#ff6600',
+          gravity: -50,
+          friction: 0.98
+        },
+        rate: 50,
+        duration: 5
+      });
+    };
+    
+    window.presetSnow = function() {
+      if (currentEmitter && currentEmitter.active) return;
+      
+      currentEmitter = particleSystem.createEmitter({
+        position: { x: canvas.width / 2, y: 0 },
+        particleConfig: {
+          position: { x: Math.random() * canvas.width, y: 0 },
+          velocity: { x: 0, y: 50 },
+          life: 5000,
+          size: 3,
+          color: '#ffffff',
+          gravity: 20,
+          friction: 0.99
+        },
+        rate: 20,
+        duration: 10
+      });
+    };
+    
+    window.presetExplosion = function() {
+      particleSystem.emitBurst({
+        position: { x: canvas.width / 2, y: canvas.height / 2 },
+        velocity: { x: 0, y: 0 },
+        life: 1500,
+        size: 6,
+        color: '#ff3300',
+        gravity: 100
+      }, 100, {
+        velocityRange: { min: 50, max: 250 }
+      });
+    };
+    
+    window.presetMagic = function() {
+      const colors = ['#9966ff', '#66ffff', '#ff66ff'];
+      colors.forEach((color, i) => {
+        setTimeout(() => {
+          particleSystem.emitBurst({
+            position: { x: canvas.width / 2, y: canvas.height / 2 },
+            velocity: { x: 0, y: 0 },
+            life: 2000,
+            size: 5,
+            color: color,
+            gravity: -30
+          }, 30, {
+            velocityRange: { min: 80, max: 150 }
+          });
+        }, i * 100);
+      });
+    };
+    
+    window.presetSmoke = function() {
+      if (currentEmitter && currentEmitter.active) return;
+      
+      currentEmitter = particleSystem.createEmitter({
+        position: { x: canvas.width / 2, y: canvas.height - 50 },
+        particleConfig: {
+          position: { x: canvas.width / 2, y: canvas.height - 50 },
+          velocity: { x: 0, y: -80 },
+          life: 3000,
+          size: 15,
+          color: '#888888',
+          gravity: -20,
+          friction: 0.95
+        },
+        rate: 15,
+        duration: 5
+      });
+    };
+    
+    // 游戏循环
+    function gameLoop(currentTime) {
+      const deltaTime = (currentTime - lastTime) / 1000;
+      lastTime = currentTime;
+      
+      // 计算 FPS
+      frameCount++;
+      if (frameCount >= 60) {
+        fps = Math.round(1 / deltaTime);
+        frameCount = 0;
+      }
+      
+      // 更新
+      particleSystem.update(deltaTime);
+      
+      if (currentEmitter && currentEmitter.active) {
+        particleSystem.updateEmitter(currentEmitter, deltaTime);
+      }
+      
+      // 渲染
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      particleSystem.render(ctx, camera);
+      
+      // 更新统计信息
+      document.getElementById('fps').textContent = fps;
+      document.getElementById('activeParticles').textContent = particleSystem.getActiveCount();
+      document.getElementById('poolParticles').textContent = particleSystem.getPoolCount();
+      
+      requestAnimationFrame(gameLoop);
+    }
+    
+    // 启动游戏循环
+    requestAnimationFrame(gameLoop);
+    
+    console.log('粒子系统测试页面已加载');
+    console.log('点击画布发射粒子爆发');
+  </script>
+</body>
+</html>

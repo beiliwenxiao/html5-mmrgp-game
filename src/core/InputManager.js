@@ -1,0 +1,362 @@
+/**
+ * 输入管理器
+ * 统一处理键盘、鼠标输入
+ */
+export class InputManager {
+    constructor(canvas) {
+        this.canvas = canvas;
+        
+        // 键盘状态缓存
+        this.keys = new Map();
+        this.keysPressed = new Map(); // 本帧按下的键
+        this.keysReleased = new Map(); // 本帧释放的键
+        
+        // 鼠标状态
+        this.mouse = {
+            x: 0,
+            y: 0,
+            worldX: 0,
+            worldY: 0,
+            isDown: false,
+            button: -1,
+            clicked: false
+        };
+        
+        // 键位映射
+        this.keyMap = {
+            // 移动键
+            'w': 'up',
+            'W': 'up',
+            'ArrowUp': 'up',
+            's': 'down',
+            'S': 'down',
+            'ArrowDown': 'down',
+            'a': 'left',
+            'A': 'left',
+            'ArrowLeft': 'left',
+            'd': 'right',
+            'D': 'right',
+            'ArrowRight': 'right',
+            
+            // 技能键
+            '1': 'skill1',
+            '2': 'skill2',
+            '3': 'skill3',
+            '4': 'skill4',
+            '5': 'skill5',
+            '6': 'skill6',
+            
+            // 其他功能键
+            ' ': 'space',
+            'Escape': 'escape',
+            'Enter': 'enter',
+            'Shift': 'shift',
+            'Control': 'ctrl',
+            'Tab': 'tab'
+        };
+        
+        // 相机偏移（用于坐标转换）
+        this.cameraX = 0;
+        this.cameraY = 0;
+        
+        // 初始化事件监听
+        this.initEventListeners();
+    }
+
+    /**
+     * 初始化事件监听器
+     */
+    initEventListeners() {
+        // 键盘事件
+        window.addEventListener('keydown', (e) => this.handleKeyDown(e));
+        window.addEventListener('keyup', (e) => this.handleKeyUp(e));
+        
+        // 鼠标事件
+        this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+        this.canvas.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+        this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+        this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+        
+        // 触摸事件（移动端支持）
+        this.canvas.addEventListener('touchstart', (e) => this.handleTouchStart(e));
+        this.canvas.addEventListener('touchend', (e) => this.handleTouchEnd(e));
+        this.canvas.addEventListener('touchmove', (e) => this.handleTouchMove(e));
+        
+        console.log('InputManager: Event listeners initialized');
+    }
+
+    /**
+     * 处理键盘按下事件
+     */
+    handleKeyDown(event) {
+        const key = event.key;
+        const mappedKey = this.keyMap[key] || key;
+        
+        // 如果键已经按下，不重复触发
+        if (!this.keys.get(mappedKey)) {
+            this.keysPressed.set(mappedKey, true);
+        }
+        
+        this.keys.set(mappedKey, true);
+        
+        // 阻止某些默认行为
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'Tab'].includes(key)) {
+            event.preventDefault();
+        }
+    }
+
+    /**
+     * 处理键盘释放事件
+     */
+    handleKeyUp(event) {
+        const key = event.key;
+        const mappedKey = this.keyMap[key] || key;
+        
+        this.keys.set(mappedKey, false);
+        this.keysReleased.set(mappedKey, true);
+    }
+
+    /**
+     * 处理鼠标按下事件
+     */
+    handleMouseDown(event) {
+        this.updateMousePosition(event);
+        this.mouse.isDown = true;
+        this.mouse.button = event.button;
+        this.mouse.clicked = true;
+    }
+
+    /**
+     * 处理鼠标释放事件
+     */
+    handleMouseUp(event) {
+        this.updateMousePosition(event);
+        this.mouse.isDown = false;
+        this.mouse.button = -1;
+    }
+
+    /**
+     * 处理鼠标移动事件
+     */
+    handleMouseMove(event) {
+        this.updateMousePosition(event);
+    }
+
+    /**
+     * 更新鼠标位置
+     */
+    updateMousePosition(event) {
+        const rect = this.canvas.getBoundingClientRect();
+        
+        // 计算Canvas坐标（考虑缩放）
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        
+        this.mouse.x = (event.clientX - rect.left) * scaleX;
+        this.mouse.y = (event.clientY - rect.top) * scaleY;
+        
+        // 转换为游戏世界坐标
+        this.mouse.worldX = this.mouse.x + this.cameraX;
+        this.mouse.worldY = this.mouse.y + this.cameraY;
+    }
+
+    /**
+     * 处理触摸开始事件
+     */
+    handleTouchStart(event) {
+        event.preventDefault();
+        if (event.touches.length > 0) {
+            const touch = event.touches[0];
+            this.updateTouchPosition(touch);
+            this.mouse.isDown = true;
+            this.mouse.clicked = true;
+        }
+    }
+
+    /**
+     * 处理触摸结束事件
+     */
+    handleTouchEnd(event) {
+        event.preventDefault();
+        this.mouse.isDown = false;
+    }
+
+    /**
+     * 处理触摸移动事件
+     */
+    handleTouchMove(event) {
+        event.preventDefault();
+        if (event.touches.length > 0) {
+            const touch = event.touches[0];
+            this.updateTouchPosition(touch);
+        }
+    }
+
+    /**
+     * 更新触摸位置
+     */
+    updateTouchPosition(touch) {
+        const rect = this.canvas.getBoundingClientRect();
+        
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        
+        this.mouse.x = (touch.clientX - rect.left) * scaleX;
+        this.mouse.y = (touch.clientY - rect.top) * scaleY;
+        
+        this.mouse.worldX = this.mouse.x + this.cameraX;
+        this.mouse.worldY = this.mouse.y + this.cameraY;
+    }
+
+    /**
+     * 检查键是否按下
+     * @param {string} key - 键名
+     * @returns {boolean}
+     */
+    isKeyDown(key) {
+        return this.keys.get(key) === true;
+    }
+
+    /**
+     * 检查键是否在本帧按下
+     * @param {string} key - 键名
+     * @returns {boolean}
+     */
+    isKeyPressed(key) {
+        return this.keysPressed.get(key) === true;
+    }
+
+    /**
+     * 检查键是否在本帧释放
+     * @param {string} key - 键名
+     * @returns {boolean}
+     */
+    isKeyReleased(key) {
+        return this.keysReleased.get(key) === true;
+    }
+
+    /**
+     * 获取本帧按下的所有键
+     * @returns {Array<string>}
+     */
+    getKeysPressed() {
+        return Array.from(this.keysPressed.keys());
+    }
+
+    /**
+     * 获取鼠标屏幕坐标
+     * @returns {{x: number, y: number}}
+     */
+    getMousePosition() {
+        return { x: this.mouse.x, y: this.mouse.y };
+    }
+
+    /**
+     * 获取鼠标世界坐标
+     * @returns {{x: number, y: number}}
+     */
+    getMouseWorldPosition() {
+        return { x: this.mouse.worldX, y: this.mouse.worldY };
+    }
+
+    /**
+     * 检查鼠标是否点击
+     * @returns {boolean}
+     */
+    isMouseClicked() {
+        return this.mouse.clicked;
+    }
+
+    /**
+     * 检查鼠标是否按下
+     * @returns {boolean}
+     */
+    isMouseDown() {
+        return this.mouse.isDown;
+    }
+
+    /**
+     * 获取鼠标按钮
+     * @returns {number} 0=左键, 1=中键, 2=右键
+     */
+    getMouseButton() {
+        return this.mouse.button;
+    }
+
+    /**
+     * 设置相机位置（用于坐标转换）
+     * @param {number} x - 相机X坐标
+     * @param {number} y - 相机Y坐标
+     */
+    setCameraPosition(x, y) {
+        this.cameraX = x;
+        this.cameraY = y;
+    }
+
+    /**
+     * 屏幕坐标转世界坐标
+     * @param {number} screenX - 屏幕X坐标
+     * @param {number} screenY - 屏幕Y坐标
+     * @returns {{x: number, y: number}}
+     */
+    screenToWorld(screenX, screenY) {
+        return {
+            x: screenX + this.cameraX,
+            y: screenY + this.cameraY
+        };
+    }
+
+    /**
+     * 世界坐标转屏幕坐标
+     * @param {number} worldX - 世界X坐标
+     * @param {number} worldY - 世界Y坐标
+     * @returns {{x: number, y: number}}
+     */
+    worldToScreen(worldX, worldY) {
+        return {
+            x: worldX - this.cameraX,
+            y: worldY - this.cameraY
+        };
+    }
+
+    /**
+     * 更新输入状态（每帧调用）
+     */
+    update() {
+        // 清除本帧的按键状态
+        this.keysPressed.clear();
+        this.keysReleased.clear();
+        
+        // 清除鼠标点击状态
+        this.mouse.clicked = false;
+    }
+
+    /**
+     * 清除所有输入状态
+     */
+    clear() {
+        this.keys.clear();
+        this.keysPressed.clear();
+        this.keysReleased.clear();
+        this.mouse.clicked = false;
+        this.mouse.isDown = false;
+    }
+
+    /**
+     * 销毁输入管理器
+     */
+    destroy() {
+        // 移除所有事件监听器
+        window.removeEventListener('keydown', this.handleKeyDown);
+        window.removeEventListener('keyup', this.handleKeyUp);
+        this.canvas.removeEventListener('mousedown', this.handleMouseDown);
+        this.canvas.removeEventListener('mouseup', this.handleMouseUp);
+        this.canvas.removeEventListener('mousemove', this.handleMouseMove);
+        this.canvas.removeEventListener('touchstart', this.handleTouchStart);
+        this.canvas.removeEventListener('touchend', this.handleTouchEnd);
+        this.canvas.removeEventListener('touchmove', this.handleTouchMove);
+        
+        this.clear();
+        console.log('InputManager: Destroyed');
+    }
+}

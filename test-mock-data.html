@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mock Data Service Test</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: #1a1a2e;
+            color: #eee;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #4ecca3;
+            border-bottom: 2px solid #4ecca3;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            background-color: #16213e;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+            border-left: 4px solid #4ecca3;
+        }
+        .success {
+            color: #4ecca3;
+        }
+        .error {
+            color: #ff6b6b;
+        }
+        pre {
+            background-color: #0f1419;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+        button {
+            background-color: #4ecca3;
+            color: #1a1a2e;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #45b393;
+        }
+        #output {
+            white-space: pre-wrap;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎮 Mock Data Service Test Suite</h1>
+    
+    <div>
+        <button onclick="runMockDataTest()">Test MockDataService</button>
+        <button onclick="runMockWebSocketTest()">Test MockWebSocket</button>
+        <button onclick="runNetworkManagerTest()">Test NetworkManager</button>
+        <button onclick="clearOutput()">Clear Output</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Output:</h2>
+        <pre id="output">Click a button to run tests...</pre>
+    </div>
+
+    <script type="module">
+        import { MockDataService } from './src/data/MockDataService.js';
+        import { MockWebSocket } from './src/network/MockWebSocket.js';
+        import { NetworkManager } from './src/network/NetworkManager.js';
+
+        const output = document.getElementById('output');
+
+        function log(message, isError = false) {
+            const span = document.createElement('span');
+            span.className = isError ? 'error' : 'success';
+            span.textContent = message + '\n';
+            output.appendChild(span);
+            console.log(message);
+        }
+
+        function clearOutput() {
+            output.textContent = '';
+        }
+
+        window.clearOutput = clearOutput;
+
+        // Test MockDataService
+        window.runMockDataTest = function() {
+            clearOutput();
+            log('=== MockDataService Test ===\n');
+
+            const mockDataService = new MockDataService();
+
+            // Test 1: Character Templates
+            log('Test 1: Get Character Templates');
+            const warrior = mockDataService.getCharacterTemplate('warrior');
+            log(`✓ Warrior: ${warrior.name} (HP: ${warrior.baseStats.hp}, ATK: ${warrior.baseStats.attack})`);
+            
+            const mage = mockDataService.getCharacterTemplate('mage');
+            log(`✓ Mage: ${mage.name} (HP: ${mage.baseStats.hp}, MP: ${mage.baseStats.mp})`);
+            
+            const archer = mockDataService.getCharacterTemplate('archer');
+            log(`✓ Archer: ${archer.name} (HP: ${archer.baseStats.hp}, SPD: ${archer.baseStats.speed})\n`);
+
+            // Test 2: Enemy Templates
+            log('Test 2: Get Enemy Templates');
+            const slime = mockDataService.getEnemyTemplate('slime');
+            log(`✓ Slime: ${slime.name} (Lv.${slime.level}, HP: ${slime.stats.hp})`);
+            
+            const goblin = mockDataService.getEnemyTemplate('goblin');
+            log(`✓ Goblin: ${goblin.name} (Lv.${goblin.level}, HP: ${goblin.stats.hp})`);
+            
+            const skeleton = mockDataService.getEnemyTemplate('skeleton');
+            log(`✓ Skeleton: ${skeleton.name} (Lv.${skeleton.level}, HP: ${skeleton.stats.hp})\n`);
+
+            // Test 3: Skills
+            log('Test 3: Get Skill Data');
+            const warriorSkills = mockDataService.getCharacterSkills('warrior');
+            log(`✓ Warrior Skills: ${warriorSkills.map(s => s.name).join(', ')}`);
+            
+            const mageSkills = mockDataService.getCharacterSkills('mage');
+            log(`✓ Mage Skills: ${mageSkills.map(s => s.name).join(', ')}\n`);
+
+            // Test 4: Map Data
+            log('Test 4: Get Map Data');
+            const map = mockDataService.getMapData('test_map');
+            log(`✓ Map: ${map.name} (${map.width}x${map.height})`);
+            log(`✓ Enemy Spawns: ${map.spawnPoints.enemies.length}\n`);
+
+            // Test 5: Create Instances
+            log('Test 5: Create Instances');
+            const char = mockDataService.createCharacter('TestHero', 'warrior');
+            log(`✓ Created Character: ${char.name} (${char.class}, Lv.${char.level})`);
+            
+            const enemy = mockDataService.createEnemy('slime', { x: 100, y: 200 });
+            log(`✓ Created Enemy: ${enemy.name} at (${enemy.position.x}, ${enemy.position.y})\n`);
+
+            log('=== All MockDataService Tests Passed! ===');
+        };
+
+        // Test MockWebSocket
+        window.runMockWebSocketTest = async function() {
+            clearOutput();
+            log('=== MockWebSocket Test ===\n');
+
+            const mockWS = new MockWebSocket({ useMockData: true, mockDelay: 50 });
+
+            try {
+                // Test 1: Connect
+                log('Test 1: Connect');
+                await mockWS.connect();
+                log('✓ Connected successfully\n');
+
+                // Test 2: Login
+                log('Test 2: Send Login Message');
+                const loginResp = await mockWS.send('login', { username: 'test', password: 'test' });
+                log(`✓ Login Response: ${loginResp.data.message}\n`);
+
+                // Test 3: Move
+                log('Test 3: Send Move Message');
+                const moveResp = await mockWS.send('move', { position: { x: 100, y: 200 } });
+                log(`✓ Move Response: Position (${moveResp.data.position.x}, ${moveResp.data.position.y})\n`);
+
+                // Test 4: Attack
+                log('Test 4: Send Attack Message');
+                const attackResp = await mockWS.send('attack', { 
+                    attackerId: 'char_1', 
+                    targetId: 'enemy_1',
+                    attack: 15,
+                    defense: 5
+                });
+                log(`✓ Attack Response: Damage = ${attackResp.data.damage}\n`);
+
+                // Test 5: Message Handler
+                log('Test 5: Register Message Handler');
+                let handlerCalled = false;
+                mockWS.on('test_message', (msg) => {
+                    handlerCalled = true;
+                    log(`✓ Handler received: ${msg.data.content}`);
+                });
+                mockWS.simulateServerPush('test_message', { content: 'Hello!' });
+                await new Promise(resolve => setTimeout(resolve, 100));
+                if (handlerCalled) {
+                    log('✓ Message handler works\n');
+                }
+
+                // Test 6: Disconnect
+                log('Test 6: Disconnect');
+                mockWS.disconnect();
+                log('✓ Disconnected successfully\n');
+
+                log('=== All MockWebSocket Tests Passed! ===');
+            } catch (error) {
+                log(`✗ Test failed: ${error.message}`, true);
+            }
+        };
+
+        // Test NetworkManager
+        window.runNetworkManagerTest = async function() {
+            clearOutput();
+            log('=== NetworkManager Test ===\n');
+
+            const networkManager = new NetworkManager({ useMockData: true, mockDelay: 50, debugMode: false });
+
+            try {
+                // Test 1: Connect
+                log('Test 1: Connect to Server');
+                await networkManager.connect();
+                log('✓ Connected\n');
+
+                // Test 2: Login
+                log('Test 2: Login');
+                const loginResult = await networkManager.login('testuser', 'testpass');
+                log(`✓ Login: ${loginResult.message}\n`);
+
+                // Test 3: Get Templates
+                log('Test 3: Get Character Templates');
+                const templates = networkManager.getAllCharacterTemplates();
+                log(`✓ Available Classes: ${Object.keys(templates).join(', ')}\n`);
+
+                // Test 4: Create Character
+                log('Test 4: Create Character');
+                const createResult = await networkManager.createCharacter('Hero', 'warrior');
+                log(`✓ Character Created: ${createResult.message}\n`);
+
+                // Test 5: Get Skills
+                log('Test 5: Get Character Skills');
+                const skills = networkManager.getCharacterSkills('mage');
+                log(`✓ Mage Skills: ${skills.map(s => s.name).join(', ')}\n`);
+
+                // Test 6: Get Map
+                log('Test 6: Get Map Data');
+                const map = networkManager.getMapData('test_map');
+                log(`✓ Map: ${map.name} (${map.width}x${map.height})\n`);
+
+                // Test 7: Create Enemies
+                log('Test 7: Create Enemy Instances');
+                const slime = networkManager.createEnemy('slime', { x: 100, y: 100 });
+                const goblin = networkManager.createEnemy('goblin', { x: 200, y: 200 });
+                log(`✓ Created: ${slime.name} and ${goblin.name}\n`);
+
+                // Test 8: Disconnect
+                log('Test 8: Disconnect');
+                networkManager.disconnect();
+                log('✓ Disconnected\n');
+
+                log('=== All NetworkManager Tests Passed! ===');
+            } catch (error) {
+                log(`✗ Test failed: ${error.message}`, true);
+            }
+        };
+    </script>
+</body>
+</html>

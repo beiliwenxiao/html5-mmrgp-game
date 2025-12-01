@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>技能特效测试 - Skill Effects Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: #ffffff;
+            overflow: hidden;
+        }
+
+        #gameCanvas {
+            display: block;
+            background: #2d5016;
+            margin: 0 auto;
+        }
+
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 5px;
+            max-width: 300px;
+        }
+
+        #controls h2 {
+            margin-bottom: 10px;
+            font-size: 18px;
+            color: #ffaa00;
+        }
+
+        #controls p {
+            margin: 5px 0;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .skill-button {
+            display: inline-block;
+            margin: 5px;
+            padding: 10px 15px;
+            background: #4444ff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .skill-button:hover {
+            background: #6666ff;
+        }
+
+        .skill-button:active {
+            background: #2222cc;
+        }
+
+        #stats {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 5px;
+            min-width: 200px;
+        }
+
+        #stats h3 {
+            margin-bottom: 10px;
+            font-size: 16px;
+            color: #00ff88;
+        }
+
+        #stats p {
+            margin: 5px 0;
+            font-size: 13px;
+        }
+
+        .key {
+            display: inline-block;
+            padding: 2px 6px;
+            background: #333;
+            border: 1px solid #666;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="1200" height="800"></canvas>
+    
+    <div id="controls">
+        <h2>🎮 技能特效测试</h2>
+        <p><strong>点击画布</strong>设置目标位置</p>
+        <p><strong>按数字键</strong>释放技能：</p>
+        <p><span class="key">1</span> 普通攻击</p>
+        <p><span class="key">2</span> 火球术</p>
+        <p><span class="key">3</span> 冰枪术</p>
+        <p><span class="key">4</span> 治疗术</p>
+        <p><span class="key">5</span> 多重射击</p>
+        <p><span class="key">6</span> 毒箭</p>
+        <p><span class="key">7</span> 强力斩击</p>
+        <p><span class="key">8</span> 护盾</p>
+        <p><span class="key">C</span> 清除所有粒子</p>
+    </div>
+
+    <div id="stats">
+        <h3>📊 统计信息</h3>
+        <p>FPS: <span id="fps">60</span></p>
+        <p>活跃粒子: <span id="particles">0</span></p>
+        <p>抛射物: <span id="projectiles">0</span></p>
+        <p>发射器: <span id="emitters">0</span></p>
+    </div>
+
+    <script type="module">
+        import { ParticleSystem } from './src/rendering/ParticleSystem.js';
+        import { SkillEffects } from './src/rendering/SkillEffects.js';
+        import { Camera } from './src/rendering/Camera.js';
+
+        // 获取Canvas和上下文
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 创建相机（参数是 x, y, width, height）
+        const camera = new Camera(canvas.width / 2, canvas.height / 2, canvas.width, canvas.height);
+
+        // 创建粒子系统
+        const particleSystem = new ParticleSystem(2000);
+
+        // 创建技能特效系统
+        const skillEffects = new SkillEffects(particleSystem);
+
+        // 玩家位置（画布中心）
+        const playerPos = { x: canvas.width / 2, y: canvas.height / 2 };
+
+        // 目标位置
+        let targetPos = null;
+
+        // 技能列表
+        const skills = [
+            { id: 'basic_attack', name: '普通攻击', key: '1' },
+            { id: 'mage_fireball', name: '火球术', key: '2' },
+            { id: 'mage_ice_lance', name: '冰枪术', key: '3' },
+            { id: 'mage_heal', name: '治疗术', key: '4' },
+            { id: 'archer_multi_shot', name: '多重射击', key: '5' },
+            { id: 'archer_poison_arrow', name: '毒箭', key: '6' },
+            { id: 'warrior_slash', name: '强力斩击', key: '7' },
+            { id: 'warrior_defense', name: '护盾', key: '8' }
+        ];
+
+        // FPS 计算
+        let lastTime = performance.now();
+        let frameCount = 0;
+        let fps = 60;
+
+        // 鼠标点击事件
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            targetPos = {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+            console.log('目标位置设置为:', targetPos);
+        });
+
+        // 键盘事件
+        document.addEventListener('keydown', (e) => {
+            // 查找对应的技能
+            const skill = skills.find(s => s.key === e.key);
+            
+            if (skill) {
+                console.log(`释放技能: ${skill.name}`);
+                
+                // 创建技能特效
+                skillEffects.createSkillEffect(
+                    skill.id,
+                    playerPos,
+                    targetPos,
+                    (hitPos) => {
+                        console.log(`技能命中位置:`, hitPos);
+                    }
+                );
+            } else if (e.key.toLowerCase() === 'c') {
+                // 清除所有粒子
+                particleSystem.clear();
+                skillEffects.clear();
+                console.log('清除所有粒子');
+            }
+        });
+
+        // 游戏循环
+        function gameLoop(currentTime) {
+            // 计算时间增量
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+
+            // 计算FPS
+            frameCount++;
+            if (frameCount >= 60) {
+                fps = Math.round(1 / deltaTime);
+                frameCount = 0;
+            }
+
+            // 更新
+            update(deltaTime);
+
+            // 渲染
+            render();
+
+            // 更新统计信息
+            updateStats();
+
+            // 继续循环
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 更新逻辑
+        function update(deltaTime) {
+            // 更新粒子系统
+            particleSystem.update(deltaTime);
+
+            // 更新技能特效
+            skillEffects.update(deltaTime);
+        }
+
+        // 渲染
+        function render() {
+            // 清空画布
+            ctx.fillStyle = '#2d5016';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 绘制网格
+            drawGrid();
+
+            // 绘制玩家
+            drawPlayer();
+
+            // 绘制目标位置
+            if (targetPos) {
+                drawTarget();
+            }
+
+            // 渲染粒子
+            particleSystem.render(ctx, camera);
+
+            // 渲染抛射物
+            skillEffects.render(ctx, camera);
+        }
+
+        // 绘制网格
+        function drawGrid() {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+
+            // 垂直线
+            for (let x = 0; x < canvas.width; x += 50) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+
+            // 水平线
+            for (let y = 0; y < canvas.height; y += 50) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+        }
+
+        // 绘制玩家
+        function drawPlayer() {
+            ctx.save();
+            
+            // 绘制玩家圆圈
+            ctx.fillStyle = '#4444ff';
+            ctx.beginPath();
+            ctx.arc(playerPos.x, playerPos.y, 20, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 绘制边框
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // 绘制标签
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('玩家', playerPos.x, playerPos.y - 30);
+
+            ctx.restore();
+        }
+
+        // 绘制目标
+        function drawTarget() {
+            ctx.save();
+
+            // 绘制目标十字
+            ctx.strokeStyle = '#ff0000';
+            ctx.lineWidth = 2;
+            
+            const size = 15;
+            ctx.beginPath();
+            ctx.moveTo(targetPos.x - size, targetPos.y);
+            ctx.lineTo(targetPos.x + size, targetPos.y);
+            ctx.moveTo(targetPos.x, targetPos.y - size);
+            ctx.lineTo(targetPos.x, targetPos.y + size);
+            ctx.stroke();
+
+            // 绘制目标圆圈
+            ctx.beginPath();
+            ctx.arc(targetPos.x, targetPos.y, 10, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // 更新统计信息
+        function updateStats() {
+            document.getElementById('fps').textContent = fps;
+            document.getElementById('particles').textContent = particleSystem.getActiveCount();
+            document.getElementById('projectiles').textContent = skillEffects.projectiles.length;
+            document.getElementById('emitters').textContent = skillEffects.activeEmitters.length;
+        }
+
+        // 启动游戏循环
+        console.log('技能特效测试启动');
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>

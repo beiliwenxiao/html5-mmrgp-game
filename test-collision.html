@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>碰撞检测测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        
+        #container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #4CAF50;
+        }
+        
+        #canvas {
+            display: block;
+            margin: 20px auto;
+            border: 2px solid #4CAF50;
+            background: #2d5016;
+            cursor: crosshair;
+        }
+        
+        #info {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+        
+        .label {
+            color: #888;
+        }
+        
+        .value {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        #controls {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        button:active {
+            background: #3d8b40;
+        }
+        
+        #legend {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+        }
+        
+        .legend-color {
+            width: 30px;
+            height: 30px;
+            margin-right: 10px;
+            border: 2px solid #666;
+        }
+        
+        .collision-indicator {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .collision-yes {
+            background: #f44336;
+            color: white;
+        }
+        
+        .collision-no {
+            background: #4CAF50;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h1>🎮 碰撞检测测试</h1>
+        
+        <div id="info">
+            <h3>实时信息</h3>
+            <div class="info-row">
+                <span class="label">玩家位置:</span>
+                <span class="value" id="playerPos">-</span>
+            </div>
+            <div class="info-row">
+                <span class="label">鼠标位置:</span>
+                <span class="value" id="mousePos">-</span>
+            </div>
+            <div class="info-row">
+                <span class="label">移动状态:</span>
+                <span class="value" id="moveStatus">-</span>
+            </div>
+            <div id="collisionStatus" class="collision-indicator collision-no">
+                ✓ 无碰撞
+            </div>
+        </div>
+        
+        <div id="controls">
+            <h3>控制</h3>
+            <p>使用 WASD 或方向键移动玩家</p>
+            <p>点击地图移动到目标位置</p>
+            <button onclick="resetPlayer()">重置玩家位置</button>
+            <button onclick="toggleObstacles()">切换障碍物显示</button>
+            <button onclick="generateNewMap()">生成新地图</button>
+        </div>
+        
+        <canvas id="canvas" width="800" height="600"></canvas>
+        
+        <div id="legend">
+            <h3>图例</h3>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #4CAF50;"></div>
+                <span>玩家（可移动）</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #666;"></div>
+                <span>障碍物（不可通过）</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #f44336;"></div>
+                <span>地图边界（不可通过）</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: rgba(255, 255, 0, 0.3);"></div>
+                <span>目标位置</span>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { MovementSystem } from './src/systems/MovementSystem.js';
+        import { Entity } from './src/ecs/Entity.js';
+        import { TransformComponent } from './src/ecs/components/TransformComponent.js';
+        import { MovementComponent } from './src/ecs/components/MovementComponent.js';
+        import { InputManager } from './src/core/InputManager.js';
+
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 地图配置
+        const TILE_SIZE = 32;
+        const MAP_WIDTH = 800;
+        const MAP_HEIGHT = 600;
+        const COLS = Math.ceil(MAP_WIDTH / TILE_SIZE);
+        const ROWS = Math.ceil(MAP_HEIGHT / TILE_SIZE);
+        
+        // 游戏状态
+        let showObstacles = true;
+        let collisionMap = generateCollisionMap();
+        let playerEntity = null;
+        let movementSystem = null;
+        let inputManager = null;
+        let lastTime = 0;
+        let targetPosition = null;
+        
+        // 初始化
+        function init() {
+            // 创建输入管理器
+            inputManager = new InputManager(canvas);
+            
+            // 创建移动系统
+            movementSystem = new MovementSystem({
+                inputManager: inputManager,
+                mapBounds: { minX: 0, minY: 0, maxX: MAP_WIDTH, maxY: MAP_HEIGHT },
+                collisionMap: collisionMap,
+                tileSize: TILE_SIZE
+            });
+            
+            // 创建玩家实体
+            playerEntity = new Entity('player', 'player');
+            playerEntity.addComponent(new TransformComponent(400, 300));
+            playerEntity.addComponent(new MovementComponent({ speed: 150 }));
+            
+            movementSystem.setPlayerEntity(playerEntity);
+            
+            // 监听鼠标点击以显示目标位置
+            canvas.addEventListener('click', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                targetPosition = { x, y };
+                
+                // 3秒后清除目标位置显示
+                setTimeout(() => {
+                    targetPosition = null;
+                }, 3000);
+            });
+            
+            // 开始游戏循环
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // 生成碰撞地图
+        function generateCollisionMap() {
+            const map = [];
+            for (let y = 0; y < ROWS; y++) {
+                const row = [];
+                for (let x = 0; x < COLS; x++) {
+                    // 边界设为障碍物
+                    if (x === 0 || y === 0 || x === COLS - 1 || y === ROWS - 1) {
+                        row.push(true);
+                    }
+                    // 添加一些随机障碍物
+                    else if (Math.random() < 0.15) {
+                        row.push(true);
+                    }
+                    else {
+                        row.push(false);
+                    }
+                }
+                map.push(row);
+            }
+            return map;
+        }
+        
+        // 游戏循环
+        function gameLoop(currentTime) {
+            const deltaTime = lastTime ? (currentTime - lastTime) / 1000 : 0.016;
+            lastTime = currentTime;
+            
+            // 更新
+            update(deltaTime);
+            
+            // 渲染
+            render();
+            
+            // 更新UI
+            updateUI();
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // 更新
+        function update(deltaTime) {
+            movementSystem.update(deltaTime, [playerEntity]);
+        }
+        
+        // 渲染
+        function render() {
+            // 清空画布
+            ctx.fillStyle = '#2d5016';
+            ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+            
+            // 绘制网格
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            for (let x = 0; x <= MAP_WIDTH; x += TILE_SIZE) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, MAP_HEIGHT);
+                ctx.stroke();
+            }
+            for (let y = 0; y <= MAP_HEIGHT; y += TILE_SIZE) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(MAP_WIDTH, y);
+                ctx.stroke();
+            }
+            
+            // 绘制障碍物
+            if (showObstacles) {
+                for (let y = 0; y < ROWS; y++) {
+                    for (let x = 0; x < COLS; x++) {
+                        if (collisionMap[y][x]) {
+                            const isEdge = x === 0 || y === 0 || x === COLS - 1 || y === ROWS - 1;
+                            ctx.fillStyle = isEdge ? '#f44336' : '#666';
+                            ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                            
+                            // 绘制边框
+                            ctx.strokeStyle = isEdge ? '#d32f2f' : '#555';
+                            ctx.lineWidth = 2;
+                            ctx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                        }
+                    }
+                }
+            }
+            
+            // 绘制目标位置
+            if (targetPosition) {
+                ctx.fillStyle = 'rgba(255, 255, 0, 0.3)';
+                ctx.beginPath();
+                ctx.arc(targetPosition.x, targetPosition.y, 20, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.strokeStyle = 'yellow';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(targetPosition.x, targetPosition.y, 20, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            
+            // 绘制玩家
+            const transform = playerEntity.getComponent('transform');
+            const movement = playerEntity.getComponent('movement');
+            
+            // 玩家圆形
+            ctx.fillStyle = '#4CAF50';
+            ctx.beginPath();
+            ctx.arc(transform.position.x, transform.position.y, 15, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 玩家边框
+            ctx.strokeStyle = '#2E7D32';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(transform.position.x, transform.position.y, 15, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // 绘制方向指示器
+            if (movement.isMoving) {
+                const angle = Math.atan2(movement.velocity.y, movement.velocity.x);
+                const endX = transform.position.x + Math.cos(angle) * 25;
+                const endY = transform.position.y + Math.sin(angle) * 25;
+                
+                ctx.strokeStyle = '#FFF';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(transform.position.x, transform.position.y);
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+            }
+            
+            // 绘制路径
+            if (movement.path && movement.path.length > 0) {
+                ctx.strokeStyle = 'rgba(255, 255, 0, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(transform.position.x, transform.position.y);
+                for (const point of movement.path) {
+                    ctx.lineTo(point.x, point.y);
+                }
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        }
+        
+        // 更新UI
+        function updateUI() {
+            const transform = playerEntity.getComponent('transform');
+            const movement = playerEntity.getComponent('movement');
+            
+            // 玩家位置
+            document.getElementById('playerPos').textContent = 
+                `(${Math.round(transform.position.x)}, ${Math.round(transform.position.y)})`;
+            
+            // 鼠标位置
+            const mousePos = inputManager.getMousePosition();
+            document.getElementById('mousePos').textContent = 
+                `(${Math.round(mousePos.x)}, ${Math.round(mousePos.y)})`;
+            
+            // 移动状态
+            let status = '待机';
+            if (movement.isMoving) {
+                status = movement.movementType === 'keyboard' ? '键盘移动' : '点击移动';
+            }
+            document.getElementById('moveStatus').textContent = status;
+            
+            // 碰撞状态
+            const tileX = Math.floor(transform.position.x / TILE_SIZE);
+            const tileY = Math.floor(transform.position.y / TILE_SIZE);
+            const isOnCollision = collisionMap[tileY] && collisionMap[tileY][tileX];
+            
+            const collisionStatus = document.getElementById('collisionStatus');
+            if (isOnCollision) {
+                collisionStatus.className = 'collision-indicator collision-yes';
+                collisionStatus.textContent = '⚠ 在障碍物上！';
+            } else {
+                collisionStatus.className = 'collision-indicator collision-no';
+                collisionStatus.textContent = '✓ 无碰撞';
+            }
+        }
+        
+        // 全局函数
+        window.resetPlayer = function() {
+            const transform = playerEntity.getComponent('transform');
+            transform.setPosition(400, 300);
+            const movement = playerEntity.getComponent('movement');
+            movement.stop();
+            targetPosition = null;
+        };
+        
+        window.toggleObstacles = function() {
+            showObstacles = !showObstacles;
+        };
+        
+        window.generateNewMap = function() {
+            collisionMap = generateCollisionMap();
+            movementSystem.setCollisionMap(collisionMap, TILE_SIZE);
+            resetPlayer();
+        };
+        
+        // 启动
+        init();
+    </script>
+</body>
+</html>

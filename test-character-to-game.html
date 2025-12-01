@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>角色创建到游戏场景测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #1a1a2e;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            border: 2px solid #4a9eff;
+        }
+        #controls {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            font-size: 12px;
+            max-width: 300px;
+        }
+        button {
+            background: #4a9eff;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            margin: 5px 0;
+            cursor: pointer;
+            border-radius: 3px;
+            width: 100%;
+        }
+        button:hover {
+            background: #357abd;
+        }
+        #log {
+            margin-top: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 11px;
+            background: #0f0c29;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .log-entry {
+            margin: 2px 0;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="game-canvas" width="1280" height="720"></canvas>
+    
+    <div id="controls">
+        <h3 style="margin-top: 0;">测试控制</h3>
+        <button id="btnCreateWarrior">创建战士并进入游戏</button>
+        <button id="btnCreateMage">创建法师并进入游戏</button>
+        <button id="btnCreateArcher">创建弓箭手并进入游戏</button>
+        <button id="btnSelectExisting">选择已有角色</button>
+        <hr>
+        <div id="log"></div>
+    </div>
+
+    <script type="module">
+        import { GameEngine } from './src/core/GameEngine.js';
+
+        // 日志函数
+        const logDiv = document.getElementById('log');
+        function addLog(message) {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        // 拦截console.log
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+            ).join(' ');
+            addLog(message);
+        };
+
+        // 初始化游戏引擎
+        const canvas = document.getElementById('game-canvas');
+        const gameEngine = new GameEngine(canvas);
+        window.gameEngine = gameEngine;
+
+        async function init() {
+            addLog('初始化游戏引擎...');
+            await gameEngine.init();
+            gameEngine.start();
+            addLog('游戏引擎启动完成');
+        }
+
+        init();
+
+        // 创建角色并进入游戏的辅助函数
+        function createAndEnterGame(className, characterName) {
+            addLog(`创建${characterName}...`);
+            
+            const character = {
+                id: Date.now().toString(),
+                name: characterName,
+                class: className,
+                level: 1,
+                exp: 0,
+                stats: getClassStats(className),
+                skills: getClassSkills(className),
+                equipment: {},
+                position: { x: 640, y: 360 }
+            };
+
+            addLog(`角色数据: ${JSON.stringify(character)}`);
+            addLog('切换到游戏场景...');
+            
+            gameEngine.sceneManager.switchTo('Game', { character });
+        }
+
+        function getClassStats(classKey) {
+            const baseStats = {
+                warrior: { hp: 150, maxHp: 150, mp: 50, maxMp: 50, attack: 15, defense: 10, speed: 5 },
+                mage: { hp: 80, maxHp: 80, mp: 150, maxMp: 150, attack: 25, defense: 5, speed: 6 },
+                archer: { hp: 100, maxHp: 100, mp: 80, maxMp: 80, attack: 18, defense: 7, speed: 8 }
+            };
+            return baseStats[classKey] || baseStats.warrior;
+        }
+
+        function getClassSkills(classKey) {
+            const classSkills = {
+                warrior: ['basic_attack', 'power_strike', 'shield_bash'],
+                mage: ['basic_attack', 'fireball', 'ice_lance'],
+                archer: ['basic_attack', 'multi_shot', 'poison_arrow']
+            };
+            return classSkills[classKey] || classSkills.warrior;
+        }
+
+        // 按钮事件
+        document.getElementById('btnCreateWarrior').addEventListener('click', () => {
+            createAndEnterGame('warrior', '测试战士');
+        });
+
+        document.getElementById('btnCreateMage').addEventListener('click', () => {
+            createAndEnterGame('mage', '测试法师');
+        });
+
+        document.getElementById('btnCreateArcher').addEventListener('click', () => {
+            createAndEnterGame('archer', '测试弓箭手');
+        });
+
+        document.getElementById('btnSelectExisting').addEventListener('click', () => {
+            const existingCharacter = {
+                id: '1',
+                name: '已有角色',
+                class: 'warrior',
+                level: 5,
+                exp: 1000,
+                stats: getClassStats('warrior'),
+                skills: getClassSkills('warrior'),
+                equipment: {},
+                position: { x: 640, y: 360 }
+            };
+            
+            addLog('选择已有角色...');
+            addLog(`角色数据: ${JSON.stringify(existingCharacter)}`);
+            gameEngine.sceneManager.switchTo('Game', { character: existingCharacter });
+        });
+    </script>
+</body>
+</html>

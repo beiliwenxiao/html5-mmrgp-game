@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>渲染系统测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #1a1a2e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+        #container {
+            text-align: center;
+        }
+        canvas {
+            border: 2px solid #4a9eff;
+            background: #0f0c29;
+            display: block;
+            margin: 0 auto;
+        }
+        #controls {
+            margin-top: 20px;
+            color: #ffffff;
+        }
+        button {
+            background: #4a9eff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #357abd;
+        }
+        #info {
+            margin-top: 10px;
+            color: #888;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <canvas id="gameCanvas" width="1280" height="720"></canvas>
+        <div id="controls">
+            <button id="toggleDebug">切换调试模式</button>
+            <button id="addEntity">添加实体</button>
+            <button id="playIdle">播放待机</button>
+            <button id="playWalk">播放行走</button>
+            <button id="playAttack">播放攻击</button>
+            <button id="toggleFlip">切换翻转</button>
+        </div>
+        <div id="info">
+            使用WASD移动相机 | 点击实体选中 | 调试模式显示碰撞盒和坐标
+        </div>
+    </div>
+
+    <script type="module">
+        import { Entity } from './src/ecs/Entity.js';
+        import { TransformComponent } from './src/ecs/components/TransformComponent.js';
+        import { SpriteComponent } from './src/ecs/components/SpriteComponent.js';
+        import { RenderSystem } from './src/rendering/RenderSystem.js';
+        import { AnimationManager, AnimationState } from './src/rendering/AnimationManager.js';
+
+        // 获取Canvas
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 创建渲染系统
+        const renderSystem = new RenderSystem(ctx, null, canvas.width, canvas.height);
+        
+        // 创建动画管理器
+        const animationManager = new AnimationManager();
+
+        // 设置相机边界
+        renderSystem.getCamera().setBounds(0, 0, 2000, 2000);
+
+        // 创建测试实体
+        const entities = [];
+        let selectedEntity = null;
+
+        function createTestEntity(x, y, type = 'player') {
+            const entity = new Entity(`entity_${entities.length}`, type);
+            
+            // 添加变换组件
+            const transform = new TransformComponent(x, y, 0, 1, 1);
+            entity.addComponent(transform);
+            
+            // 添加精灵组件
+            const sprite = new SpriteComponent('placeholder', {
+                width: 64,
+                height: 64,
+                defaultAnimation: AnimationState.IDLE
+            });
+            entity.addComponent(sprite);
+            
+            // 应用动画模板
+            animationManager.applyAnimationTemplate(entity, type);
+            
+            entities.push(entity);
+            return entity;
+        }
+
+        // 创建初始实体
+        const player = createTestEntity(640, 360, 'player');
+        createTestEntity(500, 300, 'slime');
+        createTestEntity(700, 400, 'goblin');
+        createTestEntity(800, 300, 'skeleton');
+
+        // 相机跟随玩家
+        renderSystem.getCamera().setTarget(player.getComponent('transform'));
+
+        // 键盘输入
+        const keys = {};
+        window.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+        });
+        window.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+
+        // 鼠标点击选择实体
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const screenX = (e.clientX - rect.left) * scaleX;
+            const screenY = (e.clientY - rect.top) * scaleY;
+            
+            const worldPos = renderSystem.getCamera().screenToWorld(screenX, screenY);
+            
+            // 查找点击的实体
+            for (const entity of entities) {
+                const transform = entity.getComponent('transform');
+                const sprite = entity.getComponent('sprite');
+                if (!transform || !sprite) continue;
+                
+                const halfWidth = sprite.width / 2;
+                const halfHeight = sprite.height / 2;
+                
+                if (worldPos.x >= transform.position.x - halfWidth &&
+                    worldPos.x <= transform.position.x + halfWidth &&
+                    worldPos.y >= transform.position.y - halfHeight &&
+                    worldPos.y <= transform.position.y + halfHeight) {
+                    selectedEntity = entity;
+                    console.log('Selected entity:', entity.id);
+                    break;
+                }
+            }
+        });
+
+        // 按钮事件
+        document.getElementById('toggleDebug').addEventListener('click', () => {
+            renderSystem.setDebugMode(!renderSystem.debugMode);
+        });
+
+        document.getElementById('addEntity').addEventListener('click', () => {
+            const x = Math.random() * 1500 + 250;
+            const y = Math.random() * 1500 + 250;
+            const types = ['player', 'slime', 'goblin', 'skeleton'];
+            const type = types[Math.floor(Math.random() * types.length)];
+            createTestEntity(x, y, type);
+        });
+
+        document.getElementById('playIdle').addEventListener('click', () => {
+            if (selectedEntity) {
+                const sprite = selectedEntity.getComponent('sprite');
+                if (sprite) sprite.playAnimation(AnimationState.IDLE, true);
+            }
+        });
+
+        document.getElementById('playWalk').addEventListener('click', () => {
+            if (selectedEntity) {
+                const sprite = selectedEntity.getComponent('sprite');
+                if (sprite) sprite.playAnimation(AnimationState.WALK, true);
+            }
+        });
+
+        document.getElementById('playAttack').addEventListener('click', () => {
+            if (selectedEntity) {
+                const sprite = selectedEntity.getComponent('sprite');
+                if (sprite) sprite.playAnimation(AnimationState.ATTACK, true);
+            }
+        });
+
+        document.getElementById('toggleFlip').addEventListener('click', () => {
+            if (selectedEntity) {
+                const sprite = selectedEntity.getComponent('sprite');
+                if (sprite) sprite.setFlipX(!sprite.flipX);
+            }
+        });
+
+        // 游戏循环
+        let lastTime = performance.now();
+        
+        function gameLoop(currentTime) {
+            requestAnimationFrame(gameLoop);
+            
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+            
+            // 处理输入 - 移动相机
+            const moveSpeed = 300;
+            if (keys['w']) renderSystem.getCamera().move(0, -moveSpeed * deltaTime);
+            if (keys['s']) renderSystem.getCamera().move(0, moveSpeed * deltaTime);
+            if (keys['a']) renderSystem.getCamera().move(-moveSpeed * deltaTime, 0);
+            if (keys['d']) renderSystem.getCamera().move(moveSpeed * deltaTime, 0);
+            
+            // 更新动画
+            animationManager.updateAll(entities, deltaTime);
+            
+            // 更新渲染系统
+            renderSystem.update(deltaTime);
+            
+            // 渲染
+            renderSystem.render(entities);
+            
+            // 显示选中实体信息
+            if (selectedEntity) {
+                ctx.fillStyle = '#ffff00';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText(`选中: ${selectedEntity.id}`, 10, canvas.height - 10);
+            }
+        }
+        
+        gameLoop(performance.now());
+    </script>
+</body>
+</html>

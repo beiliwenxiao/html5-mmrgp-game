@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UI系统测试</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background-color: #1a1a1a;
+      color: #ffffff;
+      font-family: Arial, sans-serif;
+    }
+    #gameCanvas {
+      border: 2px solid #ffffff;
+      display: block;
+      margin: 20px auto;
+      background-color: #2a2a2a;
+    }
+    .controls {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #333;
+      border-radius: 5px;
+    }
+    .control-group {
+      margin-bottom: 15px;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    button.danger {
+      background-color: #f44336;
+    }
+    button.danger:hover {
+      background-color: #da190b;
+    }
+    h2 {
+      margin-top: 0;
+      color: #4CAF50;
+    }
+    .info {
+      background-color: #444;
+      padding: 10px;
+      border-radius: 4px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1 style="text-align: center;">UI系统测试</h1>
+  
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  
+  <div class="controls">
+    <h2>生命值和魔法值条测试</h2>
+    <div class="control-group">
+      <button onclick="damagePlayer()">玩家受伤 (-20 HP)</button>
+      <button onclick="healPlayer()">玩家治疗 (+30 HP)</button>
+      <button onclick="useMana()">使用魔法 (-25 MP)</button>
+      <button onclick="restoreMana()">恢复魔法 (+40 MP)</button>
+    </div>
+
+    <h2>技能栏测试</h2>
+    <div class="control-group">
+      <button onclick="useSkill(0)">使用技能1 (按键1)</button>
+      <button onclick="useSkill(1)">使用技能2 (按键2)</button>
+      <button onclick="useSkill(2)">使用技能3 (按键3)</button>
+      <button onclick="useSkill(3)">使用技能4 (按键4)</button>
+    </div>
+
+    <h2>小地图测试</h2>
+    <div class="control-group">
+      <button onclick="movePlayer()">移动玩家</button>
+      <button onclick="addEnemy()">添加敌人</button>
+      <button onclick="clearEnemies()">清空敌人</button>
+    </div>
+
+    <h2>通知系统测试</h2>
+    <div class="control-group">
+      <button onclick="showInfoNotification()">信息通知</button>
+      <button onclick="showSuccessNotification()">成功通知</button>
+      <button onclick="showWarningNotification()">警告通知</button>
+      <button onclick="showErrorNotification()">错误通知</button>
+      <button onclick="showExpNotification()">经验值通知</button>
+      <button onclick="showLevelUpNotification()">升级通知</button>
+      <button class="danger" onclick="clearNotifications()">清空通知</button>
+    </div>
+
+    <div class="info">
+      <strong>说明：</strong>
+      <ul>
+        <li>生命值条和魔法值条支持平滑过渡动画</li>
+        <li>技能栏显示冷却状态和魔法值不足提示</li>
+        <li>小地图显示玩家（蓝点）和敌人（红点）位置</li>
+        <li>通知系统支持淡入淡出动画</li>
+        <li>可以使用数字键1-4触发技能</li>
+      </ul>
+    </div>
+  </div>
+
+  <script type="module">
+    import { UISystem } from './src/ui/UISystem.js';
+    import { HealthBar } from './src/ui/HealthBar.js';
+    import { ManaBar } from './src/ui/ManaBar.js';
+    import { SkillBar } from './src/ui/SkillBar.js';
+    import { Minimap } from './src/ui/Minimap.js';
+    import { NotificationSystem } from './src/ui/NotificationSystem.js';
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // 创建UI系统
+    const uiSystem = new UISystem();
+
+    // 创建玩家生命值条
+    const playerHealthBar = new HealthBar({
+      x: 20,
+      y: 20,
+      width: 200,
+      height: 25,
+      currentValue: 100,
+      maxValue: 100,
+      showPercentage: false,
+      zIndex: 10
+    });
+
+    // 创建玩家魔法值条
+    const playerManaBar = new ManaBar({
+      x: 20,
+      y: 50,
+      width: 200,
+      height: 25,
+      currentValue: 100,
+      maxValue: 100,
+      showPercentage: false,
+      zIndex: 10
+    });
+
+    // 创建目标生命值条
+    const targetHealthBar = new HealthBar({
+      x: 580,
+      y: 20,
+      width: 200,
+      height: 25,
+      currentValue: 80,
+      maxValue: 100,
+      barColor: '#ff4444',
+      showPercentage: true,
+      zIndex: 10
+    });
+
+    // 创建技能数据
+    const skills = [
+      { 
+        name: '火球术', 
+        type: 'attack', 
+        cooldown: 3000, 
+        remainingCooldown: 0,
+        manaCost: 30,
+        currentMana: 100
+      },
+      { 
+        name: '治疗术', 
+        type: 'heal', 
+        cooldown: 5000, 
+        remainingCooldown: 0,
+        manaCost: 40,
+        currentMana: 100
+      },
+      { 
+        name: '冰冻术', 
+        type: 'attack', 
+        cooldown: 4000, 
+        remainingCooldown: 0,
+        manaCost: 35,
+        currentMana: 100
+      },
+      { 
+        name: '护盾术', 
+        type: 'buff', 
+        cooldown: 10000, 
+        remainingCooldown: 0,
+        manaCost: 50,
+        currentMana: 100
+      }
+    ];
+
+    // 创建技能栏
+    const skillBar = new SkillBar({
+      x: 275,
+      y: 540,
+      skills: skills,
+      slotSize: 50,
+      slotSpacing: 10,
+      zIndex: 20
+    });
+
+    // 创建小地图
+    const minimap = new Minimap({
+      x: 650,
+      y: 450,
+      width: 130,
+      height: 130,
+      mapData: { width: 800, height: 600 },
+      zIndex: 20
+    });
+
+    // 设置初始玩家位置
+    minimap.setPlayerPosition({ x: 400, y: 300 });
+
+    // 创建通知系统
+    const notificationSystem = new NotificationSystem({
+      x: 20,
+      y: 100,
+      zIndex: 30
+    });
+
+    // 添加所有UI元素到系统
+    uiSystem.addElement(playerHealthBar);
+    uiSystem.addElement(playerManaBar);
+    uiSystem.addElement(targetHealthBar);
+    uiSystem.addElement(skillBar);
+    uiSystem.addElement(minimap);
+    uiSystem.addElement(notificationSystem);
+
+    // 全局变量供按钮调用
+    window.damagePlayer = () => {
+      playerHealthBar.setValue(playerHealthBar.currentValue - 20);
+      notificationSystem.addNotification('-20 HP', 'error', 2000);
+    };
+
+    window.healPlayer = () => {
+      playerHealthBar.setValue(playerHealthBar.currentValue + 30);
+      notificationSystem.addNotification('+30 HP', 'success', 2000);
+    };
+
+    window.useMana = () => {
+      playerManaBar.setValue(playerManaBar.currentValue - 25);
+      // 更新技能的当前魔法值
+      skills.forEach(skill => skill.currentMana = playerManaBar.currentValue);
+    };
+
+    window.restoreMana = () => {
+      playerManaBar.setValue(playerManaBar.currentValue + 40);
+      // 更新技能的当前魔法值
+      skills.forEach(skill => skill.currentMana = playerManaBar.currentValue);
+    };
+
+    window.useSkill = (index) => {
+      if (index >= 0 && index < skills.length) {
+        const skill = skills[index];
+        
+        // 检查冷却
+        if (skill.remainingCooldown > 0) {
+          notificationSystem.addWarning('技能冷却中');
+          return;
+        }
+
+        // 检查魔法值
+        if (!playerManaBar.hasEnough(skill.manaCost)) {
+          notificationSystem.addError('魔法值不足');
+          return;
+        }
+
+        // 使用技能
+        playerManaBar.consume(skill.manaCost);
+        skill.remainingCooldown = skill.cooldown;
+        skill.currentMana = playerManaBar.currentValue;
+        
+        notificationSystem.addSuccess(`使用了 ${skill.name}`);
+      }
+    };
+
+    window.movePlayer = () => {
+      const newX = Math.random() * 800;
+      const newY = Math.random() * 600;
+      minimap.setPlayerPosition({ x: newX, y: newY });
+      notificationSystem.addNotification('玩家移动', 'info', 2000);
+    };
+
+    window.addEnemy = () => {
+      const x = Math.random() * 800;
+      const y = Math.random() * 600;
+      minimap.addEnemyPosition({ x, y });
+      notificationSystem.addNotification('敌人出现', 'warning', 2000);
+    };
+
+    window.clearEnemies = () => {
+      minimap.clearEnemyPositions();
+      notificationSystem.addNotification('清空敌人', 'info', 2000);
+    };
+
+    window.showInfoNotification = () => {
+      notificationSystem.addNotification('这是一条信息通知', 'info');
+    };
+
+    window.showSuccessNotification = () => {
+      notificationSystem.addSuccess('操作成功！');
+    };
+
+    window.showWarningNotification = () => {
+      notificationSystem.addWarning('警告：魔法值不足');
+    };
+
+    window.showErrorNotification = () => {
+      notificationSystem.addError('错误：技能冷却中');
+    };
+
+    window.showExpNotification = () => {
+      notificationSystem.addExpNotification(150);
+    };
+
+    window.showLevelUpNotification = () => {
+      notificationSystem.addLevelUpNotification(5);
+    };
+
+    window.clearNotifications = () => {
+      notificationSystem.clear();
+    };
+
+    // 键盘事件监听
+    document.addEventListener('keydown', (e) => {
+      const key = e.key;
+      if (key >= '1' && key <= '4') {
+        const index = parseInt(key) - 1;
+        window.useSkill(index);
+      }
+    });
+
+    // 游戏循环
+    let lastTime = performance.now();
+
+    function gameLoop(currentTime) {
+      const deltaTime = currentTime - lastTime;
+      lastTime = currentTime;
+
+      // 更新技能冷却
+      for (const skill of skills) {
+        if (skill.remainingCooldown > 0) {
+          skill.remainingCooldown = Math.max(0, skill.remainingCooldown - deltaTime);
+        }
+      }
+
+      // 更新UI系统
+      uiSystem.update(deltaTime);
+
+      // 清空画布
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 绘制一些背景元素
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(100, 100, 600, 400);
+      ctx.strokeStyle = '#4a4a4a';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(100, 100, 600, 400);
+
+      // 绘制标签
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '14px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText('玩家生命值', 20, 15);
+      ctx.fillText('玩家魔法值', 20, 45);
+      ctx.fillText('目标生命值', 580, 15);
+
+      // 渲染UI系统
+      uiSystem.render(ctx);
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // 启动游戏循环
+    gameLoop(performance.now());
+
+    // 显示欢迎消息
+    notificationSystem.addNotification('UI系统测试已启动', 'success', 3000);
+  </script>
+</body>
+</html>

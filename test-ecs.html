@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ECS系统测试</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background-color: #f0f0f0;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+    }
+    .test-section {
+      margin: 20px 0;
+      padding: 15px;
+      background: #f9f9f9;
+      border-left: 4px solid #4CAF50;
+    }
+    .test-result {
+      margin: 10px 0;
+      padding: 10px;
+      background: white;
+      border-radius: 4px;
+    }
+    .success {
+      color: #4CAF50;
+      font-weight: bold;
+    }
+    .error {
+      color: #f44336;
+      font-weight: bold;
+    }
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    pre {
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>ECS系统测试</h1>
+    <button onclick="runTests()">运行测试</button>
+    <div id="results"></div>
+  </div>
+
+  <script type="module">
+    import { EntityFactory } from './src/ecs/EntityFactory.js';
+    import { Entity } from './src/ecs/Entity.js';
+
+    window.runTests = function() {
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = '';
+      
+      let passedTests = 0;
+      let totalTests = 0;
+
+      function addResult(testName, passed, details = '') {
+        totalTests++;
+        if (passed) passedTests++;
+        
+        const section = document.createElement('div');
+        section.className = 'test-section';
+        section.innerHTML = `
+          <h3>${testName}</h3>
+          <div class="test-result">
+            <span class="${passed ? 'success' : 'error'}">
+              ${passed ? '✓ 通过' : '✗ 失败'}
+            </span>
+            ${details ? `<pre>${details}</pre>` : ''}
+          </div>
+        `;
+        resultsDiv.appendChild(section);
+      }
+
+      try {
+        // 测试1: 创建实体工厂
+        const factory = new EntityFactory();
+        addResult('测试1: 创建实体工厂', factory !== null);
+
+        // 测试2: 创建玩家实体
+        const playerData = {
+          name: '测试战士',
+          class: 'warrior',
+          level: 1,
+          stats: {
+            maxHp: 100,
+            maxMp: 50,
+            attack: 15,
+            defense: 10,
+            speed: 100
+          },
+          position: { x: 100, y: 200 },
+          skills: []
+        };
+        const player = factory.createPlayer(playerData);
+        const playerValid = player instanceof Entity && 
+                           player.type === 'player' &&
+                           player.name === '测试战士' &&
+                           player.hasComponent('transform') &&
+                           player.hasComponent('stats') &&
+                           player.hasComponent('sprite') &&
+                           player.hasComponent('combat') &&
+                           player.hasComponent('movement');
+        addResult('测试2: 创建玩家实体', playerValid, 
+          `玩家名称: ${player.name}\n类型: ${player.type}\n职业: ${player.class}`);
+
+        // 测试3: 检查玩家位置
+        const transform = player.getComponent('transform');
+        const positionValid = transform.position.x === 100 && transform.position.y === 200;
+        addResult('测试3: 玩家位置正确', positionValid,
+          `位置: (${transform.position.x}, ${transform.position.y})`);
+
+        // 测试4: 检查玩家属性
+        const stats = player.getComponent('stats');
+        const statsValid = stats.maxHp === 100 && 
+                          stats.hp === 100 &&
+                          stats.maxMp === 50 &&
+                          stats.attack === 15 &&
+                          stats.defense === 10;
+        addResult('测试4: 玩家属性正确', statsValid,
+          `生命值: ${stats.hp}/${stats.maxHp}\n魔法值: ${stats.mp}/${stats.maxMp}\n攻击力: ${stats.attack}\n防御力: ${stats.defense}`);
+
+        // 测试5: 创建敌人实体
+        const enemyData = {
+          templateId: 'slime',
+          name: '绿色史莱姆',
+          level: 1,
+          stats: {
+            maxHp: 30,
+            attack: 5,
+            defense: 2,
+            speed: 60
+          },
+          position: { x: 300, y: 400 },
+          aiType: 'aggressive'
+        };
+        const enemy = factory.createEnemy(enemyData);
+        const enemyValid = enemy instanceof Entity &&
+                          enemy.type === 'enemy' &&
+                          enemy.name === '绿色史莱姆' &&
+                          enemy.templateId === 'slime' &&
+                          enemy.hasComponent('transform') &&
+                          enemy.hasComponent('stats');
+        addResult('测试5: 创建敌人实体', enemyValid,
+          `敌人名称: ${enemy.name}\n模板ID: ${enemy.templateId}\nAI类型: ${enemy.aiType}`);
+
+        // 测试6: 测试战斗组件
+        const combat = player.getComponent('combat');
+        combat.setTarget(enemy);
+        const combatValid = combat.hasTarget() && combat.target === enemy;
+        addResult('测试6: 战斗组件目标设置', combatValid,
+          `目标: ${combat.target ? combat.target.name : '无'}`);
+
+        // 测试7: 测试移动组件
+        const movement = player.getComponent('movement');
+        movement.setPath([
+          { x: 150, y: 250 },
+          { x: 200, y: 300 }
+        ]);
+        const movementValid = movement.path.length === 2 && 
+                             movement.isMoving === true &&
+                             movement.movementType === 'path';
+        addResult('测试7: 移动组件路径设置', movementValid,
+          `路径点数: ${movement.path.length}\n移动状态: ${movement.isMoving ? '移动中' : '静止'}`);
+
+        // 测试8: 测试属性组件伤害计算
+        const enemyStats = enemy.getComponent('stats');
+        const initialHp = enemyStats.hp;
+        const damage = enemyStats.takeDamage(10);
+        const damageValid = damage === 10 && enemyStats.hp === initialHp - 10;
+        addResult('测试8: 伤害计算', damageValid,
+          `初始生命值: ${initialHp}\n受到伤害: ${damage}\n当前生命值: ${enemyStats.hp}`);
+
+        // 测试9: 测试精灵组件动画
+        const sprite = player.getComponent('sprite');
+        sprite.playAnimation('walk');
+        const animationValid = sprite.currentAnimation === 'walk';
+        addResult('测试9: 精灵动画切换', animationValid,
+          `当前动画: ${sprite.currentAnimation}`);
+
+        // 测试10: 测试实体更新
+        player.update(16); // 模拟一帧
+        addResult('测试10: 实体更新', true, '实体更新成功，无错误');
+
+        // 显示总结
+        const summary = document.createElement('div');
+        summary.className = 'test-section';
+        summary.style.borderLeftColor = passedTests === totalTests ? '#4CAF50' : '#f44336';
+        summary.innerHTML = `
+          <h2>测试总结</h2>
+          <div class="test-result">
+            <p><strong>通过: ${passedTests}/${totalTests}</strong></p>
+            <p>${passedTests === totalTests ? '✓ 所有测试通过！' : '✗ 部分测试失败'}</p>
+          </div>
+        `;
+        resultsDiv.appendChild(summary);
+
+      } catch (error) {
+        addResult('错误', false, `发生错误: ${error.message}\n${error.stack}`);
+      }
+    };
+  </script>
+</body>
+</html>

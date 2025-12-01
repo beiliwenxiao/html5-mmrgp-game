@@ -1,0 +1,569 @@
+import { Scene } from '../core/Scene.js';
+import { Camera } from '../rendering/Camera.js';
+import { RenderSystem } from '../rendering/RenderSystem.js';
+import { ParticleSystem } from '../rendering/ParticleSystem.js';
+import { SkillEffects } from '../rendering/SkillEffects.js';
+import { MovementSystem } from '../systems/MovementSystem.js';
+import { CombatSystem } from '../systems/CombatSystem.js';
+import { UISystem } from '../ui/UISystem.js';
+import { PlayerInfoPanel } from '../ui/PlayerInfoPanel.js';
+import { EntityFactory } from '../ecs/EntityFactory.js';
+import { MockDataService } from '../data/MockDataService.js';
+
+/**
+ * 游戏主场景
+ * 整合所有游戏系统，处理游戏主循环
+ */
+export class GameScene extends Scene {
+  constructor(engine) {
+    super('Game');
+    
+    this.engine = engine;
+    
+    // 系统
+    this.camera = null;
+    this.renderSystem = null;
+    this.particleSystem = null;
+    this.skillEffects = null;
+    this.movementSystem = null;
+    this.combatSystem = null;
+    this.uiSystem = null;
+    
+    // 数据服务
+    this.dataService = new MockDataService();
+    
+    // 实体工厂
+    this.entityFactory = new EntityFactory();
+    
+    // 实体列表
+    this.entities = [];
+    
+    // 玩家实体
+    this.player = null;
+    
+    // 地图数据
+    this.mapData = null;
+    
+    // 敌人AI更新计时器
+    this.aiUpdateTimer = 0;
+    this.aiUpdateInterval = 0.1; // 每0.1秒更新一次AI
+    
+    console.log('GameScene: Created');
+  }
+
+  /**
+   * 场景进入
+   * @param {Object} data - 场景数据
+   * @param {Object} data.character - 角色数据
+   */
+  enter(data = null) {
+    super.enter(data);
+    
+    console.log('GameScene: Entering with data:', data);
+    
+    // 初始化系统
+    this.initializeSystems();
+    
+    // 加载地图
+    this.loadMap('test_map');
+    
+    // 创建玩家
+    if (data && data.character) {
+      this.createPlayer(data.character);
+    } else {
+      console.error('GameScene: No character data provided');
+      // 创建默认角色用于测试
+      this.createPlayer({
+        name: '测试角色',
+        class: 'warrior',
+        level: 1,
+        stats: {
+          hp: 150,
+          maxHp: 150,
+          mp: 50,
+          maxMp: 50,
+          attack: 15,
+          defense: 10,
+          speed: 100
+        },
+        skills: ['basic_attack', 'warrior_slash', 'warrior_charge', 'warrior_defense'],
+        position: { x: 400, y: 300 }
+      });
+    }
+    
+    // 生成敌人
+    this.spawnEnemies();
+    
+    console.log(`GameScene: Initialized with ${this.entities.length} entities`);
+  }
+
+  /**
+   * 初始化所有系统
+   */
+  initializeSystems() {
+    const canvas = this.engine.canvas;
+    const ctx = canvas.getContext('2d');
+    
+    // 创建相机
+    this.camera = new Camera(
+      canvas.width / 2,
+      canvas.height / 2,
+      canvas.width,
+      canvas.height
+    );
+    
+    // 创建渲染系统
+    this.renderSystem = new RenderSystem(ctx, null, canvas.width, canvas.height);
+    this.renderSystem.camera = this.camera; // 使用我们创建的相机
+    // this.renderSystem.setDebugMode(true); // 调试模式（可选）
+    
+    // 创建粒子系统
+    this.particleSystem = new ParticleSystem(2000);
+    
+    // 创建技能特效系统
+    this.skillEffects = new SkillEffects(this.particleSystem);
+    
+    // 创建移动系统
+    this.movementSystem = new MovementSystem({
+      inputManager: this.engine.inputManager,
+      camera: this.camera
+    });
+    
+    // 创建战斗系统
+    this.combatSystem = new CombatSystem({
+      inputManager: this.engine.inputManager,
+      camera: this.camera,
+      dataService: this.dataService,
+      skillEffects: this.skillEffects
+    });
+    
+    // 创建UI系统
+    this.uiSystem = new UISystem({
+      canvas: canvas,
+      camera: this.camera
+    });
+    
+    console.log('GameScene: All systems initialized');
+  }
+
+  /**
+   * 加载地图
+   * @param {string} mapId - 地图ID
+   */
+  loadMap(mapId) {
+    this.mapData = this.dataService.getMapData(mapId);
+    
+    if (!this.mapData) {
+      console.error(`GameScene: Map ${mapId} not found`);
+      return;
+    }
+    
+    // 设置相机边界
+    this.camera.setBounds(
+      this.mapData.boundaries.minX,
+      this.mapData.boundaries.minY,
+      this.mapData.boundaries.maxX,
+      this.mapData.boundaries.maxY
+    );
+    
+    // 设置移动系统的地图边界和碰撞地图
+    this.movementSystem.setMapBounds(
+      this.mapData.boundaries.minX,
+      this.mapData.boundaries.minY,
+      this.mapData.boundaries.maxX,
+      this.mapData.boundaries.maxY
+    );
+    this.movementSystem.setCollisionMap(
+      this.mapData.layers.collision,
+      this.mapData.tileSize
+    );
+    
+    console.log(`GameScene: Map ${mapId} loaded`);
+  }
+
+  /**
+   * 创建玩家
+   * @param {Object} characterData - 角色数据
+   */
+  createPlayer(characterData) {
+    // 使用地图的玩家出生点
+    if (this.mapData && this.mapData.spawnPoints.player) {
+      characterData.position = this.mapData.spawnPoints.player;
+    }
+    
+    // 创建玩家实体
+    this.player = this.entityFactory.createPlayer(characterData);
+    this.entities.push(this.player);
+    
+    // 设置系统的玩家引用
+    this.movementSystem.setPlayerEntity(this.player);
+    this.combatSystem.setPlayerEntity(this.player);
+    
+    // 相机跟随玩家
+    this.camera.setTarget(this.player.getComponent('transform'));
+    
+    // 加载玩家技能
+    if (characterData.skills) {
+      this.combatSystem.loadSkills(this.player, characterData.skills);
+    }
+    
+    // 创建玩家信息面板
+    this.createPlayerInfoPanel();
+    
+    console.log(`GameScene: Player created - ${this.player.name}`);
+  }
+
+  /**
+   * 创建玩家信息面板
+   */
+  createPlayerInfoPanel() {
+    if (!this.player) return;
+    
+    const playerInfoPanel = new PlayerInfoPanel({
+      x: 10,
+      y: 10,
+      player: this.player
+    });
+    
+    this.uiSystem.addElement(playerInfoPanel);
+    console.log('GameScene: Player info panel created');
+  }
+
+  /**
+   * 生成敌人
+   */
+  spawnEnemies() {
+    if (!this.mapData || !this.mapData.spawnPoints.enemies) {
+      console.warn('GameScene: No enemy spawn points defined');
+      return;
+    }
+    
+    let enemyCount = 0;
+    
+    for (const spawnPoint of this.mapData.spawnPoints.enemies) {
+      const template = this.dataService.getEnemyTemplate(spawnPoint.templateId);
+      
+      if (!template) {
+        console.warn(`GameScene: Enemy template ${spawnPoint.templateId} not found`);
+        continue;
+      }
+      
+      // 生成指定数量的敌人
+      const count = spawnPoint.count || 1;
+      for (let i = 0; i < count; i++) {
+        // 在出生点周围随机偏移
+        const offsetX = (Math.random() - 0.5) * 100;
+        const offsetY = (Math.random() - 0.5) * 100;
+        
+        const enemyData = this.dataService.createEnemy(
+          spawnPoint.templateId,
+          {
+            x: spawnPoint.x + offsetX,
+            y: spawnPoint.y + offsetY
+          }
+        );
+        
+        const enemy = this.entityFactory.createEnemy(enemyData);
+        this.entities.push(enemy);
+        enemyCount++;
+      }
+    }
+    
+    console.log(`GameScene: Spawned ${enemyCount} enemies`);
+  }
+
+  /**
+   * 更新场景
+   * @param {number} deltaTime - 时间增量（秒）
+   */
+  update(deltaTime) {
+    if (!this.isActive) return;
+    
+    // 更新相机
+    this.camera.update(deltaTime);
+    
+    // 更新移动系统
+    this.movementSystem.update(deltaTime, this.entities);
+    
+    // 更新战斗系统
+    this.combatSystem.update(deltaTime, this.entities);
+    
+    // 更新粒子系统
+    this.particleSystem.update(deltaTime);
+    
+    // 更新技能特效
+    this.skillEffects.update(deltaTime);
+    
+    // 更新UI系统
+    this.uiSystem.update(deltaTime);
+    
+    // 更新敌人AI
+    this.aiUpdateTimer += deltaTime;
+    if (this.aiUpdateTimer >= this.aiUpdateInterval) {
+      this.updateEnemyAI(this.aiUpdateInterval);
+      this.aiUpdateTimer = 0;
+    }
+    
+    // 移除死亡的实体
+    this.removeDeadEntities();
+  }
+
+  /**
+   * 更新敌人AI
+   * @param {number} deltaTime - 时间增量（秒）
+   */
+  updateEnemyAI(deltaTime) {
+    if (!this.player) return;
+    
+    const playerTransform = this.player.getComponent('transform');
+    if (!playerTransform) return;
+    
+    const enemies = this.entities.filter(e => e.type === 'enemy' && !e.isDead);
+    
+    for (const enemy of enemies) {
+      const enemyTransform = enemy.getComponent('transform');
+      const enemyCombat = enemy.getComponent('combat');
+      const enemyMovement = enemy.getComponent('movement');
+      
+      if (!enemyTransform || !enemyCombat) continue;
+      
+      // 计算与玩家的距离
+      const dx = playerTransform.position.x - enemyTransform.position.x;
+      const dy = playerTransform.position.y - enemyTransform.position.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      // 根据AI类型执行不同行为
+      switch (enemy.aiType) {
+        case 'passive':
+          // 被动型：不主动攻击
+          break;
+          
+        case 'aggressive':
+          // 主动型：检测范围内自动追击
+          if (distance <= (enemy.detectionRange || 150)) {
+            this.enemyChasePlayer(enemy, playerTransform, enemyMovement, enemyCombat, distance);
+          }
+          break;
+          
+        case 'patrol':
+          // 巡逻型：在区域内巡逻，检测到玩家后追击
+          if (distance <= (enemy.detectionRange || 200)) {
+            this.enemyChasePlayer(enemy, playerTransform, enemyMovement, enemyCombat, distance);
+          } else {
+            // TODO: 实现巡逻逻辑
+          }
+          break;
+      }
+    }
+  }
+
+  /**
+   * 敌人追击玩家
+   * @param {Entity} enemy - 敌人实体
+   * @param {TransformComponent} playerTransform - 玩家变换组件
+   * @param {MovementComponent} enemyMovement - 敌人移动组件
+   * @param {CombatComponent} enemyCombat - 敌人战斗组件
+   * @param {number} distance - 与玩家的距离
+   */
+  enemyChasePlayer(enemy, playerTransform, enemyMovement, enemyCombat, distance) {
+    const enemyTransform = enemy.getComponent('transform');
+    
+    // 如果在攻击范围内，攻击玩家
+    if (distance <= (enemyCombat.attackRange || 40)) {
+      // 停止移动
+      if (enemyMovement) {
+        enemyMovement.stop();
+      }
+      
+      // 设置目标为玩家
+      if (!enemyCombat.hasTarget() || enemyCombat.target !== this.player) {
+        enemyCombat.setTarget(this.player);
+      }
+      
+      // 尝试攻击
+      const currentTime = performance.now();
+      if (enemyCombat.canAttack(currentTime)) {
+        this.performEnemyAttack(enemy, this.player, currentTime);
+      }
+    } else {
+      // 移动向玩家
+      if (enemyMovement) {
+        const dx = playerTransform.position.x - enemyTransform.position.x;
+        const dy = playerTransform.position.y - enemyTransform.position.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        // 设置移动目标
+        enemyMovement.setPath([{
+          x: playerTransform.position.x,
+          y: playerTransform.position.y
+        }]);
+      }
+    }
+  }
+
+  /**
+   * 执行敌人攻击
+   * @param {Entity} enemy - 敌人实体
+   * @param {Entity} target - 目标实体
+   * @param {number} currentTime - 当前时间
+   */
+  performEnemyAttack(enemy, target, currentTime) {
+    const enemyCombat = enemy.getComponent('combat');
+    const enemySprite = enemy.getComponent('sprite');
+    const enemyTransform = enemy.getComponent('transform');
+    
+    if (!enemyCombat) return;
+    
+    // 执行攻击
+    if (enemyCombat.attack(currentTime)) {
+      // 播放攻击动画
+      if (enemySprite) {
+        enemySprite.playAnimation('attack');
+        
+        setTimeout(() => {
+          if (enemySprite.currentAnimation === 'attack') {
+            enemySprite.playAnimation('idle');
+          }
+        }, 300);
+      }
+      
+      // 创建攻击特效
+      if (this.skillEffects && enemyTransform) {
+        this.skillEffects.createSkillEffect('basic_attack', enemyTransform.position);
+      }
+      
+      // 计算并应用伤害
+      const damage = this.combatSystem.calculateDamage(enemy, target);
+      this.combatSystem.applyDamage(target, damage);
+      
+      console.log(`${enemy.name} 攻击 ${target.name}，造成 ${damage} 点伤害`);
+    }
+  }
+
+  /**
+   * 移除死亡的实体
+   */
+  removeDeadEntities() {
+    const deadEntities = this.combatSystem.getDeadEntities(this.entities);
+    
+    if (deadEntities.length > 0) {
+      // 从实体列表中移除
+      this.entities = this.entities.filter(e => !e.isDead);
+      
+      console.log(`GameScene: Removed ${deadEntities.length} dead entities`);
+    }
+  }
+
+  /**
+   * 渲染场景
+   * @param {CanvasRenderingContext2D} ctx - 渲染上下文
+   */
+  render(ctx) {
+    if (!this.isActive) return;
+    
+    // 清空画布
+    ctx.fillStyle = this.mapData?.backgroundColor || '#2d5016';
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    
+    // 渲染地图背景
+    this.renderMapBackground(ctx);
+    
+    // 渲染实体
+    if (this.entities.length > 0) {
+      this.renderSystem.render(this.entities);
+    }
+    
+    // 渲染粒子
+    this.particleSystem.render(ctx, this.camera);
+    
+    // 渲染技能特效（抛射物）
+    this.skillEffects.render(ctx, this.camera);
+    
+    // 渲染战斗系统UI（目标高亮、伤害数字等）
+    this.combatSystem.render(ctx);
+    
+    // 渲染UI
+    this.uiSystem.render(ctx);
+    
+
+  }
+
+  /**
+   * 渲染地图背景
+   * @param {CanvasRenderingContext2D} ctx - 渲染上下文
+   */
+  renderMapBackground(ctx) {
+    if (!this.mapData) return;
+    
+    // 简单的纯色背景已经在render方法开始时绘制
+    // 这里可以扩展为绘制瓦片地图
+    
+    // 绘制网格（调试用）
+    if (false) { // 设置为true可以显示网格
+      const viewBounds = this.camera.getViewBounds();
+      const tileSize = this.mapData.tileSize;
+      
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.lineWidth = 1;
+      
+      // 垂直线
+      for (let x = Math.floor(viewBounds.left / tileSize) * tileSize; x < viewBounds.right; x += tileSize) {
+        const screenX = x - viewBounds.left;
+        ctx.beginPath();
+        ctx.moveTo(screenX, 0);
+        ctx.lineTo(screenX, ctx.canvas.height);
+        ctx.stroke();
+      }
+      
+      // 水平线
+      for (let y = Math.floor(viewBounds.top / tileSize) * tileSize; y < viewBounds.bottom; y += tileSize) {
+        const screenY = y - viewBounds.top;
+        ctx.beginPath();
+        ctx.moveTo(0, screenY);
+        ctx.lineTo(ctx.canvas.width, screenY);
+        ctx.stroke();
+      }
+    }
+  }
+
+  /**
+   * 处理输入
+   * @param {InputManager} inputManager - 输入管理器
+   */
+  handleInput(inputManager) {
+    // 检查ESC键退出游戏
+    if (inputManager.isKeyPressed('escape')) {
+      this.showPauseMenu();
+    }
+  }
+
+  /**
+   * 显示暂停菜单
+   */
+  showPauseMenu() {
+    console.log('GameScene: Pause menu (not implemented yet)');
+    // TODO: 实现暂停菜单
+  }
+
+  /**
+   * 场景退出
+   */
+  exit() {
+    super.exit();
+    
+    // 清理资源
+    this.entities = [];
+    this.player = null;
+    
+    // 清理粒子
+    if (this.particleSystem) {
+      this.particleSystem.clear();
+    }
+    
+    if (this.skillEffects) {
+      this.skillEffects.clear();
+    }
+    
+    console.log('GameScene: Exited and cleaned up');
+  }
+}

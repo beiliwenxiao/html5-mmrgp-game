@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>战斗系统 - 目标选择测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #1a1a2e;
+            color: #eee;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        
+        #gameCanvas {
+            display: block;
+            margin: 0 auto;
+            background: #2d5016;
+            border: 2px solid #4a9eff;
+        }
+        
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            max-width: 300px;
+        }
+        
+        #info h3 {
+            margin: 0 0 10px 0;
+            color: #4a9eff;
+        }
+        
+        #info p {
+            margin: 5px 0;
+        }
+        
+        .key {
+            display: inline-block;
+            background: #333;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #ffff00;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="1200" height="800"></canvas>
+    
+    <div id="info">
+        <h3>战斗系统 - 目标选择和攻击测试</h3>
+        <p><span class="key">鼠标左键</span> 点击敌人选中目标</p>
+        <p><span class="key">ESC</span> 取消选中</p>
+        <p><span class="key">WASD</span> 移动角色</p>
+        <p id="status">状态: 未选中目标</p>
+        <p id="cooldown">攻击冷却: 就绪</p>
+        <p style="margin-top: 10px; color: #888; font-size: 12px;">
+            提示: 靠近敌人会自动攻击<br>
+            伤害数字会飘动显示
+        </p>
+    </div>
+
+    <script type="module">
+        import { Entity } from './src/ecs/Entity.js';
+        import { TransformComponent } from './src/ecs/components/TransformComponent.js';
+        import { StatsComponent } from './src/ecs/components/StatsComponent.js';
+        import { SpriteComponent } from './src/ecs/components/SpriteComponent.js';
+        import { CombatComponent } from './src/ecs/components/CombatComponent.js';
+        import { MovementComponent } from './src/ecs/components/MovementComponent.js';
+        import { CombatSystem } from './src/systems/CombatSystem.js';
+        import { MovementSystem } from './src/systems/MovementSystem.js';
+        import { InputManager } from './src/core/InputManager.js';
+        import { Camera } from './src/rendering/Camera.js';
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const statusEl = document.getElementById('status');
+        const cooldownEl = document.getElementById('cooldown');
+
+        // 创建输入管理器
+        const inputManager = new InputManager(canvas);
+
+        // 创建相机
+        const camera = new Camera(canvas.width, canvas.height);
+        camera.setBounds(0, 0, 2000, 1500);
+
+        // 创建战斗系统
+        const combatSystem = new CombatSystem({
+            inputManager: inputManager,
+            camera: camera
+        });
+
+        // 创建移动系统
+        const movementSystem = new MovementSystem({
+            inputManager: inputManager,
+            camera: camera,
+            mapBounds: { minX: 0, minY: 0, maxX: 2000, maxY: 1500 }
+        });
+
+        // 创建玩家实体
+        const player = new Entity('player_1', 'player');
+        player.name = '测试玩家';
+        player.level = 5;
+        
+        const playerTransform = new TransformComponent({ x: 400, y: 300 });
+        const playerStats = new StatsComponent({
+            hp: 150,
+            maxHp: 150,
+            mp: 50,
+            maxMp: 50,
+            attack: 15,
+            defense: 10,
+            speed: 100
+        });
+        const playerSprite = new SpriteComponent({ color: '#4a9eff' });
+        const playerCombat = new CombatComponent({
+            attackRange: 50,
+            attackCooldown: 1000
+        });
+        const playerMovement = new MovementComponent({ speed: 150 });
+        
+        player.addComponent(playerTransform);
+        player.addComponent(playerStats);
+        player.addComponent(playerSprite);
+        player.addComponent(playerCombat);
+        player.addComponent(playerMovement);
+
+        // 设置玩家实体
+        combatSystem.setPlayerEntity(player);
+        movementSystem.setPlayerEntity(player);
+
+        // 创建敌人实体
+        const enemies = [];
+        const enemyData = [
+            { name: '史莱姆1', x: 600, y: 400, color: '#00ff00', hp: 30 },
+            { name: '史莱姆2', x: 800, y: 500, color: '#00ff00', hp: 30 },
+            { name: '哥布林1', x: 1000, y: 600, color: '#ff8800', hp: 60 },
+            { name: '哥布林2', x: 700, y: 300, color: '#ff8800', hp: 60 },
+            { name: '骷髅', x: 900, y: 400, color: '#cccccc', hp: 80 }
+        ];
+
+        enemyData.forEach((data, index) => {
+            const enemy = new Entity(`enemy_${index}`, 'enemy');
+            enemy.name = data.name;
+            enemy.level = Math.floor(Math.random() * 5) + 1;
+            
+            const transform = new TransformComponent({ x: data.x, y: data.y });
+            const stats = new StatsComponent({
+                hp: data.hp,
+                maxHp: data.hp,
+                attack: 10,
+                defense: 5,
+                speed: 50
+            });
+            const sprite = new SpriteComponent({ color: data.color });
+            const combat = new CombatComponent({
+                attackRange: 40,
+                attackCooldown: 1500
+            });
+            
+            enemy.addComponent(transform);
+            enemy.addComponent(stats);
+            enemy.addComponent(sprite);
+            enemy.addComponent(combat);
+            
+            enemies.push(enemy);
+        });
+
+        // 所有实体
+        const entities = [player, ...enemies];
+
+        // 游戏循环
+        let lastTime = performance.now();
+        
+        function gameLoop(currentTime) {
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+
+            // 更新系统
+            movementSystem.update(deltaTime, entities);
+            combatSystem.update(deltaTime, entities);
+            inputManager.update();
+
+            // 更新状态显示
+            const selectedTarget = combatSystem.getSelectedTarget();
+            if (selectedTarget) {
+                const stats = selectedTarget.getComponent('stats');
+                statusEl.textContent = `状态: 已选中 ${selectedTarget.name} (HP: ${Math.ceil(stats.hp)}/${stats.maxHp})`;
+            } else {
+                statusEl.textContent = '状态: 未选中目标';
+            }
+
+            // 更新攻击冷却显示
+            const cooldownProgress = combatSystem.getAttackCooldownProgress(player);
+            if (cooldownProgress >= 1) {
+                cooldownEl.textContent = '攻击冷却: 就绪';
+                cooldownEl.style.color = '#00ff00';
+            } else {
+                const percent = Math.floor(cooldownProgress * 100);
+                cooldownEl.textContent = `攻击冷却: ${percent}%`;
+                cooldownEl.style.color = '#ffff00';
+            }
+
+            // 渲染
+            render();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function render() {
+            // 清空画布
+            ctx.fillStyle = '#2d5016';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 获取相机视图边界
+            const viewBounds = camera.getViewBounds();
+
+            // 渲染所有实体
+            for (const entity of entities) {
+                const transform = entity.getComponent('transform');
+                const sprite = entity.getComponent('sprite');
+                const stats = entity.getComponent('stats');
+                
+                if (!transform || !sprite) continue;
+
+                // 转换为屏幕坐标
+                const screenX = transform.position.x - viewBounds.left;
+                const screenY = transform.position.y - viewBounds.top;
+
+                // 绘制实体（简单的圆形）
+                ctx.save();
+                ctx.fillStyle = sprite.color || '#ffffff';
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, 20, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+
+                // 绘制名称
+                ctx.save();
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(entity.name, screenX, screenY - 30);
+                ctx.restore();
+
+                // 绘制生命值条（敌人）
+                if (entity.type === 'enemy' && stats) {
+                    const barWidth = 40;
+                    const barHeight = 4;
+                    const barX = screenX - barWidth / 2;
+                    const barY = screenY + 25;
+
+                    // 背景
+                    ctx.fillStyle = '#333333';
+                    ctx.fillRect(barX, barY, barWidth, barHeight);
+
+                    // 生命值
+                    const hpPercent = stats.hp / stats.maxHp;
+                    ctx.fillStyle = hpPercent > 0.5 ? '#00ff00' : hpPercent > 0.25 ? '#ffff00' : '#ff0000';
+                    ctx.fillRect(barX, barY, barWidth * hpPercent, barHeight);
+                }
+
+                // 绘制攻击范围（玩家）
+                if (entity.type === 'player') {
+                    const combat = entity.getComponent('combat');
+                    if (combat && combat.hasTarget()) {
+                        ctx.save();
+                        ctx.strokeStyle = 'rgba(255, 0, 0, 0.3)';
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.arc(screenX, screenY, combat.attackRange, 0, Math.PI * 2);
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                }
+            }
+
+            // 渲染战斗系统UI（目标高亮和目标框架）
+            combatSystem.render(ctx);
+
+            // 绘制网格（帮助定位）
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            for (let x = 0; x < canvas.width; x += 100) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += 100) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        // 启动游戏循环
+        console.log('战斗系统 - 目标选择测试启动');
+        gameLoop(performance.now());
+    </script>
+</body>
+</html>

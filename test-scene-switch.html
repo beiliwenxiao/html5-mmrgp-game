@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>场景切换测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+        }
+        #info {
+            margin-bottom: 20px;
+        }
+        button {
+            background: #4a9eff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #357abd;
+        }
+        #console {
+            background: #0f0c29;
+            border: 1px solid #4a9eff;
+            padding: 10px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+        .log-entry {
+            margin: 2px 0;
+        }
+        .log-info { color: #4a9eff; }
+        .log-warn { color: #ffaa00; }
+        .log-error { color: #ff4444; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h2>场景切换测试</h2>
+        <p>当前场景: <span id="currentScene">-</span></p>
+        <p>是否正在转场: <span id="transitioning">-</span></p>
+    </div>
+    
+    <div>
+        <button id="btnLogin">切换到登录场景</button>
+        <button id="btnCharacter">切换到角色选择场景</button>
+        <button id="btnGame">切换到游戏场景</button>
+        <button id="btnGameWithChar">切换到游戏场景(带角色数据)</button>
+    </div>
+    
+    <div id="console"></div>
+
+    <script type="module">
+        import { SceneManager } from './src/core/SceneManager.js';
+        import { LoginScene } from './src/scenes/LoginScene.js';
+        import { CharacterScene } from './src/scenes/CharacterScene.js';
+        import { GameScene } from './src/scenes/GameScene.js';
+
+        // 创建场景管理器
+        const sceneManager = new SceneManager();
+        
+        // 注册场景
+        sceneManager.registerScene('Login', new LoginScene());
+        sceneManager.registerScene('Character', new CharacterScene());
+        sceneManager.registerScene('Game', new GameScene());
+        
+        // 切换到登录场景
+        sceneManager.switchTo('Login');
+        
+        // 更新显示
+        function updateDisplay() {
+            const currentScene = sceneManager.getCurrentScene();
+            document.getElementById('currentScene').textContent = currentScene ? currentScene.name : 'None';
+            document.getElementById('transitioning').textContent = sceneManager.isInTransition() ? '是' : '否';
+        }
+        
+        // 日志函数
+        const consoleDiv = document.getElementById('console');
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            consoleDiv.appendChild(entry);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+        
+        // 拦截console.log
+        const originalLog = console.log;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addLog(args.join(' '), 'info');
+        };
+        
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            addLog(args.join(' '), 'warn');
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addLog(args.join(' '), 'error');
+        };
+        
+        // 按钮事件
+        document.getElementById('btnLogin').addEventListener('click', () => {
+            addLog('用户点击: 切换到登录场景', 'info');
+            sceneManager.switchTo('Login');
+        });
+        
+        document.getElementById('btnCharacter').addEventListener('click', () => {
+            addLog('用户点击: 切换到角色选择场景', 'info');
+            sceneManager.switchTo('Character');
+        });
+        
+        document.getElementById('btnGame').addEventListener('click', () => {
+            addLog('用户点击: 切换到游戏场景', 'info');
+            sceneManager.switchTo('Game');
+        });
+        
+        document.getElementById('btnGameWithChar').addEventListener('click', () => {
+            const testCharacter = {
+                id: 'test123',
+                name: '测试角色',
+                class: 'warrior',
+                level: 1
+            };
+            addLog('用户点击: 切换到游戏场景(带角色数据)', 'info');
+            addLog('角色数据: ' + JSON.stringify(testCharacter), 'info');
+            sceneManager.switchTo('Game', { character: testCharacter });
+        });
+        
+        // 游戏循环
+        let lastTime = performance.now();
+        function gameLoop(currentTime) {
+            requestAnimationFrame(gameLoop);
+            
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+            
+            sceneManager.update(deltaTime);
+            updateDisplay();
+        }
+        
+        gameLoop(performance.now());
+        
+        addLog('场景切换测试初始化完成', 'info');
+    </script>
+</body>
+</html>

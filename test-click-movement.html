@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>点击移动测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        h1 {
+            color: #4a9eff;
+            margin-bottom: 10px;
+        }
+        
+        .info {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            max-width: 800px;
+        }
+        
+        .info h3 {
+            margin-top: 0;
+            color: #4a9eff;
+        }
+        
+        .info ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        
+        .success {
+            color: #00ff00;
+            font-weight: bold;
+        }
+        
+        .warning {
+            color: #ffaa00;
+            font-weight: bold;
+        }
+        
+        canvas {
+            border: 2px solid #4a9eff;
+            border-radius: 8px;
+            background: #0f0c29;
+            display: block;
+            margin-bottom: 20px;
+            cursor: crosshair;
+        }
+        
+        .stats {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-width: 800px;
+            width: 100%;
+        }
+        
+        .stats div {
+            margin: 5px 0;
+        }
+        
+        .label {
+            color: #4a9eff;
+            display: inline-block;
+            width: 180px;
+        }
+        
+        .test-results {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            max-width: 800px;
+            width: 100%;
+        }
+        
+        .test-results h3 {
+            color: #4a9eff;
+            margin-top: 0;
+        }
+        
+        .test-item {
+            margin: 8px 0;
+            padding: 5px;
+        }
+        
+        .test-pass {
+            color: #00ff00;
+        }
+        
+        .test-fail {
+            color: #ff4444;
+        }
+    </style>
+</head>
+<body>
+    <h1>点击移动测试 - 任务 7.2</h1>
+    
+    <div class="info">
+        <h3>测试目标：</h3>
+        <ul>
+            <li>✓ 实现鼠标点击位置获取</li>
+            <li>✓ 实现简单的直线路径移动</li>
+            <li>✓ 实现路径跟随逻辑</li>
+            <li>✓ 实现到达目标点停止</li>
+        </ul>
+        <h3>操作说明：</h3>
+        <ul>
+            <li><strong>鼠标左键点击</strong>：点击任意位置，角色会移动到该位置</li>
+            <li><strong>WASD 键</strong>：键盘移动会中断点击移动</li>
+            <li>黄色圆圈：目标点</li>
+            <li>黄色虚线：移动路径</li>
+            <li>绿色箭头：速度向量</li>
+        </ul>
+    </div>
+    
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    
+    <div class="stats">
+        <div><span class="label">玩家位置:</span> <span id="position">-</span></div>
+        <div><span class="label">目标位置:</span> <span id="target">-</span></div>
+        <div><span class="label">距离目标:</span> <span id="distance">-</span></div>
+        <div><span class="label">速度:</span> <span id="velocity">-</span></div>
+        <div><span class="label">移动状态:</span> <span id="moving">-</span></div>
+        <div><span class="label">移动类型:</span> <span id="movementType">-</span></div>
+        <div><span class="label">鼠标屏幕坐标:</span> <span id="mouseScreen">-</span></div>
+        <div><span class="label">鼠标世界坐标:</span> <span id="mouseWorld">-</span></div>
+        <div><span class="label">相机位置:</span> <span id="camera">-</span></div>
+        <div><span class="label">FPS:</span> <span id="fps">-</span></div>
+    </div>
+    
+    <div class="test-results">
+        <h3>自动测试结果：</h3>
+        <div id="testResults"></div>
+    </div>
+
+    <script type="module">
+        import { Entity } from './src/ecs/Entity.js';
+        import { TransformComponent } from './src/ecs/components/TransformComponent.js';
+        import { MovementComponent } from './src/ecs/components/MovementComponent.js';
+        import { SpriteComponent } from './src/ecs/components/SpriteComponent.js';
+        import { MovementSystem } from './src/systems/MovementSystem.js';
+        import { InputManager } from './src/core/InputManager.js';
+        import { Camera } from './src/rendering/Camera.js';
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 创建输入管理器
+        const inputManager = new InputManager(canvas);
+
+        // 创建相机
+        const camera = new Camera(400, 300, 800, 600);
+
+        // 创建移动系统
+        const movementSystem = new MovementSystem({
+            inputManager,
+            camera,
+            mapBounds: { minX: 0, minY: 0, maxX: 1600, maxY: 1200 }
+        });
+
+        // 创建玩家实体
+        const player = new Entity('player', 'player');
+        player.addComponent(new TransformComponent(400, 300));
+        player.addComponent(new MovementComponent({ speed: 200 }));
+        player.addComponent(new SpriteComponent());
+
+        movementSystem.setPlayerEntity(player);
+        camera.setBounds(0, 0, 1600, 1200);
+
+        const entities = [player];
+
+        // 测试状态
+        const testState = {
+            clickReceived: false,
+            pathSet: false,
+            movementStarted: false,
+            targetReached: false,
+            stopped: false
+        };
+
+        // FPS计算
+        let lastTime = performance.now();
+        let frameCount = 0;
+        let fps = 0;
+        let fpsTime = 0;
+
+        // 游戏循环
+        function gameLoop(currentTime) {
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+
+            frameCount++;
+            fpsTime += deltaTime;
+            if (fpsTime >= 1) {
+                fps = frameCount;
+                frameCount = 0;
+                fpsTime = 0;
+            }
+
+            // 更新
+            movementSystem.update(deltaTime, entities);
+            inputManager.update();
+
+            // 检查测试状态
+            checkTestState();
+
+            // 渲染
+            render();
+
+            // 更新统计信息
+            updateStats();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function checkTestState() {
+            const movement = player.getComponent('movement');
+            const transform = player.getComponent('transform');
+
+            // 检查是否设置了路径
+            if (movement.path.length > 0 && !testState.pathSet) {
+                testState.pathSet = true;
+                console.log('✓ 路径已设置');
+            }
+
+            // 检查是否开始移动
+            if (movement.isMoving && movement.movementType === 'path' && !testState.movementStarted) {
+                testState.movementStarted = true;
+                console.log('✓ 点击移动已开始');
+            }
+
+            // 检查是否到达目标
+            if (testState.movementStarted && !movement.isMoving && testState.pathSet && !testState.targetReached) {
+                testState.targetReached = true;
+                testState.stopped = true;
+                console.log('✓ 已到达目标并停止');
+            }
+
+            updateTestResults();
+        }
+
+        function updateTestResults() {
+            const results = document.getElementById('testResults');
+            const movement = player.getComponent('movement');
+            
+            results.innerHTML = `
+                <div class="test-item ${inputManager.isMouseClicked() ? 'test-pass' : ''}">
+                    ${inputManager.isMouseClicked() ? '✓' : '○'} 鼠标点击检测
+                </div>
+                <div class="test-item ${testState.pathSet ? 'test-pass' : ''}">
+                    ${testState.pathSet ? '✓' : '○'} 路径设置 (path.length = ${movement.path.length})
+                </div>
+                <div class="test-item ${testState.movementStarted ? 'test-pass' : ''}">
+                    ${testState.movementStarted ? '✓' : '○'} 移动开始 (movementType = ${movement.movementType})
+                </div>
+                <div class="test-item ${testState.targetReached ? 'test-pass' : ''}">
+                    ${testState.targetReached ? '✓' : '○'} 到达目标并停止
+                </div>
+            `;
+        }
+
+        function render() {
+            // 清空画布
+            ctx.fillStyle = '#0f0c29';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 绘制网格
+            ctx.strokeStyle = '#1a1a3e';
+            ctx.lineWidth = 1;
+            const gridSize = 50;
+            for (let x = 0; x < 1600; x += gridSize) {
+                const screenPos = camera.worldToScreen(x, 0);
+                if (screenPos.x >= 0 && screenPos.x <= canvas.width) {
+                    ctx.beginPath();
+                    ctx.moveTo(screenPos.x, 0);
+                    ctx.lineTo(screenPos.x, canvas.height);
+                    ctx.stroke();
+                }
+            }
+            for (let y = 0; y < 1200; y += gridSize) {
+                const screenPos = camera.worldToScreen(0, y);
+                if (screenPos.y >= 0 && screenPos.y <= canvas.height) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, screenPos.y);
+                    ctx.lineTo(canvas.width, screenPos.y);
+                    ctx.stroke();
+                }
+            }
+
+            // 绘制地图边界
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 2;
+            const topLeft = camera.worldToScreen(0, 0);
+            const bottomRight = camera.worldToScreen(1600, 1200);
+            ctx.strokeRect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
+
+            // 绘制玩家
+            const transform = player.getComponent('transform');
+            const movement = player.getComponent('movement');
+            const screenPos = camera.worldToScreen(transform.position.x, transform.position.y);
+
+            // 玩家圆形
+            ctx.fillStyle = '#4a9eff';
+            ctx.beginPath();
+            ctx.arc(screenPos.x, screenPos.y, 20, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 玩家中心点
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(screenPos.x, screenPos.y, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 绘制目标点和路径
+            if (movement.targetPosition) {
+                const targetScreen = camera.worldToScreen(movement.targetPosition.x, movement.targetPosition.y);
+                
+                // 目标点
+                ctx.strokeStyle = '#ffff00';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(targetScreen.x, targetScreen.y, 15, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                ctx.strokeStyle = '#ffff00';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(targetScreen.x, targetScreen.y, 10, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // 路径线
+                ctx.strokeStyle = '#ffff0088';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(screenPos.x, screenPos.y);
+                ctx.lineTo(targetScreen.x, targetScreen.y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // 绘制速度向量
+            if (movement.isMoving) {
+                ctx.strokeStyle = '#00ff00';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(screenPos.x, screenPos.y);
+                ctx.lineTo(
+                    screenPos.x + movement.velocity.x * 0.2,
+                    screenPos.y + movement.velocity.y * 0.2
+                );
+                ctx.stroke();
+                
+                // 箭头
+                const angle = Math.atan2(movement.velocity.y, movement.velocity.x);
+                const arrowLength = 10;
+                ctx.beginPath();
+                ctx.moveTo(
+                    screenPos.x + movement.velocity.x * 0.2,
+                    screenPos.y + movement.velocity.y * 0.2
+                );
+                ctx.lineTo(
+                    screenPos.x + movement.velocity.x * 0.2 - arrowLength * Math.cos(angle - Math.PI / 6),
+                    screenPos.y + movement.velocity.y * 0.2 - arrowLength * Math.sin(angle - Math.PI / 6)
+                );
+                ctx.moveTo(
+                    screenPos.x + movement.velocity.x * 0.2,
+                    screenPos.y + movement.velocity.y * 0.2
+                );
+                ctx.lineTo(
+                    screenPos.x + movement.velocity.x * 0.2 - arrowLength * Math.cos(angle + Math.PI / 6),
+                    screenPos.y + movement.velocity.y * 0.2 - arrowLength * Math.sin(angle + Math.PI / 6)
+                );
+                ctx.stroke();
+            }
+
+            // 绘制鼠标位置
+            const mouseWorld = inputManager.getMouseWorldPosition();
+            const mouseScreen = camera.worldToScreen(mouseWorld.x, mouseWorld.y);
+            if (mouseScreen.x >= 0 && mouseScreen.x <= canvas.width && 
+                mouseScreen.y >= 0 && mouseScreen.y <= canvas.height) {
+                ctx.strokeStyle = '#ffffff44';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(mouseScreen.x, mouseScreen.y, 5, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        }
+
+        function updateStats() {
+            const transform = player.getComponent('transform');
+            const movement = player.getComponent('movement');
+            const mouseScreen = inputManager.getMousePosition();
+            const mouseWorld = inputManager.getMouseWorldPosition();
+
+            document.getElementById('position').textContent = 
+                `(${transform.position.x.toFixed(1)}, ${transform.position.y.toFixed(1)})`;
+            
+            if (movement.targetPosition) {
+                document.getElementById('target').textContent = 
+                    `(${movement.targetPosition.x.toFixed(1)}, ${movement.targetPosition.y.toFixed(1)})`;
+                
+                const dx = movement.targetPosition.x - transform.position.x;
+                const dy = movement.targetPosition.y - transform.position.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                document.getElementById('distance').textContent = distance.toFixed(1);
+            } else {
+                document.getElementById('target').textContent = '无';
+                document.getElementById('distance').textContent = '-';
+            }
+            
+            document.getElementById('velocity').textContent = 
+                `(${movement.velocity.x.toFixed(1)}, ${movement.velocity.y.toFixed(1)}) = ${movement.getSpeed().toFixed(1)} px/s`;
+            
+            document.getElementById('moving').textContent = 
+                movement.isMoving ? '是' : '否';
+            
+            document.getElementById('movementType').textContent = 
+                movement.movementType === 'keyboard' ? '键盘' :
+                movement.movementType === 'path' ? '点击' : '无';
+            
+            document.getElementById('mouseScreen').textContent = 
+                `(${mouseScreen.x.toFixed(0)}, ${mouseScreen.y.toFixed(0)})`;
+            
+            document.getElementById('mouseWorld').textContent = 
+                `(${mouseWorld.x.toFixed(0)}, ${mouseWorld.y.toFixed(0)})`;
+            
+            document.getElementById('camera').textContent = 
+                `(${camera.position.x.toFixed(1)}, ${camera.position.y.toFixed(1)})`;
+            
+            document.getElementById('fps').textContent = fps;
+        }
+
+        // 启动游戏循环
+        console.log('点击移动测试启动');
+        console.log('请点击画布上的任意位置来测试点击移动功能');
+        gameLoop(performance.now());
+    </script>
+</body>
+</html>

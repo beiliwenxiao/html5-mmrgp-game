@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MovementSystem 单元测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+            font-family: 'Courier New', monospace;
+        }
+        
+        h1 {
+            color: #4a9eff;
+        }
+        
+        #output {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            font-size: 14px;
+        }
+        
+        .success {
+            color: #00ff88;
+        }
+        
+        .error {
+            color: #ff4444;
+        }
+        
+        .info {
+            color: #4a9eff;
+        }
+    </style>
+</head>
+<body>
+    <h1>MovementSystem 单元测试</h1>
+    <div id="output">运行测试中...</div>
+
+    <script type="module">
+        // 重定向 console.log 到页面
+        const output = document.getElementById('output');
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalAssert = console.assert;
+        
+        console.log = function(...args) {
+            const text = args.join(' ');
+            const span = document.createElement('span');
+            
+            if (text.includes('✓')) {
+                span.className = 'success';
+            } else if (text.includes('===')) {
+                span.className = 'info';
+            }
+            
+            span.textContent = text + '\n';
+            output.appendChild(span);
+            originalLog.apply(console, args);
+        };
+        
+        console.error = function(...args) {
+            const span = document.createElement('span');
+            span.className = 'error';
+            span.textContent = args.join(' ') + '\n';
+            output.appendChild(span);
+            originalError.apply(console, args);
+        };
+        
+        console.assert = function(condition, ...args) {
+            if (!condition) {
+                console.error('Assertion failed:', ...args);
+                throw new Error('Assertion failed: ' + args.join(' '));
+            }
+        };
+        
+        // 清空输出
+        output.textContent = '';
+        
+        // 导入并运行测试
+        import('./src/systems/MovementSystem.test.js');
+    </script>
+</body>
+</html>

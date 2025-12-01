@@ -1,0 +1,351 @@
+/**
+ * CombatEffects - 战斗特效管理器
+ * 处理受击闪烁、伤害数字飘字、治疗特效等
+ */
+export class CombatEffects {
+  /**
+   * @param {ParticleSystem} particleSystem - 粒子系统实例
+   */
+  constructor(particleSystem) {
+    this.particleSystem = particleSystem;
+    
+    // 伤害数字列表
+    this.damageNumbers = [];
+    
+    // 闪烁效果列表
+    this.flashEffects = [];
+  }
+
+  /**
+   * 创建伤害数字飘字
+   * @param {number} damage - 伤害值
+   * @param {Object} position - 位置 {x, y}
+   * @param {string} [type='damage'] - 类型：'damage', 'heal', 'critical'
+   */
+  createDamageNumber(damage, position, type = 'damage') {
+    const damageNumber = {
+      value: Math.round(damage),
+      position: { x: position.x, y: position.y },
+      velocity: { x: (Math.random() - 0.5) * 30, y: -80 },
+      life: 1500,
+      maxLife: 1500,
+      type: type,
+      active: true,
+      scale: 1.0
+    };
+
+    this.damageNumbers.push(damageNumber);
+
+    // 根据类型发射粒子
+    if (type === 'heal') {
+      this.particleSystem.emitBurst({
+        position: { ...position },
+        velocity: { x: 0, y: 0 },
+        life: 800,
+        size: 4,
+        color: '#00ff88',
+        gravity: -40
+      }, 15, {
+        velocityRange: { min: 40, max: 80 }
+      });
+    } else if (type === 'critical') {
+      this.particleSystem.emitBurst({
+        position: { ...position },
+        velocity: { x: 0, y: 0 },
+        life: 600,
+        size: 6,
+        color: '#ff0000',
+        gravity: 30
+      }, 20, {
+        velocityRange: { min: 60, max: 120 }
+      });
+    }
+  }
+
+  /**
+   * 更新伤害数字
+   * @param {number} deltaTime - 时间增量（秒）
+   */
+  updateDamageNumbers(deltaTime) {
+    for (let i = this.damageNumbers.length - 1; i >= 0; i--) {
+      const dmg = this.damageNumbers[i];
+      
+      dmg.life -= deltaTime * 1000;
+      if (dmg.life <= 0) {
+        dmg.active = false;
+        this.damageNumbers.splice(i, 1);
+        continue;
+      }
+
+      // 更新位置
+      dmg.position.x += dmg.velocity.x * deltaTime;
+      dmg.position.y += dmg.velocity.y * deltaTime;
+
+      // 应用重力
+      dmg.velocity.y += 100 * deltaTime;
+
+      // 缩放动画（先放大后缩小）
+      const lifeRatio = dmg.life / dmg.maxLife;
+      if (lifeRatio > 0.8) {
+        dmg.scale = 1.0 + (1 - lifeRatio) * 2; // 0.8-1.0: 放大到1.4
+      } else {
+        dmg.scale = 1.4 * lifeRatio / 0.8; // 0-0.8: 从1.4缩小到0
+      }
+    }
+  }
+
+  /**
+   * 渲染伤害数字
+   * @param {CanvasRenderingContext2D} ctx - Canvas 渲染上下文
+   * @param {Object} camera - 相机对象
+   */
+  renderDamageNumbers(ctx, camera) {
+    for (const dmg of this.damageNumbers) {
+      if (!dmg.active) continue;
+
+      const screenX = dmg.position.x - camera.x;
+      const screenY = dmg.position.y - camera.y;
+
+      ctx.save();
+
+      // 透明度随生命周期衰减
+      const lifeRatio = dmg.life / dmg.maxLife;
+      ctx.globalAlpha = Math.min(lifeRatio * 2, 1);
+
+      // 设置字体和颜色
+      const fontSize = Math.floor(24 * dmg.scale);
+      ctx.font = `bold ${fontSize}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      // 根据类型设置颜色
+      let color, outlineColor;
+      if (dmg.type === 'heal') {
+        color = '#00ff88';
+        outlineColor = '#004422';
+      } else if (dmg.type === 'critical') {
+        color = '#ff3333';
+        outlineColor = '#660000';
+      } else {
+        color = '#ffffff';
+        outlineColor = '#000000';
+      }
+
+      // 绘制描边
+      ctx.strokeStyle = outlineColor;
+      ctx.lineWidth = 3;
+      ctx.strokeText(dmg.value.toString(), screenX, screenY);
+
+      // 绘制文字
+      ctx.fillStyle = color;
+      ctx.fillText(dmg.value.toString(), screenX, screenY);
+
+      ctx.restore();
+    }
+  }
+
+  /**
+   * 创建受击闪烁效果
+   * @param {Entity} entity - 实体对象
+   * @param {number} [duration=300] - 持续时间（毫秒）
+   * @param {string} [color='#ffffff'] - 闪烁颜色
+   */
+  createFlashEffect(entity, duration = 300, color = '#ffffff') {
+    const flash = {
+      entity: entity,
+      duration: duration,
+      elapsed: 0,
+      color: color,
+      active: true
+    };
+
+    this.flashEffects.push(flash);
+  }
+
+  /**
+   * 更新闪烁效果
+   * @param {number} deltaTime - 时间增量（秒）
+   */
+  updateFlashEffects(deltaTime) {
+    for (let i = this.flashEffects.length - 1; i >= 0; i--) {
+      const flash = this.flashEffects[i];
+      
+      flash.elapsed += deltaTime * 1000;
+      if (flash.elapsed >= flash.duration) {
+        flash.active = false;
+        this.flashEffects.splice(i, 1);
+      }
+    }
+  }
+
+  /**
+   * 应用闪烁效果到渲染上下文
+   * @param {CanvasRenderingContext2D} ctx - Canvas 渲染上下文
+   * @param {Entity} entity - 实体对象
+   * @returns {boolean} 是否有活跃的闪烁效果
+   */
+  applyFlashEffect(ctx, entity) {
+    const flash = this.flashEffects.find(f => f.entity === entity && f.active);
+    if (!flash) return false;
+
+    // 计算闪烁强度（快速衰减）
+    const progress = flash.elapsed / flash.duration;
+    const intensity = 1 - progress;
+
+    // 应用颜色混合
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = intensity * 0.6;
+
+    return true;
+  }
+
+  /**
+   * 重置闪烁效果的混合模式
+   * @param {CanvasRenderingContext2D} ctx - Canvas 渲染上下文
+   */
+  resetFlashEffect(ctx) {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+  }
+
+  /**
+   * 创建治疗特效
+   * @param {Object} position - 位置 {x, y}
+   * @param {number} healAmount - 治疗量
+   */
+  createHealEffect(position, healAmount) {
+    // 创建治疗数字
+    this.createDamageNumber(healAmount, position, 'heal');
+
+    // 创建治疗粒子环绕效果
+    this.particleSystem.emitBurst({
+      position: { ...position },
+      velocity: { x: 0, y: 0 },
+      life: 1200,
+      size: 5,
+      color: '#00ff88',
+      gravity: -30
+    }, 25, {
+      velocityRange: { min: 50, max: 100 }
+    });
+
+    // 创建上升的治疗粒子
+    const emitter = this.particleSystem.createEmitter({
+      position: { ...position },
+      particleConfig: {
+        position: { ...position },
+        velocity: { x: 0, y: -60 },
+        life: 1000,
+        size: 4,
+        color: '#66ffaa',
+        gravity: -20,
+        friction: 0.98
+      },
+      rate: 20,
+      duration: 0.8
+    });
+
+    return emitter;
+  }
+
+  /**
+   * 创建暴击特效
+   * @param {Object} position - 位置 {x, y}
+   * @param {number} damage - 伤害值
+   */
+  createCriticalEffect(position, damage) {
+    // 创建暴击数字
+    this.createDamageNumber(damage, position, 'critical');
+
+    // 创建暴击粒子爆发
+    this.particleSystem.emitBurst({
+      position: { ...position },
+      velocity: { x: 0, y: 0 },
+      life: 800,
+      size: 7,
+      color: '#ff3333',
+      gravity: 50
+    }, 35, {
+      velocityRange: { min: 80, max: 180 }
+    });
+  }
+
+  /**
+   * 创建格挡特效
+   * @param {Object} position - 位置 {x, y}
+   */
+  createBlockEffect(position) {
+    this.particleSystem.emitBurst({
+      position: { ...position },
+      velocity: { x: 0, y: 0 },
+      life: 500,
+      size: 5,
+      color: '#cccccc',
+      gravity: 0
+    }, 20, {
+      velocityRange: { min: 60, max: 120 }
+    });
+
+    // 显示 "BLOCK" 文字
+    this.createDamageNumber(0, position, 'block');
+  }
+
+  /**
+   * 创建闪避特效
+   * @param {Object} position - 位置 {x, y}
+   */
+  createDodgeEffect(position) {
+    this.particleSystem.emitBurst({
+      position: { ...position },
+      velocity: { x: 0, y: 0 },
+      life: 400,
+      size: 3,
+      color: '#ffff66',
+      gravity: 0
+    }, 15, {
+      velocityRange: { min: 100, max: 150 }
+    });
+  }
+
+  /**
+   * 更新所有战斗特效
+   * @param {number} deltaTime - 时间增量（秒）
+   */
+  update(deltaTime) {
+    this.updateDamageNumbers(deltaTime);
+    this.updateFlashEffects(deltaTime);
+  }
+
+  /**
+   * 渲染所有战斗特效
+   * @param {CanvasRenderingContext2D} ctx - Canvas 渲染上下文
+   * @param {Object} camera - 相机对象
+   */
+  render(ctx, camera) {
+    this.renderDamageNumbers(ctx, camera);
+  }
+
+  /**
+   * 清除所有战斗特效
+   */
+  clear() {
+    this.damageNumbers = [];
+    this.flashEffects = [];
+  }
+
+  /**
+   * 获取活跃的伤害数字数量
+   * @returns {number}
+   */
+  getActiveDamageNumberCount() {
+    return this.damageNumbers.length;
+  }
+
+  /**
+   * 获取活跃的闪烁效果数量
+   * @returns {number}
+   */
+  getActiveFlashEffectCount() {
+    return this.flashEffects.length;
+  }
+}

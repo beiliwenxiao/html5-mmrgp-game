@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>碰撞检测单元测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        
+        #container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #4CAF50;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        
+        .test-section {
+            background: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+            border-left: 4px solid #4CAF50;
+        }
+        
+        .test-section h2 {
+            margin-top: 0;
+            color: #4CAF50;
+        }
+        
+        .test-case {
+            background: #1a1a1a;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+        }
+        
+        .test-pass {
+            color: #4CAF50;
+        }
+        
+        .test-fail {
+            color: #f44336;
+        }
+        
+        .test-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .test-detail {
+            color: #888;
+            font-size: 0.9em;
+            margin-left: 20px;
+        }
+        
+        #summary {
+            background: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 1.2em;
+        }
+        
+        .summary-pass {
+            border: 3px solid #4CAF50;
+        }
+        
+        .summary-fail {
+            border: 3px solid #f44336;
+        }
+        
+        pre {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h1>🧪 碰撞检测单元测试</h1>
+        <div id="results"></div>
+        <div id="summary"></div>
+    </div>
+
+    <script type="module">
+        import { MovementSystem } from './src/systems/MovementSystem.js';
+        import { Entity } from './src/ecs/Entity.js';
+        import { TransformComponent } from './src/ecs/components/TransformComponent.js';
+        import { MovementComponent } from './src/ecs/components/MovementComponent.js';
+
+        const results = document.getElementById('results');
+        const summary = document.getElementById('summary');
+        
+        let totalTests = 0;
+        let passedTests = 0;
+        let failedTests = 0;
+        
+        // 测试结果记录
+        function logTest(sectionName, testName, passed, details = '') {
+            totalTests++;
+            if (passed) {
+                passedTests++;
+            } else {
+                failedTests++;
+            }
+            
+            const section = document.getElementById(sectionName) || createSection(sectionName);
+            const testCase = document.createElement('div');
+            testCase.className = 'test-case';
+            
+            const status = passed ? '✓' : '✗';
+            const statusClass = passed ? 'test-pass' : 'test-fail';
+            
+            testCase.innerHTML = `
+                <div class="test-name ${statusClass}">${status} ${testName}</div>
+                ${details ? `<div class="test-detail">${details}</div>` : ''}
+            `;
+            
+            section.appendChild(testCase);
+        }
+        
+        function createSection(name) {
+            const section = document.createElement('div');
+            section.className = 'test-section';
+            section.id = name;
+            section.innerHTML = `<h2>${name}</h2>`;
+            results.appendChild(section);
+            return section;
+        }
+        
+        function showSummary() {
+            const allPassed = failedTests === 0;
+            summary.className = allPassed ? 'summary-pass' : 'summary-fail';
+            summary.innerHTML = `
+                <div>测试完成</div>
+                <div>总计: ${totalTests} | 通过: ${passedTests} | 失败: ${failedTests}</div>
+                <div style="margin-top: 10px; font-size: 2em;">
+                    ${allPassed ? '🎉 所有测试通过！' : '⚠️ 有测试失败'}
+                </div>
+            `;
+        }
+        
+        // 辅助函数
+        function createTestEntity(x = 0, y = 0, speed = 100) {
+            const entity = new Entity('test-entity', 'player');
+            entity.addComponent(new TransformComponent(x, y));
+            entity.addComponent(new MovementComponent({ speed }));
+            return entity;
+        }
+        
+        // ==================== 测试开始 ====================
+        
+        // 1. AABB 碰撞检测测试
+        const sectionAABB = 'AABB 碰撞检测';
+        
+        try {
+            const system = new MovementSystem({});
+            
+            // 测试1.1: 重叠矩形
+            const rect1 = { x: 0, y: 0, width: 50, height: 50 };
+            const rect2 = { x: 25, y: 25, width: 50, height: 50 };
+            const collides1 = system.checkAABBCollision(rect1, rect2);
+            logTest(sectionAABB, '重叠矩形应该碰撞', collides1 === true, 
+                `rect1: (0,0,50,50), rect2: (25,25,50,50) => ${collides1}`);
+            
+            // 测试1.2: 分离矩形
+            const rect3 = { x: 100, y: 100, width: 50, height: 50 };
+            const collides2 = system.checkAABBCollision(rect1, rect3);
+            logTest(sectionAABB, '分离矩形不应该碰撞', collides2 === false,
+                `rect1: (0,0,50,50), rect3: (100,100,50,50) => ${collides2}`);
+            
+            // 测试1.3: 边缘接触
+            const rect4 = { x: 50, y: 0, width: 50, height: 50 };
+            const collides3 = system.checkAABBCollision(rect1, rect4);
+            logTest(sectionAABB, '边缘接触不应该碰撞', collides3 === false,
+                `rect1: (0,0,50,50), rect4: (50,0,50,50) => ${collides3}`);
+            
+            // 测试1.4: 完全包含
+            const rect5 = { x: 10, y: 10, width: 20, height: 20 };
+            const collides4 = system.checkAABBCollision(rect1, rect5);
+            logTest(sectionAABB, '完全包含应该碰撞', collides4 === true,
+                `rect1: (0,0,50,50), rect5: (10,10,20,20) => ${collides4}`);
+            
+            // 测试1.5: 部分重叠（左上）
+            const rect6 = { x: -25, y: -25, width: 50, height: 50 };
+            const collides5 = system.checkAABBCollision(rect1, rect6);
+            logTest(sectionAABB, '部分重叠（左上）应该碰撞', collides5 === true,
+                `rect1: (0,0,50,50), rect6: (-25,-25,50,50) => ${collides5}`);
+            
+        } catch (error) {
+            logTest(sectionAABB, 'AABB测试异常', false, error.message);
+        }
+        
+        // 2. 地图边界检测测试
+        const sectionBounds = '地图边界检测';
+        
+        try {
+            const system = new MovementSystem({
+                mapBounds: { minX: 0, minY: 0, maxX: 500, maxY: 500 }
+            });
+            
+            // 测试2.1: 边界内的点
+            logTest(sectionBounds, '边界内的点应该有效', 
+                system.isWithinMapBounds(250, 250) === true,
+                '点 (250, 250) 在边界 (0,0,500,500) 内');
+            
+            // 测试2.2: 左边界外
+            logTest(sectionBounds, '左边界外的点应该无效',
+                system.isWithinMapBounds(-10, 250) === false,
+                '点 (-10, 250) 在边界外');
+            
+            // 测试2.3: 右边界外
+            logTest(sectionBounds, '右边界外的点应该无效',
+   

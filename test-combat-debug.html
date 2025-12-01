@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CombatSystem 调试测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+            font-family: 'Courier New', monospace;
+        }
+        
+        h1 {
+            color: #4a9eff;
+        }
+        
+        #output {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            font-size: 14px;
+        }
+        
+        .success {
+            color: #00ff88;
+        }
+        
+        .error {
+            color: #ff4444;
+        }
+        
+        .info {
+            color: #4a9eff;
+        }
+        
+        .debug {
+            color: #ffaa00;
+        }
+    </style>
+</head>
+<body>
+    <h1>CombatSystem 调试测试</h1>
+    <div id="output">运行测试中...</div>
+
+    <script type="module">
+        import { CombatSystem } from './src/systems/CombatSystem.js';
+        import { Entity } from './src/ecs/Entity.js';
+        import { TransformComponent } from './src/ecs/components/TransformComponent.js';
+
+        const output = document.getElementById('output');
+        output.textContent = '';
+
+        function log(message, type = 'info') {
+            const span = document.createElement('span');
+            span.className = type;
+            span.textContent = message + '\n';
+            output.appendChild(span);
+            console.log(message);
+        }
+
+        // 模拟 InputManager
+        class MockInputManager {
+            isMouseClicked() { return false; }
+            getMouseButton() { return -1; }
+            getMouseWorldPosition() { return { x: 0, y: 0 }; }
+            isKeyPressed(key) { return false; }
+            setCameraPosition(x, y) {}
+        }
+
+        // 模拟 Camera
+        class MockCamera {
+            getViewBounds() {
+                return { left: 0, top: 0, right: 800, bottom: 600 };
+            }
+        }
+
+        log('=== 测试3: 查找指定位置的敌人（调试版本） ===\n', 'info');
+
+        const inputManager = new MockInputManager();
+        const camera = new MockCamera();
+        const combatSystem = new CombatSystem({ inputManager, camera });
+
+        // 创建敌人
+        const enemy1 = new Entity('enemy_1', 'enemy');
+        const transform1 = new TransformComponent({ x: 200, y: 200 });
+        enemy1.addComponent(transform1);
+        log(`创建 enemy1: type=${enemy1.type}, position=(${transform1.position.x}, ${transform1.position.y})`, 'debug');
+
+        const enemy2 = new Entity('enemy_2', 'enemy');
+        const transform2 = new TransformComponent({ x: 300, y: 300 });
+        enemy2.addComponent(transform2);
+        log(`创建 enemy2: type=${enemy2.type}, position=(${transform2.position.x}, ${transform2.position.y})`, 'debug');
+
+        const entities = [enemy1, enemy2];
+        log(`实体列表长度: ${entities.length}`, 'debug');
+
+        // 测试点击 enemy1 附近
+        const clickPos1 = { x: 210, y: 210 };
+        log(`\n测试点击位置: (${clickPos1.x}, ${clickPos1.y})`, 'info');
+        
+        // 手动计算距离
+        const dx1 = 200 - 210;
+        const dy1 = 200 - 210;
+        const dist1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
+        log(`到 enemy1 的距离: ${dist1.toFixed(2)} (应该 < 30)`, 'debug');
+
+        const foundEnemy1 = combatSystem.findEnemyAtPosition(clickPos1, entities);
+        log(`找到的敌人: ${foundEnemy1 ? foundEnemy1.id : 'null'}`, foundEnemy1 === enemy1 ? 'success' : 'error');
+
+        if (foundEnemy1 === enemy1) {
+            log('✓ 成功找到 enemy1\n', 'success');
+        } else {
+            log('✗ 未能找到 enemy1\n', 'error');
+            
+            // 额外调试信息
+            log('调试信息:', 'debug');
+            log(`  enemy1.type = ${enemy1.type}`, 'debug');
+            log(`  enemy1 有 transform 组件: ${enemy1.getComponent('transform') !== null}`, 'debug');
+            log(`  entities.filter(e => e.type === 'enemy').length = ${entities.filter(e => e.type === 'enemy').length}`, 'debug');
+        }
+
+        // 测试点击 enemy2 附近
+        const clickPos2 = { x: 295, y: 295 };
+        log(`\n测试点击位置: (${clickPos2.x}, ${clickPos2.y})`, 'info');
+        
+        const dx2 = 300 - 295;
+        const dy2 = 300 - 295;
+        const dist2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+        log(`到 enemy2 的距离: ${dist2.toFixed(2)} (应该 < 30)`, 'debug');
+
+        const foundEnemy2 = combatSystem.findEnemyAtPosition(clickPos2, entities);
+        log(`找到的敌人: ${foundEnemy2 ? foundEnemy2.id : 'null'}`, foundEnemy2 === enemy2 ? 'success' : 'error');
+
+        if (foundEnemy2 === enemy2) {
+            log('✓ 成功找到 enemy2\n', 'success');
+        } else {
+            log('✗ 未能找到 enemy2\n', 'error');
+        }
+
+        // 测试点击空白处
+        const clickPos3 = { x: 500, y: 500 };
+        log(`\n测试点击位置: (${clickPos3.x}, ${clickPos3.y})`, 'info');
+        
+        const foundNone = combatSystem.findEnemyAtPosition(clickPos3, entities);
+        log(`找到的敌人: ${foundNone ? foundNone.id : 'null'}`, foundNone === null ? 'success' : 'error');
+
+        if (foundNone === null) {
+            log('✓ 正确返回 null\n', 'success');
+        } else {
+            log('✗ 应该返回 null\n', 'error');
+        }
+
+        log('\n=== 测试完成 ===', 'info');
+    </script>
+</body>
+</html>
