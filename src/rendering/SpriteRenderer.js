@@ -115,12 +115,14 @@ export class SpriteRenderer {
   renderPlaceholder(ctx, sprite) {
     const halfWidth = sprite.width / 2;
     const halfHeight = sprite.height / 2;
+    const offsetX = sprite.offsetX || 0;
+    const offsetY = sprite.offsetY || 0;
 
-    // 绘制占位符矩形
-    ctx.fillStyle = '#4a9eff';
+    // 使用 sprite.color 如果存在，否则使用默认颜色
+    ctx.fillStyle = sprite.color || '#4a9eff';
     ctx.fillRect(
-      -halfWidth + sprite.offsetX,
-      -halfHeight + sprite.offsetY,
+      -halfWidth + offsetX,
+      -halfHeight + offsetY,
       sprite.width,
       sprite.height
     );
@@ -129,21 +131,23 @@ export class SpriteRenderer {
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
     ctx.strokeRect(
-      -halfWidth + sprite.offsetX,
-      -halfHeight + sprite.offsetY,
+      -halfWidth + offsetX,
+      -halfHeight + offsetY,
       sprite.width,
       sprite.height
     );
 
-    // 绘制X标记
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(-halfWidth + sprite.offsetX, -halfHeight + sprite.offsetY);
-    ctx.lineTo(halfWidth + sprite.offsetX, halfHeight + sprite.offsetY);
-    ctx.moveTo(halfWidth + sprite.offsetX, -halfHeight + sprite.offsetY);
-    ctx.lineTo(-halfWidth + sprite.offsetX, halfHeight + sprite.offsetY);
-    ctx.stroke();
+    // 绘制X标记（仅在没有自定义颜色时）
+    if (!sprite.color) {
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(-halfWidth + offsetX, -halfHeight + offsetY);
+      ctx.lineTo(halfWidth + offsetX, halfHeight + offsetY);
+      ctx.moveTo(halfWidth + offsetX, -halfHeight + offsetY);
+      ctx.lineTo(-halfWidth + offsetX, halfHeight + offsetY);
+      ctx.stroke();
+    }
   }
 
   /**

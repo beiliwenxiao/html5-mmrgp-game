@@ -1,3 +1,5 @@
+import { ObjectPool } from '../core/ObjectPool.js';
+
 /**
  * CombatEffects - 战斗特效管理器
  * 处理受击闪烁、伤害数字飘字、治疗特效等
@@ -14,6 +16,56 @@ export class CombatEffects {
     
     // 闪烁效果列表
     this.flashEffects = [];
+    
+    // 伤害数字对象池
+    this.damageNumberPool = new ObjectPool(
+      // 工厂函数
+      () => ({
+        value: 0,
+        position: { x: 0, y: 0 },
+        velocity: { x: 0, y: 0 },
+        life: 0,
+        maxLife: 0,
+        type: 'damage',
+        active: false,
+        scale: 1.0
+      }),
+      // 重置函数
+      (obj) => {
+        obj.value = 0;
+        obj.position.x = 0;
+        obj.position.y = 0;
+        obj.velocity.x = 0;
+        obj.velocity.y = 0;
+        obj.life = 0;
+        obj.maxLife = 0;
+        obj.type = 'damage';
+        obj.scale = 1.0;
+      },
+      100, // 初始大小
+      500  // 最大大小
+    );
+    
+    // 闪烁效果对象池
+    this.flashEffectPool = new ObjectPool(
+      // 工厂函数
+      () => ({
+        entity: null,
+        duration: 0,
+        elapsed: 0,
+        color: '#ffffff',
+        active: false
+      }),
+      // 重置函数
+      (obj) => {
+        obj.entity = null;
+        obj.duration = 0;
+        obj.elapsed = 0;
+        obj.color = '#ffffff';
+      },
+      50,  // 初始大小
+      200  // 最大大小
+    );
   }
 
   /**
@@ -23,16 +75,19 @@ export class CombatEffects {
    * @param {string} [type='damage'] - 类型：'damage', 'heal', 'critical'
    */
   createDamageNumber(damage, position, type = 'damage') {
-    const damageNumber = {
-      value: Math.round(damage),
-      position: { x: position.x, y: position.y },
-      velocity: { x: (Math.random() - 0.5) * 30, y: -80 },
-      life: 1500,
-      maxLife: 1500,
-      type: type,
-      active: true,
-      scale: 1.0
-    };
+    // 从对象池获取伤害数字对象
+    const damageNumber = this.damageNumberPool.acquire();
+    
+    // 设置属性
+    damageNumber.value = Math.round(damage);
+    damageNumber.position.x = position.x;
+    damageNumber.position.y = position.y;
+    damageNumber.velocity.x = (Math.random() - 0.5) * 30;
+    damageNumber.velocity.y = -80;
+    damageNumber.life = 1500;
+    damageNumber.maxLife = 1500;
+    damageNumber.type = type;
+    damageNumber.scale = 1.0;
 
     this.damageNumbers.push(damageNumber);
 
@@ -72,7 +127,8 @@ export class CombatEffects {
       
       dmg.life -= deltaTime * 1000;
       if (dmg.life <= 0) {
-        dmg.active = false;
+        // 归还到对象池
+        this.damageNumberPool.release(dmg);
         this.damageNumbers.splice(i, 1);
         continue;
       }
@@ -151,13 +207,13 @@ export class CombatEffects {
    * @param {string} [color='#ffffff'] - 闪烁颜色
    */
   createFlashEffect(entity, duration = 300, color = '#ffffff') {
-    const flash = {
-      entity: entity,
-      duration: duration,
-      elapsed: 0,
-      color: color,
-      active: true
-    };
+    // 从对象池获取闪烁效果对象
+    const flash = this.flashEffectPool.acquire();
+    
+    flash.entity = entity;
+    flash.duration = duration;
+    flash.elapsed = 0;
+    flash.color = color;
 
     this.flashEffects.push(flash);
   }
@@ -172,7 +228,8 @@ export class CombatEffects {
       
       flash.elapsed += deltaTime * 1000;
       if (flash.elapsed >= flash.duration) {
-        flash.active = false;
+        // 归还到对象池
+        this.flashEffectPool.release(flash);
         this.flashEffects.splice(i, 1);
       }
     }
@@ -329,6 +386,14 @@ export class CombatEffects {
    * 清除所有战斗特效
    */
   clear() {
+    // 归还所有对象到池中
+    for (const dmg of this.damageNumbers) {
+      this.damageNumberPool.release(dmg);
+    }
+    for (const flash of this.flashEffects) {
+      this.flashEffectPool.release(flash);
+    }
+    
     this.damageNumbers = [];
     this.flashEffects = [];
   }
@@ -347,5 +412,24 @@ export class CombatEffects {
    */
   getActiveFlashEffectCount() {
     return this.flashEffects.length;
+  }
+
+  /**
+   * 获取对象池统计信息
+   * @returns {Object} 统计信息
+   */
+  getPoolStats() {
+    return {
+      damageNumbers: {
+        active: this.damageNumberPool.getActiveCount(),
+        pooled: this.damageNumberPool.getPoolSize(),
+        total: this.damageNumberPool.getTotalCount()
+      },
+      flashEffects: {
+        active: this.flashEffectPool.getActiveCount(),
+        pooled: this.flashEffectPool.getPoolSize(),
+        total: this.flashEffectPool.getTotalCount()
+      }
+    };
   }
 }

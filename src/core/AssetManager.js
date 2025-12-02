@@ -1,3 +1,6 @@
+import { PlaceholderAssets } from './PlaceholderAssets.js';
+import { AudioManager } from './AudioManager.js';
+
 /**
  * 资源管理器
  * 负责加载和管理游戏资源（图片、音频等）
@@ -19,6 +22,12 @@ export class AssetManager {
         
         // 精灵图集数据
         this.spriteSheets = new Map();
+        
+        // 占位符资源生成器
+        this.placeholderAssets = new PlaceholderAssets();
+        
+        // 音频管理器
+        this.audioManager = new AudioManager();
     }
 
     /**
@@ -244,5 +253,86 @@ export class AssetManager {
         this.images.delete(key);
         this.audio.delete(key);
         this.spriteSheets.delete(key);
+    }
+
+    /**
+     * 生成并加载占位符资源
+     * 用于快速开发，无需外部图片文件
+     */
+    loadPlaceholderAssets() {
+        console.log('AssetManager: Loading placeholder assets...');
+
+        // 角色精灵
+        const characterClasses = ['warrior', 'mage', 'archer'];
+        characterClasses.forEach(className => {
+            const sprite = this.placeholderAssets.createCharacterSprite(className, 64);
+            this.images.set(`character_${className}`, sprite);
+        });
+
+        // 敌人精灵
+        const enemyTypes = ['slime', 'goblin', 'skeleton'];
+        enemyTypes.forEach(enemyType => {
+            const sprite = this.placeholderAssets.createEnemySprite(enemyType, 64);
+            this.images.set(`enemy_${enemyType}`, sprite);
+        });
+
+        // 技能图标
+        const skills = ['attack', 'fireball', 'heal', 'shield', 'arrow', 'frost'];
+        skills.forEach(skillName => {
+            const icon = this.placeholderAssets.createSkillIcon(skillName, 48);
+            this.images.set(`skill_${skillName}`, icon);
+        });
+
+        // UI元素
+        const uiElements = [
+            { type: 'healthbar_bg', width: 200, height: 20 },
+            { type: 'healthbar_fill', width: 196, height: 16 },
+            { type: 'manabar_fill', width: 196, height: 16 },
+            { type: 'button', width: 150, height: 40 },
+            { type: 'panel', width: 300, height: 200 }
+        ];
+        uiElements.forEach(({ type, width, height }) => {
+            const element = this.placeholderAssets.createUIElement(type, width, height);
+            this.images.set(`ui_${type}`, element);
+        });
+
+        // 粒子纹理
+        const particleTypes = ['fire', 'heal', 'frost', 'spark'];
+        particleTypes.forEach(particleType => {
+            const texture = this.placeholderAssets.createParticleTexture(particleType, 16);
+            this.images.set(`particle_${particleType}`, texture);
+        });
+
+        console.log('AssetManager: Placeholder assets loaded successfully');
+    }
+
+    /**
+     * 获取占位符资源生成器
+     * @returns {PlaceholderAssets}
+     */
+    getPlaceholderAssets() {
+        return this.placeholderAssets;
+    }
+
+    /**
+     * 获取音频管理器
+     * @returns {AudioManager}
+     */
+    getAudioManager() {
+        return this.audioManager;
+    }
+
+    /**
+     * 加载占位符音效
+     * 注意：这些是占位符，实际游戏应该使用真实的音频文件
+     */
+    loadPlaceholderSounds() {
+        console.log('AudioManager: Placeholder sounds would be loaded here');
+        console.log('Note: Actual audio files should be added to assets/audio/ directory');
+        
+        // 示例：如果有真实音频文件，可以这样加载
+        // this.audioManager.addSound('attack', 'assets/audio/attack.mp3');
+        // this.audioManager.addSound('skill', 'assets/audio/skill.mp3');
+        // this.audioManager.addMusic('bgm', 'assets/audio/background.mp3');
     }
 }

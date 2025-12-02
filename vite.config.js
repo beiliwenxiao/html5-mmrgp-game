@@ -9,5 +9,8 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: true
+  },
+  test: {
+    environment: 'jsdom'
   }
 });
