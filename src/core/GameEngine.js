@@ -2,6 +2,9 @@ import { AssetManager } from './AssetManager.js';
 import { InputManager } from './InputManager.js';
 import { SceneManager } from './SceneManager.js';
 import { NetworkManager } from '../network/NetworkManager.js';
+import { ErrorHandler } from './ErrorHandler.js';
+import { logger, LogLevel } from './Logger.js';
+import { DebugTools } from './DebugTools.js';
 import { LoginScene } from '../scenes/LoginScene.js';
 import { CharacterScene } from '../scenes/CharacterScene.js';
 import { GameScene } from '../scenes/GameScene.js';
@@ -28,24 +31,50 @@ export class GameEngine {
         this.assetManager = null;
         this.inputManager = null;
         this.networkManager = null;
+        this.errorHandler = null;
+        this.debugTools = null;
+        this.logger = logger.createChild('GameEngine');
     }
 
     /**
      * 初始化游戏引擎
      */
     async init() {
-        console.log('GameEngine: Initializing...');
-        
-        // 初始化Canvas
-        this.initCanvas();
-        
-        // 设置窗口大小调整监听
-        window.addEventListener('resize', () => this.handleResize());
-        
-        // 初始化子系统（占位符，将在后续任务中实现）
-        await this.initSystems();
-        
-        console.log('GameEngine: Initialization complete');
+        try {
+            this.logger.info('Initializing...');
+            
+            // 初始化错误处理器
+            this.errorHandler = new ErrorHandler();
+            this.errorHandler.setErrorCallback((error) => {
+                this.logger.error('Game Error:', error);
+            });
+            
+            // 初始化Canvas
+            this.initCanvas();
+            
+            // 设置窗口大小调整监听
+            window.addEventListener('resize', () => this.handleResize());
+            
+            // 初始化子系统（占位符，将在后续任务中实现）
+            await this.initSystems();
+            
+            // 初始化调试工具
+            this.debugTools = new DebugTools(this);
+            window.debugTools = this.debugTools;
+            
+            this.logger.info('Initialization complete');
+        } catch (error) {
+            this.logger.error('Initialization failed', error);
+            if (this.errorHandler) {
+                this.errorHandler.handleError({
+                    type: 'initialization',
+                    message: `游戏初始化失败: ${error.message}`,
+                    error,
+                    timestamp: Date.now()
+                });
+            }
+            throw error;
+        }
     }
 
     /**
@@ -195,19 +224,37 @@ export class GameEngine {
      * 更新游戏状态
      */
     update(deltaTime) {
-        // 处理场景输入
-        if (this.sceneManager && this.inputManager) {
-            this.sceneManager.handleInput(this.inputManager);
-        }
-        
-        // 更新场景管理器
-        if (this.sceneManager) {
-            this.sceneManager.update(deltaTime);
-        }
-        
-        // 更新输入管理器（清除本帧状态）
-        if (this.inputManager) {
-            this.inputManager.update();
+        try {
+            // 处理场景输入
+            if (this.sceneManager && this.inputManager) {
+                this.sceneManager.handleInput(this.inputManager);
+            }
+            
+            // 更新场景管理器
+            if (this.sceneManager) {
+                this.sceneManager.update(deltaTime);
+            }
+            
+            // 更新调试工具
+            if (this.debugTools) {
+                this.debugTools.update(deltaTime);
+            }
+            
+            // 更新输入管理器（清除本帧状态）
+            if (this.inputManager) {
+                this.inputManager.update();
+            }
+        } catch (error) {
+            this.logger.error('Update error', error);
+            if (this.errorHandler) {
+                this.errorHandler.handleError({
+                    type: 'update',
+                    message: `游戏更新错误: ${error.message}`,
+                    context: 'game loop update',
+                    error,
+                    timestamp: Date.now()
+                });
+            }
         }
     }
 
@@ -215,13 +262,35 @@ export class GameEngine {
      * 渲染游戏画面
      */
     render() {
-        // 清空Canvas
-        this.ctx.fillStyle = '#1a1a2e';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        try {
+            // 清空Canvas
+            this.ctx.fillStyle = '#1a1a2e';
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // 渲染场景
-        if (this.sceneManager) {
-            this.sceneManager.render(this.ctx);
+            // 渲染场景
+            if (this.sceneManager) {
+                this.sceneManager.render(this.ctx);
+            }
+            
+            // 渲染调试信息（在最上层）
+            if (this.debugTools && this.debugTools.isEnabled()) {
+                // 获取当前场景的相机和实体（如果有）
+                const currentScene = this.sceneManager?.currentScene;
+                if (currentScene && currentScene.camera && currentScene.entities) {
+                    this.debugTools.render(this.ctx, currentScene.camera, currentScene.entities);
+                }
+            }
+        } catch (error) {
+            this.logger.error('Render error', error);
+            if (this.errorHandler) {
+                this.errorHandler.handleError({
+                    type: 'render',
+                    message: `游戏渲染错误: ${error.message}`,
+                    context: 'game loop render',
+                    error,
+                    timestamp: Date.now()
+                });
+            }
         }
     }
 }

@@ -83,18 +83,67 @@ export class AssetManager {
 
         console.log(`AssetManager: Loading ${this.totalCount} assets...`);
 
-        const promises = this.loadQueue.map(asset => this.loadAsset(asset));
+        const promises = this.loadQueue.map(asset => this.loadAssetWithFallback(asset));
         
         try {
             await Promise.all(promises);
             console.log('AssetManager: All assets loaded successfully');
         } catch (error) {
             console.error('AssetManager: Failed to load some assets', error);
-            throw error;
+            
+            // 尝试加载占位符资源作为降级方案
+            console.warn('AssetManager: Loading placeholder assets as fallback');
+            this.loadPlaceholderAssets();
         } finally {
             this.isLoading = false;
             this.loadQueue = [];
         }
+    }
+
+    /**
+     * 加载资源并提供降级方案
+     * @param {object} asset - 资源对象
+     * @returns {Promise<void>}
+     */
+    async loadAssetWithFallback(asset) {
+        try {
+            await this.loadAsset(asset);
+        } catch (error) {
+            console.warn(`AssetManager: Failed to load ${asset.key}, using fallback`, error);
+            
+            // 为失败的资源创建占位符
+            if (asset.type === 'image') {
+                this.createFallbackImage(asset.key);
+            }
+            
+            // 继续加载，不抛出错误
+            this.loadedCount++;
+            this.loadProgress = this.loadedCount / this.totalCount;
+        }
+    }
+
+    /**
+     * 为失败的图片创建降级占位符
+     * @param {string} key - 资源键名
+     */
+    createFallbackImage(key) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        
+        // 绘制简单的占位符
+        ctx.fillStyle = '#ff6b6b';
+        ctx.fillRect(0, 0, 64, 64);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('Missing', 32, 28);
+        ctx.fillText('Asset', 32, 42);
+        
+        this.images.set(key, canvas);
+        console.log(`AssetManager: Created fallback image for ${key}`);
     }
 
     /**
