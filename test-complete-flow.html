@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>完整游戏流程测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a2e;
+            color: #ffffff;
+        }
+        
+        #test-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #4a9eff;
+            text-align: center;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 1280px;
+            height: 720px;
+            margin: 20px auto;
+            border: 2px solid #4a9eff;
+            background: #000;
+        }
+        
+        #game-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #test-controls {
+            background: #2a2a4e;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .control-group {
+            margin: 15px 0;
+        }
+        
+        .control-group h3 {
+            color: #4a9eff;
+            margin-bottom: 10px;
+        }
+        
+        button {
+            background: #4a9eff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: #5aa9ff;
+        }
+        
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        
+        #test-log {
+            background: #1e1e3e;
+            padding: 15px;
+            border-radius: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #4a9eff;
+            padding-left: 10px;
+        }
+        
+        .log-success {
+            border-left-color: #51cf66;
+            color: #51cf66;
+        }
+        
+        .log-error {
+            border-left-color: #ff6b6b;
+            color: #ff6b6b;
+        }
+        
+        .log-info {
+            border-left-color: #4a9eff;
+            color: #aaaaaa;
+        }
+        
+        #test-status {
+            background: #2a2a4e;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            padding: 8px;
+            background: #1e1e3e;
+            border-radius: 4px;
+        }
+        
+        .status-label {
+            font-weight: bold;
+        }
+        
+        .status-value {
+            color: #4a9eff;
+        }
+        
+        .status-pass {
+            color: #51cf66;
+        }
+        
+        .status-fail {
+            color: #ff6b6b;
+        }
+    </style>
+</head>
+<body>
+    <div id="test-container">
+        <h1>🎮 完整游戏流程测试</h1>
+        
+        <div id="game-container">
+            <canvas id="game-canvas" width="1280" height="720"></canvas>
+        </div>
+        
+        <div id="test-controls">
+            <div class="control-group">
+                <h3>场景测试</h3>
+                <button onclick="testLoginScene()">测试登录场景</button>
+                <button onclick="testCharacterScene()">测试角色选择场景</button>
+                <button onclick="testGameScene()">测试游戏场景</button>
+                <button onclick="testCompleteFlow()">测试完整流程</button>
+            </div>
+            
+            <div class="control-group">
+                <h3>功能测试</h3>
+                <button onclick="testMovement()">测试移动</button>
+                <button onclick="testCombat()">测试战斗</button>
+                <button onclick="testSkills()">测试技能</button>
+                <button onclick="testUI()">测试UI</button>
+            </div>
+            
+            <div class="control-group">
+                <h3>控制</h3>
+                <button onclick="clearLog()">清空日志</button>
+                <button onclick="resetGame()">重置游戏</button>
+            </div>
+        </div>
+        
+        <div id="test-status">
+            <h3>测试状态</h3>
+            <div class="status-item">
+                <span class="status-label">当前场景:</span>
+                <span class="status-value" id="current-scene">-</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">FPS:</span>
+                <span class="status-value" id="fps-value">-</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">实体数量:</span>
+                <span class="status-value" id="entity-count">-</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">测试通过:</span>
+                <span class="status-value" id="tests-passed">0</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">测试失败:</span>
+                <span class="status-value" id="tests-failed">0</span>
+            </div>
+        </div>
+        
+        <div id="test-log">
+            <div class="log-entry log-info">测试日志将显示在这里...</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { GameEngine } from './src/core/GameEngine.js';
+        
+        let gameEngine = null;
+        let testsPassed = 0;
+        let testsFailed = 0;
+        
+        // 初始化游戏
+        async function initGame() {
+            try {
+                const canvas = document.getElementById('game-canvas');
+                gameEngine = new GameEngine(canvas);
+                window.gameEngine = gameEngine;
+                
+                await gameEngine.init();
+                gameEngine.start();
+                
+                log('游戏引擎初始化成功', 'success');
+                updateStatus();
+                
+                // 启动状态更新
+                setInterval(updateStatus, 1000);
+                
+                return true;
+            } catch (error) {
+                log('游戏引擎初始化失败: ' + error.message, 'error');
+                return false;
+            }
+        }
+        
+        // 日志函数
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('test-log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            entry.textContent = `[${timestamp}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+        
+        // 更新状态显示
+        function updateStatus() {
+            if (!gameEngine) return;
+            
+            // 当前场景
+            const currentScene = gameEngine.sceneManager?.currentScene?.name || '-';
+            document.getElementById('current-scene').textContent = currentScene;
+            
+            // FPS
+            const fps = gameEngine.performanceMonitor?.getFPS() || 0;
+            document.getElementById('fps-value').textContent = fps.toFixed(1);
+            
+            // 实体数量
+            const scene = gameEngine.sceneManager?.currentScene;
+            let entityCount = 0;
+            if (scene && scene.entities) {
+                entityCount = scene.entities.length;
+            }
+            document.getElementById('entity-count').textContent = entityCount;
+            
+            // 测试统计
+            document.getElementById('tests-passed').textContent = testsPassed;
+            document.getElementById('tests-failed').textContent = testsFailed;
+        }
+        
+        // 测试断言
+        function assert(condition, message) {
+            if (condition) {
+                testsPassed++;
+                log(`✓ ${message}`, 'success');
+                return true;
+            } else {
+                testsFailed++;
+                log(`✗ ${message}`, 'error');
+                return false;
+            }
+        }
+        
+        // 等待函数
+        function wait(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+        
+        // 测试登录场景
+        window.testLoginScene = async function() {
+            log('开始测试登录场景...', 'info');
+            
+            try {
+                gameEngine.sceneManager.switchTo('Login');
+                await wait(500);
+                
+                const scene = gameEngine.sceneManager.currentScene;
+                assert(scene.name === 'Login', '登录场景加载成功');
+                assert(scene.title === 'HTML5 MMRPG', '标题显示正确');
+                assert(scene.startButton !== undefined, '开始按钮存在');
+                
+                log('登录场景测试完成', 'success');
+            } catch (error) {
+                log('登录场景测试失败: ' + error.message, 'error');
+            }
+        };
+        
+        // 测试角色选择场景
+        window.testCharacterScene = async function() {
+            log('开始测试角色选择场景...', 'info');
+            
+            try {
+                gameEngine.sceneManager.switchTo('Character');
+                await wait(500);
+                
+                const scene = gameEngine.sceneManager.currentScene;
+                assert(scene.name === 'Character', '角色选择场景加载成功');
+                assert(scene.mode === 'list', '初始模式为列表模式');
+                assert(scene.classes !== undefined, '职业数据存在');
+                assert(Object.keys(scene.classes).length === 3, '有3个职业可选');
+                
+                // 测试切换到创建模式
+                scene.mode = 'create';
+                await wait(100);
+                assert(scene.mode === 'create', '切换到创建模式成功');
+                
+                // 测试角色名称验证
+                assert(!scene.validateCharacterName(''), '空名称验证失败');
+                assert(!scene.validateCharacterName('a'), '短名称验证失败');
+                assert(scene.validateCharacterName('测试角色'), '有效名称验证通过');
+                
+                log('角色选择场景测试完成', 'success');
+            } catch (error) {
+                log('角色选择场景测试失败: ' + error.message, 'error');
+            }
+        };
+        
+        // 测试游戏场景
+        window.testGameScene = async function() {
+            log('开始测试游戏场景...', 'info');
+            
+            try {
+                const testCharacter = {
+                    id: 'test-1',
+                    name: '测试角色',
+                    class: 'warrior',
+                    level: 1,
+                    stats: { hp: 150, maxHp: 150, mp: 50, maxMp: 50, attack: 15, defense: 10, speed: 150 },
+                    skills: ['basic_attack', 'power_strike'],
+                    position: { x: 640, y: 360 }
+                };
+                
+                gameEngine.sceneManager.switchTo('Game', { character: testCharacter });
+                await wait(1000);
+                
+                const scene = gameEngine.sceneManager.currentScene;
+                assert(scene.name === 'Game', '游戏场景加载成功');
+                assert(scene.player !== undefined, '玩家实体存在');
+                assert(scene.entities.length > 0, '场景中有实体');
+                
+                // 测试系统
+                assert(scene.renderSystem !== undefined, '渲染系统存在');
+                assert(scene.movementSystem !== undefined, '移动系统存在');
+                assert(scene.combatSystem !== undefined, '战斗系统存在');
+                assert(scene.uiSystem !== undefined, 'UI系统存在');
+                
+                log('游戏场景测试完成', 'success');
+            } catch (error) {
+                log('游戏场景测试失败: ' + error.message, 'error');
+            }
+        };
+        
+        // 测试完整流程
+        window.testCompleteFlow = async function() {
+            log('========================================', 'info');
+            log('开始测试完整游戏流程...', 'info');
+            log('========================================', 'info');
+            
+            try {
+                // 1. 登录场景
+                log('步骤 1: 测试登录场景', 'info');
+                gameEngine.sceneManager.switchTo('Login');
+                await wait(1000);
+                assert(gameEngine.sceneManager.currentScene.name === 'Login', '进入登录场景');
+                
+                // 2. 切换到角色选择
+                log('步骤 2: 切换到角色选择场景', 'info');
+                gameEngine.sceneManager.switchTo('Character');
+                await wait(1000);
+                assert(gameEngine.sceneManager.currentScene.name === 'Character', '进入角色选择场景');
+                
+                // 3. 创建角色
+                log('步骤 3: 创建测试角色', 'info');
+                const scene = gameEngine.sceneManager.currentScene;
+                scene.mode = 'create';
+                scene.createForm.nameInput = '流程测试角色';
+                scene.createForm.selectedClass = 'mage';
+                await wait(500);
+                assert(scene.createForm.nameInput === '流程测试角色', '角色名称设置成功');
+                assert(scene.createForm.selectedClass === 'mage', '职业选择成功');
+                
+                // 4. 进入游戏
+                log('步骤 4: 进入游戏场景', 'info');
+                const testCharacter = {
+                    id: 'flow-test-1',
+                    name: '流程测试角色',
+                    class: 'mage',
+                    level: 1,
+                    stats: { hp: 80, maxHp: 80, mp: 150, maxMp: 150, attack: 25, defense: 5, speed: 180 },
+                    skills: ['basic_attack', 'fireball', 'ice_lance'],
+                    position: { x: 640, y: 360 }
+                };
+                gameEngine.sceneManager.switchTo('Game', { character: testCharacter });
+                await wait(1500);
+                assert(gameEngine.sceneManager.currentScene.name === 'Game', '进入游戏场景');
+                
+                const gameScene = gameEngine.sceneManager.currentScene;
+                assert(gameScene.player !== undefined, '玩家角色创建成功');
+                
+                log('========================================', 'info');
+                log('完整流程测试完成！', 'success');
+                log('========================================', 'info');
+            } catch (error) {
+                log('完整流程测试失败: ' + error.message, 'error');
+            }
+        };
+        
+        // 测试移动
+        window.testMovement = async function() {
+            log('开始测试移动功能...', 'info');
+            
+            try {
+                const scene = gameEngine.sceneManager.currentScene;
+                if (scene.name !== 'Game') {
+                    log('请先进入游戏场景', 'error');
+                    return;
+                }
+                
+                const player = scene.player;
+                const initialX = player.transform.position.x;
+                const initialY = player.transform.position.y;
+                
+                // 模拟键盘移动
+                log('测试键盘移动 (W键)', 'info');
+                gameEngine.inputManager.keys.set('w', true);
+                await wait(500);
+                gameEngine.inputManager.keys.set('w', false);
+                
+                const movedY = player.transform.position.y;
+                assert(movedY < initialY, '向上移动成功');
+                
+                // 模拟点击移动
+                log('测试点击移动', 'info');
+                const targetX = initialX + 100;
+                const targetY = initialY;
+                
+                if (player.movement) {
+                    player.movement.path = [{ x: targetX, y: targetY }];
+                    player.movement.isMoving = true;
+                }
+                
+                await wait(1000);
+                assert(player.movement.path.length === 0 || !player.movement.isMoving, '点击移动完成');
+                
+                log('移动功能测试完成', 'success');
+            } catch (error) {
+                log('移动功能测试失败: ' + error.message, 'error');
+            }
+        };
+        
+        // 测试战斗
+        window.testCombat = async function() {
+            log('开始测试战斗功能...', 'info');
+            
+            try {
+                const scene = gameEngine.sceneManager.currentScene;
+                if (scene.name !== 'Game') {
+                    log('请先进入游戏场景', 'error');
+                    return;
+                }
+                
+                const player = scene.player;
+                const enemies = scene.entities.filter(e => e.type === 'enemy');
+                
+                assert(enemies.length > 0, '场景中有敌人');
+                
+                if (enemies.length > 0) {
+                    const enemy = enemies[0];
+                    const initialHp = enemy.stats.hp;
+                    
+                    // 设置目标
+                    if (player.combat) {
+                        player.combat.target = enemy;
+                        log('设置攻击目标', 'info');
+                    }
+                    
+                    // 等待攻击
+                    await wait(2000);
+                    
+                    // 检查是否造成伤害
+                    if (enemy.stats.hp < initialHp) {
+                        assert(true, '成功对敌人造成伤害');
+                    } else {
+                        log('未造成伤害（可能距离太远或冷却中）', 'info');
+                    }
+                }
+                
+                log('战斗功能测试完成', 'success');
+            } catch (error) {
+                log('战斗功能测试失败: ' + error.message, 'error');
+            }
+        };
+        
+        // 测试技能
+        window.testSkills = async function() {
+            log('开始测试技能功能...', 'info');
+            
+            try {
+                const scene = gameEngine.sceneManager.currentScene;
+                if (scene.name !== 'Game') {
+                    log('请先进入游戏场景', 'error');
+                    return;
+                }
+                
+                const player = scene.player;
+                assert(player.combat !== undefined, '玩家有战斗组件');
+                assert(player.combat.skills.length > 0, '玩家有技能');
+                
+                const skill = player.combat.skills[0];
+                assert(skill.id !== undefined, '技能有ID');
+                assert(skill.name !== undefined, '技能有名称');
+                assert(skill.cooldown !== undefined, '技能有冷却时间');
+                
+                log(`玩家技能: ${player.combat.skills.map(s => s.name).join(', ')}`, 'info');
+                
+                log('技能功能测试完成', 'success');
+            } catch (error) {
+                log('技能功能测试失败: ' + error.message, 'error');
+            }
+        };
+        
+        // 测试UI
+        window.testUI = async function() {
+            log('开始测试UI功能...', 'info');
+            
+            try {
+                const scene = gameEngine.sceneManager.currentScene;
+                if (scene.name !== 'Game') {
+                    log('请先进入游戏场景', 'error');
+                    return;
+                }
+                
+                assert(scene.uiSystem !== undefined, 'UI系统存在');
+                assert(scene.uiSystem.healthBar !== undefined, '生命值条存在');
+                assert(scene.uiSystem.manaBar !== undefined, '魔法值条存在');
+                assert(scene.uiSystem.skillBar !== undefined, '技能栏存在');
+                assert(scene.uiSystem.minimap !== undefined, '小地图存在');
+                
+                log('UI功能测试完成', 'success');
+            } catch (error) {
+                log('UI功能测试失败: ' + error.message, 'error');
+            }
+        };
+        
+        // 清空日志
+        window.clearLog = function() {
+            document.getElementById('test-log').innerHTML = '';
+            log('日志已清空', 'info');
+        };
+        
+        // 重置游戏
+        window.resetGame = async function() {
+            log('重置游戏...', 'info');
+            testsPassed = 0;
+            testsFailed = 0;
+            
+            if (gameEngine) {
+                gameEngine.stop();
+            }
+            
+            await wait(500);
+            await initGame();
+            
+            log('游戏重置完成', 'success');
+        };
+        
+        // 启动游戏
+        initGame();
+    </script>
+</body>
+</html>

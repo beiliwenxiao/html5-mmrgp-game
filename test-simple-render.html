@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>简单渲染测试</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #000;
+      color: #fff;
+      font-family: monospace;
+    }
+    
+    #gameCanvas {
+      display: block;
+      margin: 20px auto;
+      background: #1a1a2e;
+      border: 2px solid #4CAF50;
+    }
+    
+    #info {
+      text-align: center;
+      margin: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div id="info">
+    <h2>简单渲染测试</h2>
+    <p id="status">加载中...</p>
+  </div>
+  
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+  <script type="module">
+    import { Entity } from './src/ecs/Entity.js';
+    import { TransformComponent } from './src/ecs/components/TransformComponent.js';
+    import { SpriteComponent } from './src/ecs/components/SpriteComponent.js';
+    import { RenderSystem } from './src/rendering/RenderSystem.js';
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const statusEl = document.getElementById('status');
+    
+    try {
+      statusEl.textContent = '创建渲染系统...';
+      
+      // 创建渲染系统
+      const renderSystem = new RenderSystem(ctx, null, canvas.width, canvas.height);
+      renderSystem.setDebugMode(true);
+      
+      statusEl.textContent = '创建实体...';
+      
+      // 创建测试实体
+      const entities = [];
+      
+      for (let i = 0; i < 10; i++) {
+        const entity = new Entity(`entity_${i}`, 'test');
+        
+        const transform = new TransformComponent({
+          x: 200 + i * 60,
+          y: 300
+        });
+        entity.addComponent(transform);
+        
+        const sprite = new SpriteComponent('placeholder', {
+          width: 50,
+          height: 50
+        });
+        sprite.color = `hsl(${i * 36}, 70%, 60%)`;
+        sprite.visible = true;
+        
+        // 添加动画
+        sprite.addAnimation('idle', {
+          frames: [0],
+          frameRate: 1,
+          loop: true
+        });
+        sprite.playAnimation('idle');
+        
+        entity.addComponent(sprite);
+        entities.push(entity);
+      }
+      
+      statusEl.textContent = `创建了 ${entities.length} 个实体，开始渲染...`;
+      
+      // 渲染
+      let frameCount = 0;
+      function render() {
+        frameCount++;
+        
+        renderSystem.render(entities);
+        
+        // 显示帧数
+        ctx.fillStyle = '#fff';
+        ctx.font = '16px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(`Frame: ${frameCount}`, 10, 30);
+        ctx.fillText(`Entities: ${entities.length}`, 10, 50);
+        
+        if (frameCount < 120) {
+          requestAnimationFrame(render);
+        } else {
+          statusEl.textContent = '渲染完成！如果你看到彩色方块，说明渲染系统工作正常。';
+        }
+      }
+      
+      render();
+      
+    } catch (error) {
+      statusEl.textContent = `错误: ${error.message}`;
+      console.error('渲染测试失败:', error);
+    }
+  </script>
+</body>
+</html>

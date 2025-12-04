@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>性能压力测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a2e;
+            color: #ffffff;
+        }
+        
+        #test-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #4a9eff;
+            text-align: center;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 1280px;
+            height: 720px;
+            margin: 20px auto;
+            border: 2px solid #4a9eff;
+            background: #000;
+        }
+        
+        #game-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #controls {
+            background: #2a2a4e;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .control-group {
+            margin: 15px 0;
+        }
+        
+        .control-group h3 {
+            color: #4a9eff;
+            margin-bottom: 10px;
+        }
+        
+        button {
+            background: #4a9eff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: #5aa9ff;
+        }
+        
+        button.active {
+            background: #51cf66;
+        }
+        
+        input[type="range"] {
+            width: 200px;
+            vertical-align: middle;
+        }
+        
+        #metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .metric-card {
+            background: #2a2a4e;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #4a9eff;
+        }
+        
+        .metric-card.warning {
+            border-left-color: #ffd43b;
+        }
+        
+        .metric-card.danger {
+            border-left-color: #ff6b6b;
+        }
+        
+        .metric-label {
+            color: #aaa;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+        
+        .metric-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #4a9eff;
+        }
+        
+        .metric-card.warning .metric-value {
+            color: #ffd43b;
+        }
+        
+        .metric-card.danger .metric-value {
+            color: #ff6b6b;
+        }
+        
+        #chart-container {
+            background: #2a2a4e;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        #fps-chart {
+            width: 100%;
+            height: 200px;
+            background: #1e1e3e;
+            border-radius: 5px;
+            position: relative;
+        }
+        
+        .chart-line {
+            stroke: #4a9eff;
+            stroke-width: 2;
+            fill: none;
+        }
+        
+        #test-log {
+            background: #1e1e3e;
+            padding: 15px;
+            border-radius: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .log-entry {
+            margin: 3px 0;
+            padding: 3px;
+        }
+        
+        .log-info { color: #aaa; }
+        .log-success { color: #51cf66; }
+        .log-warning { color: #ffd43b; }
+        .log-error { color: #ff6b6b; }
+    </style>
+</head>
+<body>
+    <div id="test-container">
+        <h1>⚡ 性能压力测试</h1>
+        
+        <div id="game-container">
+            <canvas id="game-canvas" width="1280" height="720"></canvas>
+        </div>
+        
+        <div id="controls">
+            <div class="control-group">
+                <h3>压力测试</h3>
+                <button onclick="addEnemies(10)">添加 10 个敌人</button>
+                <button onclick="addEnemies(50)">添加 50 个敌人</button>
+                <button onclick="addEnemies(100)">添加 100 个敌人</button>
+                <button onclick="clearEnemies()">清除所有敌人</button>
+            </div>
+            
+            <div class="control-group">
+                <h3>粒子测试</h3>
+                <button onclick="spawnParticles(100)">生成 100 个粒子</button>
+                <button onclick="spawnParticles(500)">生成 500 个粒子</button>
+                <button onclick="spawnParticles(1000)">生成 1000 个粒子</button>
+                <button onclick="clearParticles()">清除粒子</button>
+            </div>
+            
+            <div class="control-group">
+                <h3>长时间运行测试</h3>
+                <button id="stress-test-btn" onclick="toggleStressTest()">开始压力测试</button>
+                <span id="stress-test-time">0:00</span>
+            </div>
+            
+            <div class="control-group">
+                <h3>内存测试</h3>
+                <button onclick="memoryLeakTest()">内存泄漏测试</button>
+                <button onclick="forceGC()">强制垃圾回收</button>
+            </div>
+        </div>
+        
+        <div id="metrics">
+            <div class="metric-card" id="fps-card">
+                <div class="metric-label">FPS (帧率)</div>
+                <div class="metric-value" id="fps-value">0</div>
+            </div>
+            
+            <div class="metric-card" id="frame-time-card">
+                <div class="metric-label">帧时间 (ms)</div>
+                <div class="metric-value" id="frame-time-value">0</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-label">实体数量</div>
+                <div class="metric-value" id="entity-count">0</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-label">粒子数量</div>
+                <div class="metric-value" id="particle-count">0</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-label">绘制调用</div>
+                <div class="metric-value" id="draw-calls">0</div>
+            </div>
+            
+            <div class="metric-card" id="memory-card">
+                <div class="metric-label">内存使用 (MB)</div>
+                <div class="metric-value" id="memory-value">0</div>
+            </div>
+        </div>
+        
+        <div id="chart-container">
+            <h3>FPS 历史</h3>
+            <svg id="fps-chart" viewBox="0 0 1000 200">
+                <line x1="0" y1="100" x2="1000" y2="100" stroke="#666" stroke-width="1" stroke-dasharray="5,5"/>
+                <text x="5" y="95" fill="#666" font-size="12">60 FPS</text>
+                <polyline class="chart-line" id="fps-line" points=""/>
+            </svg>
+        </div>
+        
+        <div id="test-log"></div>
+    </div>
+
+    <script type="module">
+        import { GameEngine } from './src/core/GameEngine.js';
+        import { EntityFactory } from './src/ecs/EntityFactory.js';
+        
+        let gameEngine = null;
+        let stressTestRunning = false;
+        let stressTestStartTime = 0;
+        let fpsHistory = [];
+        const maxHistoryPoints = 100;
+        
+        // 初始化游戏
+        async function initGame() {
+            try {
+                const canvas = document.getElementById('game-canvas');
+                gameEngine = new GameEngine(canvas);
+                window.gameEngine = gameEngine;
+                
+                await gameEngine.init();
+                
+                // 创建测试角色并进入游戏场景
+                const testCharacter = {
+                    id: 'perf-test-player',
+                    name: '性能测试',
+                    class: 'warrior',
+                    level: 1,
+                    stats: { hp: 150, maxHp: 150, mp: 50, maxMp: 50, attack: 15, defense: 10, speed: 150 },
+                    skills: ['basic_attack', 'power_strike'],
+                    position: { x: 640, y: 360 }
+                };
+                
+                gameEngine.sceneManager.switchTo('Game', { character: testCharacter });
+                gameEngine.start();
+                
+                log('性能测试环境初始化成功', 'success');
+                
+                // 启动监控
+                setInterval(updateMetrics, 100);
+                
+            } catch (error) {
+                log('初始化失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 日志函数
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('test-log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            entry.textContent = `[${timestamp}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            
+            // 限制日志数量
+            while (logDiv.children.length > 100) {
+                logDiv.removeChild(logDiv.firstChild);
+            }
+        }
+        
+        // 更新性能指标
+        function updateMetrics() {
+            if (!gameEngine) return;
+            
+            const scene = gameEngine.sceneManager?.currentScene;
+            if (!scene || scene.name !== 'Game') return;
+            
+            // FPS
+            const fps = gameEngine.performanceMonitor?.getFPS() || 0;
+            document.getElementById('fps-value').textContent = fps.toFixed(1);
+            
+            const fpsCard = document.getElementById('fps-card');
+            fpsCard.className = 'metric-card';
+            if (fps < 30) fpsCard.className += ' danger';
+            else if (fps < 50) fpsCard.className += ' warning';
+            
+            // 帧时间
+            const frameTime = gameEngine.performanceMonitor?.getAverageFrameTime() || 0;
+            document.getElementById('frame-time-value').textContent = frameTime.toFixed(2);
+            
+            const frameTimeCard = document.getElementById('frame-time-card');
+            frameTimeCard.className = 'metric-card';
+            if (frameTime > 33) frameTimeCard.className += ' danger';
+            else if (frameTime > 20) frameTimeCard.className += ' warning';
+            
+            // 实体数量
+            const entityCount = scene.entities?.length || 0;
+            document.getElementById('entity-count').textContent = entityCount;
+            
+            // 粒子数量
+            let particleCount = 0;
+            if (scene.particleSystem) {
+                particleCount = scene.particleSystem.particles?.length || 0;
+            }
+            document.getElementById('particle-count').textContent = particleCount;
+            
+            // 绘制调用
+            const drawCalls = gameEngine.performanceMonitor?.getDrawCalls() || 0;
+            document.getElementById('draw-calls').textContent = drawCalls;
+            
+            // 内存使用
+            if (performance.memory) {
+                const memoryMB = (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(1);
+                document.getElementById('memory-value').textContent = memoryMB;
+                
+                const memoryCard = document.getElementById('memory-card');
+                memoryCard.className = 'metric-card';
+                if (memoryMB > 500) memoryCard.className += ' danger';
+                else if (memoryMB > 300) memoryCard.className += ' warning';
+            } else {
+                document.getElementById('memory-value').textContent = 'N/A';
+            }
+            
+            // 更新 FPS 图表
+            updateFPSChart(fps);
+            
+            // 更新压力测试时间
+            if (stressTestRunning) {
+                const elapsed = Math.floor((Date.now() - stressTestStartTime) / 1000);
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                document.getElementById('stress-test-time').textContent = 
+                    `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }
+        }
+        
+        // 更新 FPS 图表
+        function updateFPSChart(fps) {
+            fpsHistory.push(fps);
+            if (fpsHistory.length > maxHistoryPoints) {
+                fpsHistory.shift();
+            }
+            
+            const points = fpsHistory.map((value, index) => {
+                const x = (index / maxHistoryPoints) * 1000;
+                const y = 200 - (value / 60) * 100; // 60 FPS = 顶部
+                return `${x},${y}`;
+            }).join(' ');
+            
+            document.getElementById('fps-line').setAttribute('points', points);
+        }
+        
+        // 添加敌人
+        window.addEnemies = function(count) {
+            const scene = gameEngine.sceneManager?.currentScene;
+            if (!scene || scene.name !== 'Game') {
+                log('请先进入游戏场景', 'error');
+                return;
+            }
+            
+            const enemyTypes = ['slime', 'goblin', 'skeleton'];
+            
+            for (let i = 0; i < count; i++) {
+                const x = Math.random() * 1280;
+                const y = Math.random() * 720;
+                const type = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
+                
+                const enemy = EntityFactory.createEnemy(type, x, y);
+                scene.entities.push(enemy);
+            }
+            
+            log(`添加了 ${count} 个敌人`, 'success');
+        };
+        
+        // 清除敌人
+        window.clearEnemies = function() {
+            const scene = gameEngine.sceneManager?.currentScene;
+            if (!scene || scene.name !== 'Game') return;
+            
+            const beforeCount = scene.entities.length;
+            scene.entities = scene.entities.filter(e => e.type !== 'enemy');
+            const removed = beforeCount - scene.entities.length;
+            
+            log(`清除了 ${removed} 个敌人`, 'success');
+        };
+        
+        // 生成粒子
+        window.spawnParticles = function(count) {
+            const scene = gameEngine.sceneManager?.currentScene;
+            if (!scene || scene.name !== 'Game' || !scene.particleSystem) {
+                log('粒子系统不可用', 'error');
+                return;
+            }
+            
+            for (let i = 0; i < count; i++) {
+                const x = Math.random() * 1280;
+                const y = Math.random() * 720;
+                
+                scene.particleSystem.emit({
+                    x, y,
+                    count: 1,
+                    speed: 50 + Math.random() * 100,
+                    life: 1 + Math.random() * 2,
+                    color: `hsl(${Math.random() * 360}, 70%, 60%)`,
+                    size: 3 + Math.random() * 5
+                });
+            }
+            
+            log(`生成了 ${count} 个粒子`, 'success');
+        };
+        
+        // 清除粒子
+        window.clearParticles = function() {
+            const scene = gameEngine.sceneManager?.currentScene;
+            if (!scene || !scene.particleSystem) return;
+            
+            const count = scene.particleSystem.particles?.length || 0;
+            if (scene.particleSystem.particles) {
+                scene.particleSystem.particles = [];
+            }
+            
+            log(`清除了 ${count} 个粒子`, 'success');
+        };
+        
+        // 切换压力测试
+        window.toggleStressTest = function() {
+            stressTestRunning = !stressTestRunning;
+            const btn = document.getElementById('stress-test-btn');
+            
+            if (stressTestRunning) {
+                btn.textContent = '停止压力测试';
+                btn.className = 'active';
+                stressTestStartTime = Date.now();
+                log('开始长时间压力测试', 'info');
+                runStressTest();
+            } else {
+                btn.textContent = '开始压力测试';
+                btn.className = '';
+                log('停止压力测试', 'info');
+            }
+        };
+        
+        // 运行压力测试
+        function runStressTest() {
+            if (!stressTestRunning) return;
+            
+            // 每 5 秒添加一些敌人
+            if (Math.random() < 0.2) {
+                addEnemies(5);
+            }
+            
+            // 每 3 秒生成一些粒子
+            if (Math.random() < 0.3) {
+                spawnParticles(50);
+            }
+            
+            setTimeout(runStressTest, 1000);
+        }
+        
+        // 内存泄漏测试
+        window.memoryLeakTest = async function() {
+            log('开始内存泄漏测试...', 'info');
+            
+            const initialMemory = performance.memory ? 
+                performance.memory.usedJSHeapSize : 0;
+            
+            // 创建和销毁大量对象
+            for (let i = 0; i < 10; i++) {
+                addEnemies(50);
+                await new Promise(resolve => setTimeout(resolve, 500));
+                clearEnemies();
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
+            const finalMemory = performance.memory ? 
+                performance.memory.usedJSHeapSize : 0;
+            
+            const leakMB = ((finalMemory - initialMemory) / 1024 / 1024).toFixed(2);
+            
+            if (Math.abs(leakMB) < 10) {
+                log(`内存泄漏测试完成: ${leakMB} MB (正常)`, 'success');
+            } else {
+                log(`内存泄漏测试完成: ${leakMB} MB (可能存在泄漏)`, 'warning');
+            }
+        };
+        
+        // 强制垃圾回收
+        window.forceGC = function() {
+            if (window.gc) {
+                window.gc();
+                log('已触发垃圾回收', 'success');
+            } else {
+                log('垃圾回收不可用 (需要 --expose-gc 标志)', 'warning');
+            }
+        };
+        
+        // 启动
+        initGame();
+    </script>
+</body>
+</html>

@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>浏览器兼容性测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a2e;
+            color: #ffffff;
+        }
+        
+        #test-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #4a9eff;
+            text-align: center;
+        }
+        
+        .section {
+            background: #2a2a4e;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .section h2 {
+            color: #4a9eff;
+            margin-top: 0;
+        }
+        
+        .test-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            margin: 8px 0;
+            background: #1e1e3e;
+            border-radius: 5px;
+            border-left: 4px solid #666;
+        }
+        
+        .test-item.pass {
+            border-left-color: #51cf66;
+        }
+        
+        .test-item.fail {
+            border-left-color: #ff6b6b;
+        }
+        
+        .test-item.warning {
+            border-left-color: #ffd43b;
+        }
+        
+        .test-name {
+            font-weight: bold;
+        }
+        
+        .test-result {
+            padding: 5px 15px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        
+        .test-result.pass {
+            background: #51cf66;
+            color: #000;
+        }
+        
+        .test-result.fail {
+            background: #ff6b6b;
+            color: #fff;
+        }
+        
+        .test-result.warning {
+            background: #ffd43b;
+            color: #000;
+        }
+        
+        .browser-info {
+            background: #1e1e3e;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+        }
+        
+        .info-label {
+            color: #aaa;
+        }
+        
+        .info-value {
+            color: #4a9eff;
+            font-weight: bold;
+        }
+        
+        button {
+            background: #4a9eff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            margin: 10px 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        button:hover {
+            background: #5aa9ff;
+        }
+        
+        .summary {
+            background: #1e1e3e;
+            padding: 20px;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 18px;
+        }
+        
+        .summary-pass {
+            color: #51cf66;
+            font-size: 48px;
+            font-weight: bold;
+        }
+        
+        .summary-fail {
+            color: #ff6b6b;
+            font-size: 48px;
+            font-weight: bold;
+        }
+        
+        #game-canvas {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="test-container">
+        <h1>🌐 浏览器兼容性测试</h1>
+        
+        <div class="section">
+            <h2>浏览器信息</h2>
+            <div class="browser-info" id="browser-info">
+                <div class="info-row">
+                    <span class="info-label">浏览器:</span>
+                    <span class="info-value" id="browser-name">检测中...</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">版本:</span>
+                    <span class="info-value" id="browser-version">检测中...</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">操作系统:</span>
+                    <span class="info-value" id="os-name">检测中...</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">User Agent:</span>
+                    <span class="info-value" id="user-agent" style="font-size: 12px; word-break: break-all;">检测中...</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>核心功能测试</h2>
+            <div id="core-tests"></div>
+        </div>
+        
+        <div class="section">
+            <h2>Canvas API 测试</h2>
+            <div id="canvas-tests"></div>
+        </div>
+        
+        <div class="section">
+            <h2>JavaScript API 测试</h2>
+            <div id="js-tests"></div>
+        </div>
+        
+        <div class="section">
+            <h2>性能 API 测试</h2>
+            <div id="performance-tests"></div>
+        </div>
+        
+        <div class="section">
+            <h2>测试总结</h2>
+            <div class="summary" id="summary">
+                <div>正在运行测试...</div>
+            </div>
+            <div style="text-align: center; margin-top: 20px;">
+                <button onclick="runAllTests()">重新测试</button>
+                <button onclick="exportResults()">导出结果</button>
+            </div>
+        </div>
+    </div>
+    
+    <canvas id="game-canvas" width="800" height="600"></canvas>
+
+    <script>
+        let testResults = {
+            passed: 0,
+            failed: 0,
+            warnings: 0,
+            tests: []
+        };
+        
+        // 检测浏览器信息
+        function detectBrowser() {
+            const ua = navigator.userAgent;
+            let browserName = 'Unknown';
+            let browserVersion = 'Unknown';
+            let osName = 'Unknown';
+            
+            // 检测浏览器
+            if (ua.indexOf('Chrome') > -1 && ua.indexOf('Edg') === -1) {
+                browserName = 'Chrome';
+                browserVersion = ua.match(/Chrome\/(\d+)/)?.[1] || 'Unknown';
+            } else if (ua.indexOf('Edg') > -1) {
+                browserName = 'Edge';
+                browserVersion = ua.match(/Edg\/(\d+)/)?.[1] || 'Unknown';
+            } else if (ua.indexOf('Firefox') > -1) {
+                browserName = 'Firefox';
+                browserVersion = ua.match(/Firefox\/(\d+)/)?.[1] || 'Unknown';
+            } else if (ua.indexOf('Safari') > -1 && ua.indexOf('Chrome') === -1) {
+                browserName = 'Safari';
+                browserVersion = ua.match(/Version\/(\d+)/)?.[1] || 'Unknown';
+            }
+            
+            // 检测操作系统
+            if (ua.indexOf('Win') > -1) osName = 'Windows';
+            else if (ua.indexOf('Mac') > -1) osName = 'macOS';
+            else if (ua.indexOf('Linux') > -1) osName = 'Linux';
+            else if (ua.indexOf('Android') > -1) osName = 'Android';
+            else if (ua.indexOf('iOS') > -1) osName = 'iOS';
+            
+            document.getElementById('browser-name').textContent = browserName;
+            document.getElementById('browser-version').textContent = browserVersion;
+            document.getElementById('os-name').textContent = osName;
+            document.getElementById('user-agent').textContent = ua;
+            
+            return { browserName, browserVersion, osName, ua };
+        }
+        
+        // 添加测试结果
+        function addTestResult(category, name, passed, message = '') {
+            const result = {
+                category,
+                name,
+                passed,
+                message
+            };
+            
+            testResults.tests.push(result);
+            
+            if (passed === true) {
+                testResults.passed++;
+            } else if (passed === false) {
+                testResults.failed++;
+            } else {
+                testResults.warnings++;
+            }
+            
+            return result;
+        }
+        
+        // 渲染测试结果
+        function renderTestResult(containerId, result) {
+            const container = document.getElementById(containerId);
+            const div = document.createElement('div');
+            
+            let statusClass = 'fail';
+            let statusText = '失败';
+            
+            if (result.passed === true) {
+                statusClass = 'pass';
+                statusText = '通过';
+            } else if (result.passed === 'warning') {
+                statusClass = 'warning';
+                statusText = '警告';
+            }
+            
+            div.className = `test-item ${statusClass}`;
+            div.innerHTML = `
+                <div>
+                    <div class="test-name">${result.name}</div>
+                    ${result.message ? `<div style="color: #aaa; font-size: 12px; margin-top: 5px;">${result.message}</div>` : ''}
+                </div>
+                <div class="test-result ${statusClass}">${statusText}</div>
+            `;
+            
+            container.appendChild(div);
+        }
+        
+        // 核心功能测试
+        function testCoreFeatures() {
+            // Canvas 支持
+            const canvas = document.createElement('canvas');
+            const hasCanvas = !!canvas.getContext;
+            addTestResult('core', 'HTML5 Canvas 支持', hasCanvas);
+            renderTestResult('core-tests', testResults.tests[testResults.tests.length - 1]);
+            
+            // Canvas 2D Context
+            const has2DContext = hasCanvas && !!canvas.getContext('2d');
+            addTestResult('core', 'Canvas 2D Context', has2DContext);
+            renderTestResult('core-tests', testResults.tests[testResults.tests.length - 1]);
+            
+            // requestAnimationFrame
+            const hasRAF = !!window.requestAnimationFrame;
+            addTestResult('core', 'requestAnimationFrame', hasRAF);
+            renderTestResult('core-tests', testResults.tests[testResults.tests.length - 1]);
+            
+            // WebSocket
+            const hasWebSocket = !!window.WebSocket;
+            addTestResult('core', 'WebSocket', hasWebSocket);
+            renderTestResult('core-tests', testResults.tests[testResults.tests.length - 1]);
+            
+            // localStorage
+            const hasLocalStorage = !!window.localStorage;
+            addTestResult('core', 'localStorage', hasLocalStorage);
+            renderTestResult('core-tests', testResults.tests[testResults.tests.length - 1]);
+        }
+        
+        // Canvas API 测试
+        function testCanvasAPI() {
+            const canvas = document.getElementById('game-canvas');
+            const ctx = canvas.getContext('2d');
+            
+            if (!ctx) {
+                addTestResult('canvas', 'Canvas Context', false, '无法获取 2D Context');
+                renderTestResult('canvas-tests', testResults.tests[testResults.tests.length - 1]);
+                return;
+            }
+            
+            // 基础绘制
+            try {
+                ctx.fillStyle = '#ff0000';
+                ctx.fillRect(0, 0, 100, 100);
+                addTestResult('canvas', '基础绘制 (fillRect)', true);
+            } catch (e) {
+                addTestResult('canvas', '基础绘制 (fillRect)', false, e.message);
+            }
+            renderTestResult('canvas-tests', testResults.tests[testResults.tests.length - 1]);
+            
+            // 文本渲染
+            try {
+                ctx.font = '20px Arial';
+                ctx.fillText('Test', 10, 10);
+                addTestResult('canvas', '文本渲染', true);
+            } catch (e) {
+                addTestResult('canvas', '文本渲染', false, e.message);
+            }
+            renderTestResult('canvas-tests', testResults.tests[testResults.tests.length - 1]);
+            
+            // 图像绘制
+            try {
+                const img = new Image();
+                ctx.drawImage(canvas, 0, 0);
+                addTestResult('canvas', '图像绘制', true);
+            } catch (e) {
+                addTestResult('canvas', '图像绘制', false, e.message);
+            }
+            renderTestResult('canvas-tests', testResults.tests[testResults.tests.length - 1]);
+            
+            // 渐变
+            try {
+                const gradient = ctx.createLinearGradient(0, 0, 100, 100);
+                gradient.addColorStop(0, '#ff0000');
+                gradient.addColorStop(1, '#0000ff');
+                ctx.fillStyle = gradient;
+                addTestResult('canvas', '渐变支持', true);
+            } catch (e) {
+                addTestResult('canvas', '渐变支持', false, e.message);
+            }
+            renderTestResult('canvas-tests', testResults.tests[testResults.tests.length - 1]);
+            
+            // 阴影
+            try {
+                ctx.shadowColor = '#000000';
+                ctx.shadowBlur = 10;
+                ctx.shadowOffsetX = 5;
+                ctx.shadowOffsetY = 5;
+                addTestResult('canvas', '阴影支持', true);
+            } catch (e) {
+                addTestResult('canvas', '阴影支持', false, e.message);
+            }
+            renderTestResult('canvas-tests', testResults.tests[testResults.tests.length - 1]);
+            
+            // 变换
+            try {
+                ctx.save();
+                ctx.translate(50, 50);
+                ctx.rotate(Math.PI / 4);
+                ctx.scale(2, 2);
+                ctx.restore();
+                addTestResult('canvas', '变换操作', true);
+            } catch (e) {
+                addTestResult('canvas', '变换操作', false, e.message);
+            }
+            renderTestResult('canvas-tests', testResults.tests[testResults.tests.length - 1]);
+        }
+        
+        // JavaScript API 测试
+        function testJavaScriptAPI() {
+            // ES6 支持
+            try {
+                eval('const test = () => {};');
+                addTestResult('js', 'ES6 箭头函数', true);
+            } catch (e) {
+                addTestResult('js', 'ES6 箭头函数', false, e.message);
+            }
+            renderTestResult('js-tests', testResults.tests[testResults.tests.length - 1]);
+            
+            // Promise
+            const hasPromise = !!window.Promise;
+            addTestResult('js', 'Promise', hasPromise);
+            renderTestResult('js-tests', testResults.tests[testResults.tests.length - 1]);
+            
+            // async/await
+            try {
+                eval('async function test() { await Promise.resolve(); }');
+                addTestResult('js', 'async/await', true);
+            } catch (e) {
+                addTestResult('js', 'async/await', false, e.message);
+            }
+            renderTestResult('js-tests', testResults.tests[testResults.tests.length - 1]);
+            
+            // Map/Set
+            const hasMap = !!window.Map;
+            const hasSet = !!window.Set;
+            addTestResult('js', 'Map/Set', hasMap && hasSet);
+            renderTestResult('js-tests', testResults.tests[testResults.tests.length - 1]);
+            
+            // Array methods
+            const hasArrayMethods = !![].map && !![].filter && !![].reduce;
+            addTestResult('js', 'Array 方法', hasArrayMethods);
+            renderTestResult('js-tests', testResults.tests[testResults.tests.length - 1]);
+            
+            // JSON
+            const hasJSON = !!window.JSON;
+            addTestResult('js', 'JSON', hasJSON);
+            renderTestResult('js-tests', testResults.tests[testResults.tests.length - 1]);
+        }
+        
+        // 性能 API 测试
+        function testPerformanceAPI() {
+            // performance.now()
+            const hasPerformanceNow = !!(window.performance && window.performance.now);
+            addTestResult('performance', 'performance.now()', hasPerformanceNow);
+            renderTestResult('performance-tests', testResults.tests[testResults.tests.length - 1]);
+            
+            // requestAnimationFrame
+            const hasRAF = !!window.requestAnimationFrame;
+            addTestResult('performance', 'requestAnimationFrame', hasRAF);
+            renderTestResult('performance-tests', testResults.tests[testResults.tests.length - 1]);
+            
+            // cancelAnimationFrame
+            const hasCancelRAF = !!window.cancelAnimationFrame;
+            addTestResult('performance', 'cancelAnimationFrame', hasCancelRAF);
+            renderTestResult('performance-tests', testResults.tests[testResults.tests.length - 1]);
+            
+            // Performance Observer
+            const hasPerformanceObserver = !!window.PerformanceObserver;
+            addTestResult('performance', 'PerformanceObserver', hasPerformanceObserver ? 'warning' : false, 
+                hasPerformanceObserver ? '支持但非必需' : '不支持（非必需）');
+            renderTestResult('performance-tests', testResults.tests[testResults.tests.length - 1]);
+        }
+        
+        // 更新总结
+        function updateSummary() {
+            const summary = document.getElementById('summary');
+            const total = testResults.passed + testResults.failed + testResults.warnings;
+            const passRate = ((testResults.passed / total) * 100).toFixed(1);
+            
+            let summaryClass = 'summary-pass';
+            let summaryText = '✓ 兼容';
+            
+            if (testResults.failed > 0) {
+                summaryClass = 'summary-fail';
+                summaryText = '✗ 不兼容';
+            }
+            
+            summary.innerHTML = `
+                <div class="${summaryClass}">${summaryText}</div>
+                <div style="margin-top: 20px; color: #aaa;">
+                    <div>通过: <span style="color: #51cf66;">${testResults.passed}</span></div>
+                    <div>失败: <span style="color: #ff6b6b;">${testResults.failed}</span></div>
+                    <div>警告: <span style="color: #ffd43b;">${testResults.warnings}</span></div>
+                    <div>总计: ${total}</div>
+                    <div style="margin-top: 10px; font-size: 24px; color: #4a9eff;">通过率: ${passRate}%</div>
+                </div>
+            `;
+        }
+        
+        // 运行所有测试
+        function runAllTests() {
+            // 重置结果
+            testResults = {
+                passed: 0,
+                failed: 0,
+                warnings: 0,
+                tests: []
+            };
+            
+            // 清空容器
+            document.getElementById('core-tests').innerHTML = '';
+            document.getElementById('canvas-tests').innerHTML = '';
+            document.getElementById('js-tests').innerHTML = '';
+            document.getElementById('performance-tests').innerHTML = '';
+            
+            // 运行测试
+            detectBrowser();
+            testCoreFeatures();
+            testCanvasAPI();
+            testJavaScriptAPI();
+            testPerformanceAPI();
+            updateSummary();
+        }
+        
+        // 导出结果
+        function exportResults() {
+            const browserInfo = detectBrowser();
+            const report = {
+                timestamp: new Date().toISOString(),
+                browser: browserInfo,
+                results: testResults
+            };
+            
+            const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `browser-compatibility-${browserInfo.browserName}-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        // 页面加载时运行测试
+        window.runAllTests = runAllTests;
+        window.exportResults = exportResults;
+        
+        // 自动运行
+        runAllTests();
+    </script>
+</body>
+</html>

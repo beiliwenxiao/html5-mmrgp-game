@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>渲染优化测试</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+    }
+    
+    #gameCanvas {
+      display: block;
+      margin: 0 auto;
+      background: #1a1a2e;
+    }
+    
+    #controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      padding: 15px;
+      border-radius: 5px;
+      font-size: 14px;
+      min-width: 250px;
+    }
+    
+    #controls h3 {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      border-bottom: 1px solid #444;
+      padding-bottom: 5px;
+    }
+    
+    #controls label {
+      display: block;
+      margin: 8px 0;
+      cursor: pointer;
+    }
+    
+    #controls button {
+      width: 100%;
+      padding: 8px;
+      margin: 5px 0;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    
+    #controls button:hover {
+      background: #45a049;
+    }
+    
+    #controls button.danger {
+      background: #f44336;
+    }
+    
+    #controls button.danger:hover {
+      background: #da190b;
+    }
+    
+    .stat {
+      margin: 5px 0;
+      padding: 5px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+    }
+    
+    .stat-label {
+      color: #aaa;
+    }
+    
+    .stat-value {
+      color: #4CAF50;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="1280" height="720"></canvas>
+  
+  <div id="controls">
+    <h3>渲染优化测试</h3>
+    
+    <label>
+      <input type="checkbox" id="cacheEnabled" checked> 启用背景缓存
+    </label>
+    
+    <label>
+      <input type="checkbox" id="debugMode"> 调试模式
+    </label>
+    
+    <button id="addEntities">添加 50 个实体</button>
+    <button id="removeEntities" class="danger">移除所有实体</button>
+    <button id="updateCache">更新背景缓存</button>
+    
+    <div style="margin-top: 15px; border-top: 1px solid #444; padding-top: 10px;">
+      <div class="stat">
+        <span class="stat-label">FPS:</span>
+        <span class="stat-value" id="fps">60</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">实体总数:</span>
+        <span class="stat-value" id="totalEntities">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">可见实体:</span>
+        <span class="stat-value" id="visibleEntities">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">剔除实体:</span>
+        <span class="stat-value" id="culledEntities">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">背景缓存:</span>
+        <span class="stat-value" id="cacheSize">none</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">帧时间:</span>
+        <span class="stat-value" id="frameTime">0ms</span>
+      </div>
+    </div>
+    
+    <div style="margin-top: 10px; font-size: 12px; color: #888;">
+      使用 WASD 移动相机<br>
+      鼠标滚轮缩放
+    </div>
+  </div>
+
+  <script type="module">
+    import { RenderSystem } from './src/rendering/RenderSystem.js';
+    import { Entity } from './src/ecs/Entity.js';
+    import { TransformComponent } from './src/ecs/components/TransformComponent.js';
+    import { SpriteComponent } from './src/ecs/components/SpriteComponent.js';
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // 创建渲染系统
+    const renderSystem = new RenderSystem(ctx, null, canvas.width, canvas.height);
+    
+    // 设置地图大小并生成背景缓存
+    renderSystem.setMapSize(2000, 2000);
+    
+    // 实体列表
+    const entities = [];
+    
+    // 创建一些测试实体
+    function createEntity(x, y) {
+      const entity = new Entity(`entity_${Math.random()}`, 'test');
+      
+      const transform = new TransformComponent({ x, y });
+      entity.addComponent(transform);
+      
+      const sprite = new SpriteComponent('placeholder', {
+        width: 32,
+        height: 32
+      });
+      sprite.color = `hsl(${Math.random() * 360}, 70%, 60%)`;
+      sprite.visible = true;
+      
+      // 添加一个简单的动画
+      sprite.addAnimation('idle', {
+        frames: [0],
+        frameRate: 1,
+        loop: true
+      });
+      sprite.playAnimation('idle');
+      
+      entity.addComponent(sprite);
+      
+      return entity;
+    }
+    
+    // 添加初始实体
+    for (let i = 0; i < 100; i++) {
+      const x = Math.random() * 2000;
+      const y = Math.random() * 2000;
+      entities.push(createEntity(x, y));
+    }
+    
+    // 相机控制
+    const keys = {};
+    const camera = renderSystem.getCamera();
+    
+    window.addEventListener('keydown', (e) => {
+      keys[e.key.toLowerCase()] = true;
+    });
+    
+    window.addEventListener('keyup', (e) => {
+      keys[e.key.toLowerCase()] = false;
+    });
+    
+    // 控制面板事件
+    document.getElementById('cacheEnabled').addEventListener('change', (e) => {
+      renderSystem.setBackgroundCacheEnabled(e.target.checked);
+    });
+    
+    document.getElementById('debugMode').addEventListener('change', (e) => {
+      renderSystem.setDebugMode(e.target.checked);
+    });
+    
+    document.getElementById('addEntities').addEventListener('click', () => {
+      for (let i = 0; i < 50; i++) {
+        const x = Math.random() * 2000;
+        const y = Math.random() * 2000;
+        entities.push(createEntity(x, y));
+      }
+    });
+    
+    document.getElementById('removeEntities').addEventListener('click', () => {
+      entities.length = 0;
+    });
+    
+    document.getElementById('updateCache').addEventListener('click', () => {
+      renderSystem.invalidateBackgroundCache();
+    });
+    
+    // FPS 计算
+    let lastTime = performance.now();
+    let frameCount = 0;
+    let fps = 60;
+    let fpsUpdateTime = 0;
+    
+    // 游戏循环
+    function gameLoop(currentTime) {
+      const deltaTime = (currentTime - lastTime) / 1000;
+      lastTime = currentTime;
+      
+      // 更新 FPS
+      frameCount++;
+      fpsUpdateTime += deltaTime;
+      if (fpsUpdateTime >= 0.5) {
+        fps = Math.round(frameCount / fpsUpdateTime);
+        frameCount = 0;
+        fpsUpdateTime = 0;
+      }
+      
+      // 相机移动
+      const cameraSpeed = 300;
+      if (keys['w'] || keys['arrowup']) {
+        camera.position.y -= cameraSpeed * deltaTime;
+      }
+      if (keys['s'] || keys['arrowdown']) {
+        camera.position.y += cameraSpeed * deltaTime;
+      }
+      if (keys['a'] || keys['arrowleft']) {
+        camera.position.x -= cameraSpeed * deltaTime;
+      }
+      if (keys['d'] || keys['arrowright']) {
+        camera.position.x += cameraSpeed * deltaTime;
+      }
+      
+      // 限制相机范围
+      camera.position.x = Math.max(0, Math.min(2000, camera.position.x));
+      camera.position.y = Math.max(0, Math.min(2000, camera.position.y));
+      
+      // 更新渲染系统
+      const updateStart = performance.now();
+      renderSystem.update(deltaTime);
+      
+      // 渲染
+      renderSystem.render(entities);
+      const updateEnd = performance.now();
+      
+      // 更新统计信息
+      const stats = renderSystem.getRenderStats(entities);
+      document.getElementById('fps').textContent = fps;
+      document.getElementById('totalEntities').textContent = stats.totalEntities;
+      document.getElementById('visibleEntities').textContent = stats.visibleEntities;
+      document.getElementById('culledEntities').textContent = stats.culledEntities;
+      document.getElementById('cacheSize').textContent = stats.backgroundCacheSize;
+      document.getElementById('frameTime').textContent = (updateEnd - updateStart).toFixed(2) + 'ms';
+      
+      requestAnimationFrame(gameLoop);
+    }
+    
+    // 启动游戏循环
+    requestAnimationFrame(gameLoop);
+    
+    console.log('渲染优化测试已启动');
+    console.log('- 使用 WASD 移动相机');
+    console.log('- 切换背景缓存查看性能差异');
+    console.log('- 添加更多实体测试视锥剔除');
+  </script>
+</body>
+</html>

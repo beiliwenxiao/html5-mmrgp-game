@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音频管理器测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #4DABF7;
+        }
+        .section {
+            margin: 30px 0;
+            padding: 20px;
+            background: #2a2a2a;
+            border-radius: 8px;
+        }
+        .section h2 {
+            color: #51CF66;
+            margin-top: 0;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        button {
+            padding: 12px 20px;
+            background: #495057;
+            color: #fff;
+            border: 2px solid #ADB5BD;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background: #5A6268;
+            border-color: #CED4DA;
+        }
+        button:active {
+            transform: scale(0.95);
+        }
+        button.primary {
+            background: #4DABF7;
+            border-color: #1971C2;
+        }
+        button.primary:hover {
+            background: #339AF0;
+        }
+        button.danger {
+            background: #FA5252;
+            border-color: #C92A2A;
+        }
+        button.danger:hover {
+            background: #FF6B6B;
+        }
+        .slider-group {
+            margin: 15px 0;
+        }
+        .slider-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #ADB5BD;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #495057;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #4DABF7;
+            cursor: pointer;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #4DABF7;
+            cursor: pointer;
+            border: none;
+        }
+        .value-display {
+            display: inline-block;
+            min-width: 40px;
+            text-align: right;
+            color: #4DABF7;
+            font-weight: bold;
+        }
+        .info {
+            background: #1e3a5f;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .stat {
+            background: #2a2a2a;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #4DABF7;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #aaa;
+            margin-top: 5px;
+        }
+        .note {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #FFE066;
+            margin-top: 15px;
+        }
+        .note h3 {
+            margin-top: 0;
+            color: #FFE066;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔊 音频管理器测试</h1>
+        
+        <div class="info">
+            <h3>📋 测试说明</h3>
+            <p>此页面演示了音频管理器的功能。由于没有实际的音频文件，按钮会显示控制台日志。</p>
+            <p>在实际游戏中，需要将音频文件放在 <code>assets/audio/</code> 目录下。</p>
+        </div>
+
+        <div class="section">
+            <h2>🎵 背景音乐控制</h2>
+            <div class="controls">
+                <button class="primary" onclick="playMusic('bgm_menu')">播放菜单音乐</button>
+                <button class="primary" onclick="playMusic('bgm_battle')">播放战斗音乐</button>
+                <button onclick="pauseMusic()">暂停音乐</button>
+                <button onclick="resumeMusic()">恢复音乐</button>
+                <button class="danger" onclick="stopMusic()">停止音乐</button>
+            </div>
+            
+            <div class="slider-group">
+                <label>
+                    音乐音量: <span class="value-display" id="musicVolumeValue">50%</span>
+                </label>
+                <input type="range" id="musicVolume" min="0" max="100" value="50" oninput="setMusicVolume(this.value)">
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🎮 音效控制</h2>
+            <div class="controls">
+                <button onclick="playSound('attack')">攻击音效</button>
+                <button onclick="playSound('skill')">技能音效</button>
+                <button onclick="playSound('heal')">治疗音效</button>
+                <button onclick="playSound('hit')">受击音效</button>
+                <button onclick="playSound('levelup')">升级音效</button>
+                <button onclick="playSound('coin')">金币音效</button>
+            </div>
+            
+            <div class="slider-group">
+                <label>
+                    音效音量: <span class="value-display" id="soundVolumeValue">70%</span>
+                </label>
+                <input type="range" id="soundVolume" min="0" max="100" value="70" oninput="setSoundVolume(this.value)">
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>⚙️ 全局控制</h2>
+            <div class="controls">
+                <button onclick="toggleMute()">切换静音</button>
+                <button onclick="updateStats()">刷新统计</button>
+                <button class="danger" onclick="clearAll()">清除所有音频</button>
+            </div>
+            
+            <div class="slider-group">
+                <label>
+                    主音量: <span class="value-display" id="masterVolumeValue">100%</span>
+                </label>
+                <input type="range" id="masterVolume" min="0" max="100" value="100" oninput="setMasterVolume(this.value)">
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📊 统计信息</h2>
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value" id="totalSounds">0</div>
+                    <div class="stat-label">音效数量</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="totalMusic">0</div>
+                    <div class="stat-label">音乐数量</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="activeSounds">0</div>
+                    <div class="stat-label">活跃音效</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="currentMusic">无</div>
+                    <div class="stat-label">当前音乐</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="mutedStatus">否</div>
+                    <div class="stat-label">静音状态</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="note">
+            <h3>💡 使用说明</h3>
+            <p><strong>添加真实音频文件：</strong></p>
+            <ol>
+                <li>将音频文件（MP3、OGG、WAV等）放入 <code>assets/audio/</code> 目录</li>
+                <li>在代码中使用 <code>audioManager.addSound('key', 'path/to/audio.mp3')</code></li>
+                <li>使用 <code>audioManager.playSound('key')</code> 播放音效</li>
+                <li>使用 <code>audioManager.playMusic('key')</code> 播放背景音乐</li>
+            </ol>
+            <p><strong>推荐的音频格式：</strong></p>
+            <ul>
+                <li>音效：MP3 或 OGG（短小精悍，适合频繁播放）</li>
+                <li>背景音乐：MP3 或 OGG（循环播放，文件大小适中）</li>
+            </ul>
+        </div>
+    </div>
+
+    <script type="module">
+        import { AudioManager } from './src/core/AudioManager.js';
+
+        const audioManager = new AudioManager();
+
+        // 模拟添加音效和音乐（实际应该加载真实文件）
+        // 注意：这些只是示例，实际不会播放声音
+        console.log('AudioManager: Initializing demo...');
+        console.log('Note: No actual audio files loaded. This is a demonstration of the API.');
+
+        // 将 audioManager 暴露到全局，方便按钮调用
+        window.audioManager = audioManager;
+
+        // 背景音乐控制
+        window.playMusic = (key) => {
+            console.log(`Playing music: ${key}`);
+            // audioManager.playMusic(key, true); // 实际使用时取消注释
+            alert(`播放音乐: ${key}\n\n注意：需要添加真实音频文件才能听到声音。\n请将音频文件放入 assets/audio/ 目录。`);
+            updateStats();
+        };
+
+        window.pauseMusic = () => {
+            console.log('Pausing music');
+            audioManager.pauseMusic();
+            updateStats();
+        };
+
+        window.resumeMusic = () => {
+            console.log('Resuming music');
+            audioManager.resumeMusic();
+            updateStats();
+        };
+
+        window.stopMusic = () => {
+            console.log('Stopping music');
+            audioManager.stopMusic();
+            updateStats();
+        };
+
+        // 音效控制
+        window.playSound = (key) => {
+            console.log(`Playing sound: ${key}`);
+            // audioManager.playSound(key); // 实际使用时取消注释
+            alert(`播放音效: ${key}\n\n注意：需要添加真实音频文件才能听到声音。`);
+            updateStats();
+        };
+
+        // 音量控制
+        window.setMasterVolume = (value) => {
+            const volume = value / 100;
+            audioManager.setMasterVolume(volume);
+            document.getElementById('masterVolumeValue').textContent = value + '%';
+            console.log(`Master volume: ${volume}`);
+        };
+
+        window.setSoundVolume = (value) => {
+            const volume = value / 100;
+            audioManager.setSoundVolume(volume);
+            document.getElementById('soundVolumeValue').textContent = value + '%';
+            console.log(`Sound volume: ${volume}`);
+        };
+
+        window.setMusicVolume = (value) => {
+            const volume = value / 100;
+            audioManager.setMusicVolume(volume);
+            document.getElementById('musicVolumeValue').textContent = value + '%';
+            console.log(`Music volume: ${volume}`);
+        };
+
+        // 全局控制
+        window.toggleMute = () => {
+            audioManager.toggleMute();
+            console.log(`Muted: ${audioManager.muted}`);
+            updateStats();
+        };
+
+        window.clearAll = () => {
+            if (confirm('确定要清除所有音频吗？')) {
+                audioManager.clear();
+                console.log('All audio cleared');
+                updateStats();
+            }
+        };
+
+        // 更新统计信息
+        window.updateStats = () => {
+            const stats = audioManager.getStats();
+            
+            document.getElementById('totalSounds').textContent = stats.totalSounds;
+            document.getElementById('totalMusic').textContent = stats.totalMusic;
+            document.getElementById('activeSounds').textContent = stats.activeSounds;
+            document.getElementById('currentMusic').textContent = stats.currentMusic || '无';
+            document.getElementById('mutedStatus').textContent = stats.muted ? '是' : '否';
+            
+            console.log('Stats:', stats);
+        };
+
+        // 初始化统计信息
+        updateStats();
+
+        console.log('✅ Audio Manager demo initialized!');
+        console.log('API Methods:');
+        console.log('- audioManager.addSound(key, url, options)');
+        console.log('- audioManager.addMusic(key, url, options)');
+        console.log('- audioManager.playSound(key, options)');
+        console.log('- audioManager.playMusic(key, fadeIn)');
+        console.log('- audioManager.stopMusic(fadeOut)');
+        console.log('- audioManager.setMasterVolume(volume)');
+        console.log('- audioManager.setSoundVolume(volume)');
+        console.log('- audioManager.setMusicVolume(volume)');
+        console.log('- audioManager.setMuted(muted)');
+    </script>
+</body>
+</html>

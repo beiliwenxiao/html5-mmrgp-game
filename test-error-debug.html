@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>错误处理和调试工具测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #ffffff;
+            font-family: 'Courier New', monospace;
+        }
+        
+        h1 {
+            color: #4a90e2;
+            margin-bottom: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .section {
+            background: #2a2a3e;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+        
+        .section h2 {
+            color: #f39c12;
+            margin-top: 0;
+        }
+        
+        button {
+            background: #4a90e2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: #357abd;
+        }
+        
+        button.danger {
+            background: #e74c3c;
+        }
+        
+        button.danger:hover {
+            background: #c0392b;
+        }
+        
+        button.success {
+            background: #27ae60;
+        }
+        
+        button.success:hover {
+            background: #229954;
+        }
+        
+        .info {
+            background: #34495e;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .warning {
+            background: #34495e;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #f39c12;
+        }
+        
+        canvas {
+            border: 2px solid #4a90e2;
+            display: block;
+            margin: 20px auto;
+            background: #0f0f1e;
+        }
+        
+        pre {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 错误处理和调试工具测试</h1>
+        
+        <div class="section">
+            <h2>1. 错误处理测试</h2>
+            <div class="info">
+                <strong>说明:</strong> 测试各种错误场景和错误处理机制
+            </div>
+            <button onclick="testRuntimeError()">触发运行时错误</button>
+            <button onclick="testAsyncError()">触发异步错误</button>
+            <button onclick="testResourceError()">模拟资源加载失败</button>
+            <button onclick="testWrappedFunction()">测试错误包装</button>
+            <button onclick="viewErrors()">查看错误历史</button>
+            <button onclick="clearErrors()">清除错误</button>
+        </div>
+        
+        <div class="section">
+            <h2>2. 日志系统测试</h2>
+            <div class="info">
+                <strong>说明:</strong> 测试不同级别的日志记录和过滤
+            </div>
+            <button onclick="testDebugLog()">DEBUG日志</button>
+            <button onclick="testInfoLog()">INFO日志</button>
+            <button onclick="testWarnLog()">WARN日志</button>
+            <button onclick="testErrorLog()">ERROR日志</button>
+            <button onclick="testLogFilter()">测试日志过滤</button>
+            <button onclick="viewLogs()">查看日志历史</button>
+            <button class="success" onclick="exportLogs()">导出日志</button>
+            <button onclick="clearLogs()">清除日志</button>
+            <div class="warning">
+                <strong>日志级别控制:</strong><br>
+                <button onclick="setLogLevel(0)">DEBUG</button>
+                <button onclick="setLogLevel(1)">INFO</button>
+                <button onclick="setLogLevel(2)">WARN</button>
+                <button onclick="setLogLevel(3)">ERROR</button>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>3. 调试工具测试</h2>
+            <div class="info">
+                <strong>说明:</strong> 测试调试模式和可视化工具<br>
+                <strong>快捷键:</strong> F3=切换调试, F4=碰撞盒, F5=路径, F6=攻击范围, F7=网格, F8=导出日志
+            </div>
+            <button class="success" onclick="toggleDebug()">切换调试模式 (F3)</button>
+            <button onclick="toggleCollisionBoxes()">切换碰撞盒 (F4)</button>
+            <button onclick="togglePaths()">切换路径 (F5)</button>
+            <button onclick="toggleAttackRanges()">切换攻击范围 (F6)</button>
+            <button onclick="toggleGrid()">切换网格 (F7)</button>
+            <button onclick="createTestEntities()">创建测试实体</button>
+            <button onclick="selectRandomEntity()">选择随机实体</button>
+            <button onclick="clearSelection()">清除选择</button>
+        </div>
+        
+        <div class="section">
+            <h2>4. 可视化测试</h2>
+            <canvas id="testCanvas" width="800" height="600"></canvas>
+            <div class="info">
+                <strong>提示:</strong> 启用调试模式后，可以看到实体的碰撞盒、路径和其他调试信息
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>5. 测试结果</h2>
+            <div id="results" style="background: #1a1a1a; padding: 15px; border-radius: 5px; min-height: 100px;">
+                <p style="color: #95a5a6;">测试结果将显示在这里...</p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { ErrorHandler } from './src/core/ErrorHandler.js';
+        import { logger, LogLevel } from './src/core/Logger.js';
+        import { DebugTools } from './src/core/DebugTools.js';
+
+        // 初始化
+        const errorHandler = new ErrorHandler();
+        const canvas = document.getElementById('testCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 模拟游戏引擎对象
+        const mockGameEngine = {
+            canvas: canvas,
+            ctx: ctx
+        };
+        
+        const debugTools = new DebugTools(mockGameEngine);
+        
+        // 测试实体
+        let testEntities = [];
+        
+        // 模拟相机
+        const camera = {
+            x: 0,
+            y: 0,
+            width: 800,
+            height: 600
+        };
+
+        // 暴露到全局
+        window.errorHandler = errorHandler;
+        window.logger = logger;
+        window.debugTools = debugTools;
+        window.testEntities = testEntities;
+
+        // 错误处理测试
+        window.testRuntimeError = () => {
+            try {
+                throw new Error('这是一个测试运行时错误');
+            } catch (error) {
+                errorHandler.handleError({
+                    type: 'runtime',
+                    message: error.message,
+                    error,
+                    timestamp: Date.now()
+                });
+            }
+            log('触发了运行时错误');
+        };
+
+        window.testAsyncError = async () => {
+            try {
+                await Promise.reject(new Error('这是一个测试异步错误'));
+            } catch (error) {
+                errorHandler.handleError({
+                    type: 'async',
+                    message: error.message,
+                    error,
+                    timestamp: Date.now()
+                });
+            }
+            log('触发了异步错误');
+        };
+
+        window.testResourceError = () => {
+            errorHandler.handleError({
+                type: 'resource',
+                message: '资源加载失败: test-image.png',
+                source: 'AssetManager',
+                timestamp: Date.now()
+            });
+            log('模拟了资源加载失败');
+        };
+
+        window.testWrappedFunction = () => {
+            const wrappedFn = errorHandler.wrap(() => {
+                throw new Error('包装函数中的错误');
+            }, 'testContext');
+            
+            try {
+                wrappedFn();
+            } catch (e) {
+                log('捕获了包装函数的错误');
+            }
+        };
+
+        window.viewErrors = () => {
+            const errors = errorHandler.getErrors();
+            log(`错误历史 (${errors.length}条):`);
+            errors.forEach((err, i) => {
+                log(`${i + 1}. [${err.type}] ${err.message}`);
+            });
+        };
+
+        window.clearErrors = () => {
+            errorHandler.clearErrors();
+            log('已清除所有错误');
+        };
+
+        // 日志系统测试
+        window.testDebugLog = () => {
+            logger.debug('这是一条DEBUG日志', { data: 'test' });
+            log('已记录DEBUG日志');
+        };
+
+        window.testInfoLog = () => {
+            logger.info('这是一条INFO日志', { status: 'ok' });
+            log('已记录INFO日志');
+        };
+
+        window.testWarnLog = () => {
+            logger.warn('这是一条WARN日志', { warning: 'test' });
+            log('已记录WARN日志');
+        };
+
+        window.testErrorLog = () => {
+            logger.error('这是一条ERROR日志', { error: 'test' });
+            log('已记录ERROR日志');
+        };
+
+        window.testLogFilter = () => {
+            logger.addFilter(/测试/);
+            logger.info('这条日志包含测试关键字');
+            logger.info('这条日志不包含关键字');
+            logger.clearFilters();
+            log('已测试日志过滤（查看控制台）');
+        };
+
+        window.viewLogs = () => {
+            const logs = logger.getLogs();
+            log(`日志历史 (${logs.length}条):`);
+            logs.slice(-10).forEach((entry, i) => {
+                log(`${i + 1}. [${entry.levelName}] ${entry.message}`);
+            });
+        };
+
+        window.exportLogs = () => {
+            logger.downloadLogs('text');
+            log('日志已导出');
+        };
+
+        window.clearLogs = () => {
+            logger.clearLogs();
+            log('已清除所有日志');
+        };
+
+        window.setLogLevel = (level) => {
+            logger.setLevel(level);
+            const levels = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
+            log(`日志级别设置为: ${levels[level]}`);
+        };
+
+        // 调试工具测试
+        window.toggleDebug = () => {
+            debugTools.toggle();
+            log(`调试模式: ${debugTools.isEnabled() ? '已启用' : '已禁用'}`);
+        };
+
+        window.toggleCollisionBoxes = () => {
+            debugTools.options.showCollisionBoxes = !debugTools.options.showCollisionBoxes;
+            log(`碰撞盒显示: ${debugTools.options.showCollisionBoxes ? '开' : '关'}`);
+        };
+
+        window.togglePaths = () => {
+            debugTools.options.showPaths = !debugTools.options.showPaths;
+            log(`路径显示: ${debugTools.options.showPaths ? '开' : '关'}`);
+        };
+
+        window.toggleAttackRanges = () => {
+            debugTools.options.showAttackRanges = !debugTools.options.showAttackRanges;
+            log(`攻击范围显示: ${debugTools.options.showAttackRanges ? '开' : '关'}`);
+        };
+
+        window.toggleGrid = () => {
+            debugTools.options.showGrid = !debugTools.options.showGrid;
+            log(`网格显示: ${debugTools.options.showGrid ? '开' : '关'}`);
+        };
+
+        window.createTestEntities = () => {
+            testEntities = [];
+            
+            for (let i = 0; i < 5; i++) {
+                const entity = {
+                    id: `entity-${i}`,
+                    type: i === 0 ? 'player' : 'enemy',
+                    components: new Map()
+                };
+                
+                entity.components.set('transform', {
+                    position: {
+                        x: 100 + i * 150,
+                        y: 300
+                    }
+                });
+                
+                entity.components.set('combat', {
+                    attackRange: 80 + i * 20
+                });
+                
+                entity.components.set('movement', {
+                    path: [
+                        { x: 100 + i * 150, y: 200 },
+                        { x: 150 + i * 150, y: 250 },
+                        { x: 100 + i * 150, y: 300 }
+                    ]
+                });
+                
+                testEntities.push(entity);
+            }
+            
+            log(`已创建 ${testEntities.length} 个测试实体`);
+            renderTestScene();
+        };
+
+        window.selectRandomEntity = () => {
+            if (testEntities.length === 0) {
+                log('请先创建测试实体');
+                return;
+            }
+            
+            const entity = testEntities[Math.floor(Math.random() * testEntities.length)];
+            debugTools.selectEntity(entity);
+            log(`已选择实体: ${entity.id}`);
+            renderTestScene();
+        };
+
+        window.clearSelection = () => {
+            debugTools.clearSelectedEntity();
+            log('已清除选择');
+            renderTestScene();
+        };
+
+        // 渲染测试场景
+        function renderTestScene() {
+            ctx.fillStyle = '#0f0f1e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 渲染实体
+            for (const entity of testEntities) {
+                const transform = entity.components.get('transform');
+                if (transform) {
+                    ctx.fillStyle = entity.type === 'player' ? '#4a90e2' : '#e74c3c';
+                    ctx.fillRect(
+                        transform.position.x - 16,
+                        transform.position.y - 16,
+                        32,
+                        32
+                    );
+                }
+            }
+            
+            // 渲染调试信息
+            if (debugTools.isEnabled()) {
+                debugTools.render(ctx, camera, testEntities);
+            }
+        }
+
+        // 日志输出
+        function log(message) {
+            const results = document.getElementById('results');
+            const time = new Date().toLocaleTimeString();
+            results.innerHTML += `<p style="color: #00ff00; margin: 5px 0;">[${time}] ${message}</p>`;
+            results.scrollTop = results.scrollHeight;
+        }
+
+        // 初始化日志
+        log('错误处理和调试工具测试页面已加载');
+        log('按 F3 切换调试模式');
+        
+        // 渲染循环
+        function gameLoop() {
+            if (debugTools.isEnabled()) {
+                debugTools.update(0.016);
+                renderTestScene();
+            }
+            requestAnimationFrame(gameLoop);
+        }
+        
+        gameLoop();
+    </script>
+</body>
+</html>

@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>性能监控测试</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+    }
+    
+    #gameCanvas {
+      display: block;
+      margin: 0 auto;
+      background: #1a1a2e;
+    }
+    
+    #controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      padding: 15px;
+      border-radius: 5px;
+      font-size: 14px;
+      min-width: 250px;
+    }
+    
+    #controls h3 {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      border-bottom: 1px solid #444;
+      padding-bottom: 5px;
+    }
+    
+    #controls label {
+      display: block;
+      margin: 8px 0;
+      cursor: pointer;
+    }
+    
+    #controls button {
+      width: 100%;
+      padding: 8px;
+      margin: 5px 0;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    
+    #controls button:hover {
+      background: #45a049;
+    }
+    
+    #controls .slider-container {
+      margin: 10px 0;
+    }
+    
+    #controls .slider-label {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+      font-size: 12px;
+      color: #aaa;
+    }
+    
+    #controls input[type="range"] {
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="1280" height="720"></canvas>
+  
+  <div id="controls">
+    <h3>性能监控测试</h3>
+    
+    <label>
+      <input type="checkbox" id="monitorEnabled" checked> 显示性能监控
+    </label>
+    
+    <label>
+      <input type="checkbox" id="showGraph"> 显示 FPS 图表
+    </label>
+    
+    <label>
+      <input type="checkbox" id="debugMode"> 调试模式
+    </label>
+    
+    <div class="slider-container">
+      <div class="slider-label">
+        <span>实体数量:</span>
+        <span id="entityCountLabel">100</span>
+      </div>
+      <input type="range" id="entityCount" min="0" max="500" value="100" step="10">
+    </div>
+    
+    <div class="slider-container">
+      <div class="slider-label">
+        <span>粒子数量:</span>
+        <span id="particleCountLabel">50</span>
+      </div>
+      <input type="range" id="particleCount" min="0" max="200" value="50" step="10">
+    </div>
+    
+    <button id="stressTest">压力测试 (1000 实体)</button>
+    <button id="exportData">导出性能数据</button>
+    <button id="logConsole">输出到控制台</button>
+    <button id="resetMonitor">重置监控</button>
+    
+    <div style="margin-top: 10px; font-size: 12px; color: #888;">
+      使用 WASD 移动相机<br>
+      按 P 切换性能监控<br>
+      按 G 切换图表显示
+    </div>
+  </div>
+
+  <script type="module">
+    import { PerformanceMonitor } from './src/core/PerformanceMonitor.js';
+    import { RenderSystem } from './src/rendering/RenderSystem.js';
+    import { ParticleSystem } from './src/rendering/ParticleSystem.js';
+    import { Entity } from './src/ecs/Entity.js';
+    import { TransformComponent } from './src/ecs/components/TransformComponent.js';
+    import { SpriteComponent } from './src/ecs/components/SpriteComponent.js';
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // 创建性能监控器
+    const perfMonitor = new PerformanceMonitor({
+      enabled: true,
+      position: { x: 10, y: 10 },
+      showGraph: false
+    });
+    
+    // 创建渲染系统
+    const renderSystem = new RenderSystem(ctx, null, canvas.width, canvas.height);
+    renderSystem.setMapSize(2000, 2000);
+    
+    // 创建粒子系统
+    const particleSystem = new ParticleSystem(1000);
+    
+    // 实体列表
+    const entities = [];
+    
+    // 创建实体
+    function createEntity(x, y) {
+      const entity = new Entity(`entity_${Math.random()}`, 'test');
+      
+      const transform = new TransformComponent({ x, y });
+      entity.addComponent(transform);
+      
+      const sprite = new SpriteComponent('placeholder', {
+        width: 32,
+        height: 32
+      });
+      sprite.color = `hsl(${Math.random() * 360}, 70%, 60%)`;
+      sprite.visible = true;
+      
+      // 添加一个简单的动画
+      sprite.addAnimation('idle', {
+        frames: [0],
+        frameRate: 1,
+        loop: true
+      });
+      sprite.playAnimation('idle');
+      
+      entity.addComponent(sprite);
+      
+      return entity;
+    }
+    
+    // 更新实体数量
+    function updateEntityCount(count) {
+      while (entities.length < count) {
+        const x = Math.random() * 2000;
+        const y = Math.random() * 2000;
+        entities.push(createEntity(x, y));
+      }
+      while (entities.length > count) {
+        entities.pop();
+      }
+    }
+    
+    // 初始化实体
+    updateEntityCount(100);
+    
+    // 相机控制
+    const keys = {};
+    const camera = renderSystem.getCamera();
+    
+    window.addEventListener('keydown', (e) => {
+      keys[e.key.toLowerCase()] = true;
+      
+      // 快捷键
+      if (e.key.toLowerCase() === 'p') {
+        perfMonitor.toggle();
+      }
+      if (e.key.toLowerCase() === 'g') {
+        perfMonitor.toggleGraph();
+      }
+    });
+    
+    window.addEventListener('keyup', (e) => {
+      keys[e.key.toLowerCase()] = false;
+    });
+    
+    // 控制面板事件
+    document.getElementById('monitorEnabled').addEventListener('change', (e) => {
+      perfMonitor.setEnabled(e.target.checked);
+    });
+    
+    document.getElementById('showGraph').addEventListener('change', (e) => {
+      perfMonitor.showGraph = e.target.checked;
+    });
+    
+    document.getElementById('debugMode').addEventListener('change', (e) => {
+      renderSystem.setDebugMode(e.target.checked);
+    });
+    
+    document.getElementById('entityCount').addEventListener('input', (e) => {
+      const count = parseInt(e.target.value);
+      document.getElementById('entityCountLabel').textContent = count;
+      updateEntityCount(count);
+    });
+    
+    document.getElementById('particleCount').addEventListener('input', (e) => {
+      const count = parseInt(e.target.value);
+      document.getElementById('particleCountLabel').textContent = count;
+    });
+    
+    document.getElementById('stressTest').addEventListener('click', () => {
+      updateEntityCount(1000);
+      document.getElementById('entityCount').value = 1000;
+      document.getElementById('entityCountLabel').textContent = '1000';
+    });
+    
+    document.getElementById('exportData').addEventListener('click', () => {
+      const data = perfMonitor.exportData();
+      const json = JSON.stringify(data, null, 2);
+      console.log('Performance Data:', json);
+      
+      // 下载为文件
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `performance-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+    
+    document.getElementById('logConsole').addEventListener('click', () => {
+      perfMonitor.logToConsole();
+    });
+    
+    document.getElementById('resetMonitor').addEventListener('click', () => {
+      perfMonitor.reset();
+    });
+    
+    // 粒子发射器
+    let particleEmitTimer = 0;
+    
+    // 游戏循环
+    let lastTime = performance.now();
+    
+    function gameLoop(currentTime) {
+      const deltaTime = (currentTime - lastTime) / 1000;
+      lastTime = currentTime;
+      
+      // 开始更新计时
+      perfMonitor.startTimer('update');
+      
+      // 相机移动
+      const cameraSpeed = 300;
+      if (keys['w'] || keys['arrowup']) {
+        camera.position.y -= cameraSpeed * deltaTime;
+      }
+      if (keys['s'] || keys['arrowdown']) {
+        camera.position.y += cameraSpeed * deltaTime;
+      }
+      if (keys['a'] || keys['arrowleft']) {
+        camera.position.x -= cameraSpeed * deltaTime;
+      }
+      if (keys['d'] || keys['arrowright']) {
+        camera.position.x += cameraSpeed * deltaTime;
+      }
+      
+      // 限制相机范围
+      camera.position.x = Math.max(0, Math.min(2000, camera.position.x));
+      camera.position.y = Math.max(0, Math.min(2000, camera.position.y));
+      
+      // 发射粒子
+      const particleRate = parseInt(document.getElementById('particleCount').value);
+      particleEmitTimer += deltaTime;
+      if (particleEmitTimer >= 0.1 && particleRate > 0) {
+        for (let i = 0; i < Math.min(5, particleRate / 10); i++) {
+          particleSystem.emit({
+            position: {
+              x: camera.position.x + (Math.random() - 0.5) * 400,
+              y: camera.position.y + (Math.random() - 0.5) * 400
+            },
+            velocity: {
+              x: (Math.random() - 0.5) * 100,
+              y: (Math.random() - 0.5) * 100
+            },
+            life: 2000,
+            size: 4 + Math.random() * 4,
+            color: `hsl(${Math.random() * 360}, 70%, 60%)`,
+            gravity: 20
+          });
+        }
+        particleEmitTimer = 0;
+      }
+      
+      // 更新粒子系统
+      particleSystem.update(deltaTime);
+      
+      // 更新渲染系统
+      renderSystem.update(deltaTime);
+      
+      const updateTime = perfMonitor.endTimer('update');
+      
+      // 开始渲染计时
+      perfMonitor.startTimer('render');
+      
+      // 渲染
+      renderSystem.render(entities);
+      
+      // 渲染粒子
+      ctx.save();
+      const halfWidth = camera.width / 2;
+      const halfHeight = camera.height / 2;
+      ctx.translate(
+        halfWidth - camera.position.x,
+        halfHeight - camera.position.y
+      );
+      particleSystem.render(ctx, camera);
+      ctx.restore();
+      
+      const renderTime = perfMonitor.endTimer('render');
+      
+      // 获取渲染统计
+      const renderStats = renderSystem.getRenderStats(entities);
+      
+      // 更新性能监控
+      perfMonitor.update(deltaTime, {
+        entityCount: entities.length,
+        visibleEntityCount: renderStats.visibleEntities,
+        drawCalls: renderStats.visibleEntities + 1, // 实体 + 背景
+        particleCount: particleSystem.getActiveCount(),
+        updateTime: updateTime,
+        renderTime: renderTime
+      });
+      
+      // 渲染性能监控
+      perfMonitor.render(ctx);
+      
+      requestAnimationFrame(gameLoop);
+    }
+    
+    // 启动游戏循环
+    requestAnimationFrame(gameLoop);
+    
+    console.log('性能监控测试已启动');
+    console.log('- 按 P 切换性能监控显示');
+    console.log('- 按 G 切换 FPS 图表');
+    console.log('- 使用滑块调整实体和粒子数量');
+    console.log('- 点击"压力测试"按钮测试极限性能');
+  </script>
+</body>
+</html>
