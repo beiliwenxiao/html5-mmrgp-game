@@ -13,10 +13,12 @@ export class MovementSystem {
    * @param {InputManager} config.inputManager - 输入管理器
    * @param {Camera} config.camera - 相机
    * @param {Object} config.mapBounds - 地图边界 {minX, minY, maxX, maxY}
+   * @param {StatusEffectSystem} config.statusEffectSystem - 状态效果系统（可选）
    */
   constructor(config = {}) {
     this.inputManager = config.inputManager;
     this.camera = config.camera;
+    this.statusEffectSystem = config.statusEffectSystem;
     
     // 地图边界
     this.mapBounds = config.mapBounds || {
@@ -132,10 +134,17 @@ export class MovementSystem {
     
     // 如果有键盘输入
     if (vx !== 0 || vy !== 0) {
+      // 获取修改后的移动速度（考虑状态效果）
+      let speed = movement.speed;
+      if (this.statusEffectSystem) {
+        const modifiedStats = this.statusEffectSystem.getModifiedStats(playerEntity);
+        speed = modifiedStats.speed;
+      }
+      
       // 归一化方向向量（避免斜向移动过快）
       const magnitude = Math.sqrt(vx * vx + vy * vy);
-      vx = (vx / magnitude) * movement.speed;
-      vy = (vy / magnitude) * movement.speed;
+      vx = (vx / magnitude) * speed;
+      vy = (vy / magnitude) * speed;
       
       // 开始键盘移动
       movement.startKeyboardMovement(vx, vy);
@@ -239,6 +248,12 @@ export class MovementSystem {
     
     // 如果实体正在移动
     if (movement.isCurrentlyMoving()) {
+      // 获取修改后的移动速度（考虑状态效果）
+      let currentSpeed = movement.speed;
+      if (this.statusEffectSystem) {
+        const modifiedStats = this.statusEffectSystem.getModifiedStats(entity);
+        currentSpeed = modifiedStats.speed;
+      }
 
       // 路径移动模式
       if (movement.movementType === 'path' && movement.targetPosition) {
@@ -255,8 +270,8 @@ export class MovementSystem {
           }
         }
         
-        // 计算朝向目标的速度
-        movement.calculateVelocityToTarget(transform.position);
+        // 计算朝向目标的速度（使用修改后的速度）
+        movement.calculateVelocityToTarget(transform.position, currentSpeed);
       }
       
       // 计算新位置

@@ -11,6 +11,7 @@ export default defineConfig({
     sourcemap: true
   },
   test: {
-    environment: 'jsdom'
+    environment: 'jsdom',
+    globals: true
   }
 });

@@ -3,6 +3,9 @@
  * 战斗系统 - 处理目标选择、攻击、技能释放等战斗逻辑
  */
 
+import { ElementSystem } from './ElementSystem.js';
+import { UnitSystem } from './UnitSystem.js';
+
 /**
  * 战斗系统
  * 处理目标选择、攻击范围检测、伤害计算等
@@ -14,12 +17,20 @@ export class CombatSystem {
    * @param {Camera} config.camera - 相机
    * @param {MockDataService} config.dataService - 数据服务（可选）
    * @param {SkillEffects} config.skillEffects - 技能特效系统（可选）
+   * @param {StatusEffectSystem} config.statusEffectSystem - 状态效果系统（可选）
    */
   constructor(config = {}) {
     this.inputManager = config.inputManager;
     this.camera = config.camera;
     this.dataService = config.dataService;
     this.skillEffects = config.skillEffects;
+    this.statusEffectSystem = config.statusEffectSystem;
+    
+    // 初始化元素系统
+    this.elementSystem = new ElementSystem();
+    
+    // 初始化兵种系统
+    this.unitSystem = new UnitSystem();
     
     // 玩家实体引用
     this.playerEntity = null;
@@ -531,26 +542,54 @@ export class CombatSystem {
    * 计算伤害
    * @param {Entity} attacker - 攻击者
    * @param {Entity} target - 目标
+   * @param {number} skillElementType - 技能元素类型（可选，默认为攻击者主元素）
    * @returns {number} 伤害值
    */
-  calculateDamage(attacker, target) {
+  calculateDamage(attacker, target, skillElementType = null) {
     const attackerStats = attacker.getComponent('stats');
     const targetStats = target.getComponent('stats');
     
     if (!attackerStats || !targetStats) return 0;
     
-    // 基础伤害公式：攻击力 - 防御力
-    let damage = attackerStats.attack - targetStats.defense;
+    // 获取修改后的属性（考虑状态效果）
+    let attack = attackerStats.attack;
+    let defense = targetStats.defense;
     
-    // 最小伤害为1
-    damage = Math.max(1, damage);
+    if (this.statusEffectSystem) {
+      const modifiedAttackerStats = this.statusEffectSystem.getModifiedStats(attacker);
+      const modifiedTargetStats = this.statusEffectSystem.getModifiedStats(target);
+      attack = modifiedAttackerStats.attack;
+      defense = modifiedTargetStats.defense;
+    }
+    
+    // 基础伤害公式：攻击力 - 防御力
+    let baseDamage = attack - defense;
+    baseDamage = Math.max(1, baseDamage);
+    
+    // 计算兵种相克加成
+    const unitDamage = this.unitSystem.calculateUnitDamage(
+      attackerStats,
+      targetStats,
+      baseDamage
+    );
+    
+    // 如果没有指定技能元素类型，使用攻击者的主元素
+    const elementType = skillElementType !== null ? skillElementType : attackerStats.getMainElement();
+    
+    // 计算元素伤害
+    const finalDamage = this.elementSystem.calculateElementDamage(
+      attackerStats,
+      targetStats,
+      elementType,
+      unitDamage
+    );
     
     // 添加随机波动（±10%）
     const variance = 0.1;
     const randomFactor = 1 + (Math.random() * 2 - 1) * variance;
-    damage = Math.floor(damage * randomFactor);
+    const damage = Math.floor(finalDamage * randomFactor);
     
-    return damage;
+    return Math.max(1, damage);
   }
 
   /**
@@ -873,23 +912,52 @@ export class CombatSystem {
     
     if (!casterStats || !targetStats) return 0;
     
+    // 获取修改后的属性（考虑状态效果）
+    let attack = casterStats.attack;
+    let defense = targetStats.defense;
+    
+    if (this.statusEffectSystem) {
+      const modifiedCasterStats = this.statusEffectSystem.getModifiedStats(caster);
+      const modifiedTargetStats = this.statusEffectSystem.getModifiedStats(target);
+      attack = modifiedCasterStats.attack;
+      defense = modifiedTargetStats.defense;
+    }
+    
     // 基础伤害 = 攻击力 * 技能倍率
-    let baseDamage = casterStats.attack * skill.damage;
+    let baseDamage = attack * skill.damage;
     
     // 减去防御力
     if (skill.type === 'physical') {
-      baseDamage -= targetStats.defense;
+      baseDamage -= defense;
     }
     
     // 最小伤害为1
     baseDamage = Math.max(1, baseDamage);
     
+    // 计算兵种相克加成
+    const unitDamage = this.unitSystem.calculateUnitDamage(
+      casterStats,
+      targetStats,
+      baseDamage
+    );
+    
+    // 获取技能元素类型（如果技能有元素属性）
+    const skillElementType = skill.elementType !== undefined ? skill.elementType : casterStats.getMainElement();
+    
+    // 计算元素伤害
+    const finalDamage = this.elementSystem.calculateElementDamage(
+      casterStats,
+      targetStats,
+      skillElementType,
+      unitDamage
+    );
+    
     // 添加随机波动（±10%）
     const variance = 0.1;
     const randomFactor = 1 + (Math.random() * 2 - 1) * variance;
-    const finalDamage = Math.floor(baseDamage * randomFactor);
+    const damage = Math.floor(finalDamage * randomFactor);
     
-    return finalDamage;
+    return Math.max(1, damage);
   }
 
   /**

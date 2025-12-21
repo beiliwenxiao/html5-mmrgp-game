@@ -9,6 +9,8 @@ import { StatsComponent } from './components/StatsComponent.js';
 import { SpriteComponent } from './components/SpriteComponent.js';
 import { CombatComponent } from './components/CombatComponent.js';
 import { MovementComponent } from './components/MovementComponent.js';
+import { EquipmentComponent } from './components/EquipmentComponent.js';
+import { InventoryComponent } from './components/InventoryComponent.js';
 
 /**
  * 实体工厂类
@@ -56,7 +58,11 @@ export class EntityFactory {
       defense: stats.defense || 5,
       speed: stats.speed || 100,
       level: characterData.level || 1,
-      exp: characterData.exp || 0
+      exp: characterData.exp || 0,
+      mainElement: stats.mainElement || 0,
+      elementAttack: stats.elementAttack || {},
+      elementDefense: stats.elementDefense || {},
+      unitType: stats.unitType || 0
     }));
     
     // 添加精灵组件
@@ -88,6 +94,17 @@ export class EntityFactory {
     // 添加移动组件
     entity.addComponent(new MovementComponent({
       speed: stats.speed || 100
+    }));
+    
+    // 添加装备组件
+    entity.addComponent(new EquipmentComponent({
+      equipment: characterData.equipment || {}
+    }));
+    
+    // 添加背包组件
+    entity.addComponent(new InventoryComponent({
+      maxSlots: 30,
+      items: characterData.inventory || []
     }));
     
     // 存储角色名称和职业
@@ -126,7 +143,11 @@ export class EntityFactory {
       defense: stats.defense || 2,
       speed: stats.speed || 80,
       level: enemyData.level || 1,
-      exp: 0
+      exp: 0,
+      mainElement: stats.mainElement || 0,
+      elementAttack: stats.elementAttack || {},
+      elementDefense: stats.elementDefense || {},
+      unitType: stats.unitType || 0
     }));
     
     // 添加精灵组件

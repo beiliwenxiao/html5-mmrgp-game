@@ -19,6 +19,10 @@ export class StatsComponent extends Component {
    * @param {number} stats.speed - 移动速度
    * @param {number} stats.level - 等级
    * @param {number} stats.exp - 经验值
+   * @param {number} stats.mainElement - 主元素类型
+   * @param {Object} stats.elementAttack - 元素攻击力 {elementType: value}
+   * @param {Object} stats.elementDefense - 元素防御力 {elementType: value}
+   * @param {number} stats.unitType - 兵种类型
    */
   constructor(stats = {}) {
     super('stats');
@@ -37,6 +41,14 @@ export class StatsComponent extends Component {
     // 等级和经验
     this.level = stats.level || 1;
     this.exp = stats.exp || 0;
+    
+    // 元素属性
+    this.mainElement = stats.mainElement || 0; // 默认火元素
+    this.elementAttack = stats.elementAttack || {}; // 各元素攻击力
+    this.elementDefense = stats.elementDefense || {}; // 各元素防御力
+    
+    // 兵种属性
+    this.unitType = stats.unitType || 0; // 默认刀盾步兵
   }
 
   /**
@@ -141,5 +153,107 @@ export class StatsComponent extends Component {
   fullRestore() {
     this.hp = this.maxHp;
     this.mp = this.maxMp;
+  }
+
+  /**
+   * 设置主元素
+   * @param {number} elementType - 元素类型
+   */
+  setMainElement(elementType) {
+    this.mainElement = elementType;
+  }
+
+  /**
+   * 获取主元素
+   * @returns {number} 元素类型
+   */
+  getMainElement() {
+    return this.mainElement;
+  }
+
+  /**
+   * 设置元素攻击力
+   * @param {number} elementType - 元素类型
+   * @param {number} value - 攻击力值
+   */
+  setElementAttack(elementType, value) {
+    this.elementAttack[elementType] = value;
+  }
+
+  /**
+   * 获取元素攻击力
+   * @param {number} elementType - 元素类型
+   * @returns {number} 攻击力值
+   */
+  getElementAttack(elementType) {
+    return this.elementAttack[elementType] || 0;
+  }
+
+  /**
+   * 设置元素防御力
+   * @param {number} elementType - 元素类型
+   * @param {number} value - 防御力值
+   */
+  setElementDefense(elementType, value) {
+    this.elementDefense[elementType] = value;
+  }
+
+  /**
+   * 获取元素防御力
+   * @param {number} elementType - 元素类型
+   * @returns {number} 防御力值
+   */
+  getElementDefense(elementType) {
+    return this.elementDefense[elementType] || 0;
+  }
+
+  /**
+   * 增加元素攻击力
+   * @param {number} elementType - 元素类型
+   * @param {number} value - 增加值
+   */
+  addElementAttack(elementType, value) {
+    this.elementAttack[elementType] = (this.elementAttack[elementType] || 0) + value;
+  }
+
+  /**
+   * 增加元素防御力
+   * @param {number} elementType - 元素类型
+   * @param {number} value - 增加值
+   */
+  addElementDefense(elementType, value) {
+    this.elementDefense[elementType] = (this.elementDefense[elementType] || 0) + value;
+  }
+
+  /**
+   * 获取所有元素攻击力
+   * @returns {Object} 元素攻击力对象
+   */
+  getAllElementAttack() {
+    return { ...this.elementAttack };
+  }
+
+  /**
+   * 获取所有元素防御力
+   * @returns {Object} 元素防御力对象
+   */
+  getAllElementDefense() {
+    return { ...this.elementDefense };
+  }
+
+  /**
+   * 设置兵种类型
+   * @param {number} unitType - 兵种类型
+   */
+  setUnitType(unitType) {
+    this.unitType = unitType;
+  }
+
+  /**
+   * 获取兵种类型
+   * @returns {number} 兵种类型
+   */
+  getUnitType() {
+    return this.unitType;
   }
 }

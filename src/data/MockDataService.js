@@ -1,7 +1,10 @@
 /**
  * 模拟数据服务
- * 提供角色、敌人、技能和地图的模拟数据
+ * 提供角色、敌人、技能、地图和装备的模拟数据
  */
+import { EquipmentData } from './EquipmentData.js';
+import { ItemData } from './ItemData.js';
+
 export class MockDataService {
     constructor() {
         // 初始化所有模拟数据
@@ -9,6 +12,8 @@ export class MockDataService {
         this.enemyTemplates = this.initEnemyTemplates();
         this.skillData = this.initSkillData();
         this.mapData = this.initMapData();
+        this.equipmentData = new EquipmentData();
+        this.itemData = new ItemData();
     }
 
     /**
@@ -28,7 +33,11 @@ export class MockDataService {
                     maxMp: 50,
                     attack: 15,
                     defense: 10,
-                    speed: 100
+                    speed: 100,
+                    mainElement: 0, // 火元素
+                    elementAttack: { 0: 10, 9: 5 }, // 火攻击10，土攻击5
+                    elementDefense: { 0: 8, 9: 12 }, // 火防御8，土防御12
+                    unitType: 0 // 刀盾步兵
                 },
                 skills: ['basic_attack', 'warrior_slash', 'warrior_charge', 'warrior_defense'],
                 spriteSheet: 'warrior_sprite',
@@ -46,7 +55,11 @@ export class MockDataService {
                     maxMp: 150,
                     attack: 8,
                     defense: 5,
-                    speed: 90
+                    speed: 90,
+                    mainElement: 2, // 水元素
+                    elementAttack: { 2: 15, 5: 8 }, // 水攻击15，电攻击8
+                    elementDefense: { 2: 10, 5: 6 }, // 水防御10，电防御6
+                    unitType: 3 // 弓弩兵
                 },
                 skills: ['basic_attack', 'mage_fireball', 'mage_ice_lance', 'mage_heal'],
                 spriteSheet: 'mage_sprite',
@@ -64,7 +77,11 @@ export class MockDataService {
                     maxMp: 80,
                     attack: 12,
                     defense: 6,
-                    speed: 120
+                    speed: 120,
+                    mainElement: 4, // 风元素
+                    elementAttack: { 4: 12, 11: 6 }, // 风攻击12，木攻击6
+                    elementDefense: { 4: 8, 11: 10 }, // 风防御8，木防御10
+                    unitType: 3 // 弓弩兵
                 },
                 skills: ['basic_attack', 'archer_multi_shot', 'archer_poison_arrow', 'archer_trap'],
                 spriteSheet: 'archer_sprite',
@@ -89,7 +106,11 @@ export class MockDataService {
                     maxHp: 30,
                     attack: 5,
                     defense: 2,
-                    speed: 50
+                    speed: 50,
+                    mainElement: 2, // 水元素
+                    elementAttack: { 2: 3 }, // 水攻击3
+                    elementDefense: { 2: 5, 0: 2 }, // 水防御5，火防御2
+                    unitType: 0 // 刀盾步兵
                 },
                 aiType: 'passive',
                 attackRange: 30,
@@ -111,7 +132,11 @@ export class MockDataService {
                     maxHp: 60,
                     attack: 10,
                     defense: 5,
-                    speed: 80
+                    speed: 80,
+                    mainElement: 11, // 木元素
+                    elementAttack: { 11: 6, 9: 3 }, // 木攻击6，土攻击3
+                    elementDefense: { 11: 4, 9: 7 }, // 木防御4，土防御7
+                    unitType: 3 // 弓弩兵
                 },
                 aiType: 'aggressive',
                 attackRange: 40,
@@ -134,7 +159,11 @@ export class MockDataService {
                     maxHp: 80,
                     attack: 15,
                     defense: 8,
-                    speed: 70
+                    speed: 70,
+                    mainElement: 9, // 土元素
+                    elementAttack: { 9: 8, 0: 4 }, // 土攻击8，火攻击4
+                    elementDefense: { 9: 6, 0: 3 }, // 土防御6，火防御3
+                    unitType: 6 // 长枪兵
                 },
                 aiType: 'patrol',
                 attackRange: 50,
@@ -166,6 +195,7 @@ export class MockDataService {
                 castTime: 0.3,
                 range: 50,
                 damage: 1.0, // 伤害倍率（基于攻击力）
+                elementType: null, // 使用角色主元素
                 effects: [],
                 animation: 'attack',
                 particleEffect: 'slash'
@@ -175,7 +205,7 @@ export class MockDataService {
             warrior_slash: {
                 id: 'warrior_slash',
                 name: '强力斩击',
-                description: '造成150%物理伤害',
+                description: '造成150%火元素物理伤害',
                 icon: 'icon_warrior_slash',
                 type: 'physical',
                 cooldown: 5.0,
@@ -183,6 +213,7 @@ export class MockDataService {
                 castTime: 0.5,
                 range: 60,
                 damage: 1.5,
+                elementType: 0, // 火元素
                 effects: [],
                 animation: 'skill_1',
                 particleEffect: 'slash_heavy'
@@ -190,7 +221,7 @@ export class MockDataService {
             warrior_charge: {
                 id: 'warrior_charge',
                 name: '冲锋',
-                description: '冲向目标并造成伤害，眩晕1秒',
+                description: '冲向目标并造成土元素伤害，眩晕1秒',
                 icon: 'icon_warrior_charge',
                 type: 'physical',
                 cooldown: 10.0,
@@ -198,6 +229,7 @@ export class MockDataService {
                 castTime: 0.2,
                 range: 200,
                 damage: 1.2,
+                elementType: 9, // 土元素
                 effects: [
                     { type: 'stun', duration: 1.0 }
                 ],
@@ -215,6 +247,7 @@ export class MockDataService {
                 castTime: 0.1,
                 range: 0,
                 damage: 0,
+                elementType: null, // 无元素
                 effects: [
                     { type: 'defense_buff', value: 0.5, duration: 5.0 }
                 ],
@@ -226,7 +259,7 @@ export class MockDataService {
             mage_fireball: {
                 id: 'mage_fireball',
                 name: '火球术',
-                description: '发射火球造成魔法伤害',
+                description: '发射火球造成火元素魔法伤害',
                 icon: 'icon_mage_fireball',
                 type: 'magic',
                 cooldown: 3.0,
@@ -234,6 +267,7 @@ export class MockDataService {
                 castTime: 1.0,
                 range: 300,
                 damage: 2.0,
+                elementType: 0, // 火元素
                 effects: [
                     { type: 'burn', damage: 5, duration: 3.0 }
                 ],
@@ -243,7 +277,7 @@ export class MockDataService {
             mage_ice_lance: {
                 id: 'mage_ice_lance',
                 name: '冰枪术',
-                description: '发射冰枪造成伤害并减速',
+                description: '发射冰枪造成冰元素伤害并减速',
                 icon: 'icon_mage_ice_lance',
                 type: 'magic',
                 cooldown: 4.0,
@@ -251,6 +285,7 @@ export class MockDataService {
                 castTime: 0.8,
                 range: 250,
                 damage: 1.8,
+                elementType: 3, // 冰元素
                 effects: [
                     { type: 'slow', value: 0.5, duration: 2.0 }
                 ],
@@ -268,6 +303,7 @@ export class MockDataService {
                 castTime: 1.5,
                 range: 0,
                 damage: 0,
+                elementType: null, // 无元素
                 effects: [
                     { type: 'heal', value: 50 }
                 ],
@@ -279,7 +315,7 @@ export class MockDataService {
             archer_multi_shot: {
                 id: 'archer_multi_shot',
                 name: '多重射击',
-                description: '同时射出3支箭',
+                description: '同时射出3支风元素箭',
                 icon: 'icon_archer_multi_shot',
                 type: 'physical',
                 cooldown: 6.0,
@@ -287,6 +323,7 @@ export class MockDataService {
                 castTime: 0.5,
                 range: 250,
                 damage: 0.7,
+                elementType: 4, // 风元素
                 effects: [
                     { type: 'multi_hit', count: 3 }
                 ],
@@ -296,7 +333,7 @@ export class MockDataService {
             archer_poison_arrow: {
                 id: 'archer_poison_arrow',
                 name: '毒箭',
-                description: '射出毒箭，造成持续伤害',
+                description: '射出木元素毒箭，造成持续伤害',
                 icon: 'icon_archer_poison_arrow',
                 type: 'physical',
                 cooldown: 8.0,
@@ -304,6 +341,7 @@ export class MockDataService {
                 castTime: 0.6,
                 range: 300,
                 damage: 1.0,
+                elementType: 11, // 木元素
                 effects: [
                     { type: 'poison', damage: 8, duration: 5.0 }
                 ],
@@ -313,7 +351,7 @@ export class MockDataService {
             archer_trap: {
                 id: 'archer_trap',
                 name: '陷阱',
-                description: '放置陷阱，敌人触发时造成伤害和定身',
+                description: '放置土元素陷阱，敌人触发时造成伤害和定身',
                 icon: 'icon_archer_trap',
                 type: 'physical',
                 cooldown: 12.0,
@@ -321,6 +359,7 @@ export class MockDataService {
                 castTime: 1.0,
                 range: 100,
                 damage: 1.5,
+                elementType: 9, // 土元素
                 effects: [
                     { type: 'root', duration: 2.0 }
                 ],
@@ -500,5 +539,89 @@ export class MockDataService {
             lootTable: [...template.lootTable],
             expReward: template.expReward
         };
+    }
+
+    /**
+     * 获取装备数据
+     */
+    getEquipmentData(equipmentId) {
+        return this.equipmentData.getEquipmentTemplate(equipmentId);
+    }
+
+    /**
+     * 获取所有装备数据
+     */
+    getAllEquipmentData() {
+        return this.equipmentData.getAllEquipmentTemplates();
+    }
+
+    /**
+     * 创建装备实例
+     */
+    createEquipment(equipmentId, options = {}) {
+        return this.equipmentData.createEquipment(equipmentId, options);
+    }
+
+    /**
+     * 根据类型获取装备
+     */
+    getEquipmentsByType(type) {
+        return this.equipmentData.getEquipmentsByType(type);
+    }
+
+    /**
+     * 根据品质获取装备
+     */
+    getEquipmentsByQuality(quality) {
+        return this.equipmentData.getEquipmentsByQuality(quality);
+    }
+
+    /**
+     * 检查角色是否可以装备
+     */
+    canCharacterEquip(equipment, character) {
+        return this.equipmentData.canEquip(equipment, character);
+    }
+
+    /**
+     * 获取物品数据
+     */
+    getItemData(itemId) {
+        return this.itemData.getItemTemplate(itemId);
+    }
+
+    /**
+     * 获取所有物品数据
+     */
+    getAllItemData() {
+        return this.itemData.getAllItemTemplates();
+    }
+
+    /**
+     * 创建物品实例
+     */
+    createItem(itemId, quantity = 1) {
+        return this.itemData.createItem(itemId, quantity);
+    }
+
+    /**
+     * 根据类型获取物品
+     */
+    getItemsByType(type) {
+        return this.itemData.getItemsByType(type);
+    }
+
+    /**
+     * 根据稀有度获取物品
+     */
+    getItemsByRarity(rarity) {
+        return this.itemData.getItemsByRarity(rarity);
+    }
+
+    /**
+     * 使用物品效果
+     */
+    useItemEffect(item, target) {
+        return this.itemData.useItemEffect(item, target);
     }
 }

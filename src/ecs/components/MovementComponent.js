@@ -115,8 +115,9 @@ export class MovementComponent extends Component {
   /**
    * 计算朝向目标的速度
    * @param {{x: number, y: number}} position - 当前位置
+   * @param {number} [modifiedSpeed] - 修改后的速度（可选，用于状态效果）
    */
-  calculateVelocityToTarget(position) {
+  calculateVelocityToTarget(position, modifiedSpeed = null) {
     if (!this.targetPosition) {
       this.velocity.x = 0;
       this.velocity.y = 0;
@@ -128,8 +129,9 @@ export class MovementComponent extends Component {
     const distance = Math.sqrt(dx * dx + dy * dy);
     
     if (distance > 0) {
-      this.velocity.x = (dx / distance) * this.speed;
-      this.velocity.y = (dy / distance) * this.speed;
+      const speed = modifiedSpeed !== null ? modifiedSpeed : this.speed;
+      this.velocity.x = (dx / distance) * speed;
+      this.velocity.y = (dy / distance) * speed;
       this.updateDirection();
     }
   }
