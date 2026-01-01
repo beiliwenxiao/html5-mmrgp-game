@@ -30,6 +30,8 @@ inclusion: always
 - 测试覆盖率目标：80%+
 - 使用 Vitest 作为测试框架
 - 提供独立的测试页面用于功能验证
+- 所有测试用的 .html 文件统一放在 test 文件夹中管理
+- 项目根目录只保留 index.html 主入口文件
 
 ### 文档要求
 - 每个模块必须有 README.md
