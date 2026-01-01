@@ -1,0 +1,272 @@
+/**
+ * EquipmentComponent.js
+ * 装备组件 - 管理实体的装备系统
+ */
+
+import { Component } from '../Component.js';
+
+/**
+ * 装备组件
+ * 管理角色的装备槽位和装备属性加成
+ */
+export class EquipmentComponent extends Component {
+  /**
+   * @param {Object} options - 装备配置
+   */
+  constructor(options = {}) {
+    super('equipment');
+    
+    // 装备槽位
+    this.slots = {
+      weapon: null,      // 武器
+      armor: null,       // 护甲
+      helmet: null,      // 头盔
+      boots: null,       // 靴子
+      gloves: null,      // 手套
+      accessory1: null,  // 饰品1
+      accessory2: null,  // 饰品2
+      accessory3: null   // 饰品3
+    };
+    
+    // 装备属性加成缓存
+    this.bonusStats = {
+      attack: 0,
+      defense: 0,
+      maxHp: 0,
+      maxMp: 0,
+      speed: 0,
+      elementAttack: {},
+      elementDefense: {}
+    };
+    
+    // 初始化装备
+    if (options.equipment) {
+      this.loadEquipment(options.equipment);
+    }
+  }
+
+  /**
+   * 装备物品
+   * @param {string} slotType - 装备槽位类型
+   * @param {Object} equipment - 装备数据
+   * @returns {Object|null} 被替换的装备，如果没有则返回null
+   */
+  equip(slotType, equipment) {
+    if (!this.slots.hasOwnProperty(slotType)) {
+      console.warn(`Invalid equipment slot: ${slotType}`);
+      return null;
+    }
+
+    // 检查装备类型是否匹配槽位
+    if (!this.isValidEquipmentForSlot(equipment, slotType)) {
+      console.warn(`Equipment ${equipment.id} cannot be equipped in slot ${slotType}`);
+      return null;
+    }
+
+    // 保存被替换的装备
+    const oldEquipment = this.slots[slotType];
+    
+    // 装备新物品
+    this.slots[slotType] = equipment;
+    
+    // 重新计算属性加成
+    this.recalculateBonusStats();
+    
+    return oldEquipment;
+  }
+
+  /**
+   * 卸下装备
+   * @param {string} slotType - 装备槽位类型
+   * @returns {Object|null} 被卸下的装备
+   */
+  unequip(slotType) {
+    if (!this.slots.hasOwnProperty(slotType)) {
+      console.warn(`Invalid equipment slot: ${slotType}`);
+      return null;
+    }
+
+    const equipment = this.slots[slotType];
+    this.slots[slotType] = null;
+    
+    // 重新计算属性加成
+    this.recalculateBonusStats();
+    
+    return equipment;
+  }
+
+  /**
+   * 获取指定槽位的装备
+   * @param {string} slotType - 装备槽位类型
+   * @returns {Object|null}
+   */
+  getEquipment(slotType) {
+    return this.slots[slotType];
+  }
+
+  /**
+   * 获取所有装备
+   * @returns {Object} 所有装备的副本
+   */
+  getAllEquipment() {
+    return { ...this.slots };
+  }
+
+  /**
+   * 检查装备是否适合指定槽位
+   * @param {Object} equipment - 装备数据
+   * @param {string} slotType - 槽位类型
+   * @returns {boolean}
+   */
+  isValidEquipmentForSlot(equipment, slotType) {
+    if (!equipment || !equipment.type) return false;
+    
+    const validTypes = {
+      weapon: ['weapon'],
+      armor: ['armor'],
+      helmet: ['helmet'],
+      boots: ['boots'],
+      gloves: ['gloves'],
+      accessory1: ['accessory'],
+      accessory2: ['accessory'],
+      accessory3: ['accessory']
+    };
+    
+    return validTypes[slotType] && validTypes[slotType].includes(equipment.type);
+  }
+
+  /**
+   * 重新计算装备属性加成
+   */
+  recalculateBonusStats() {
+    // 重置加成
+    this.bonusStats = {
+      attack: 0,
+      defense: 0,
+      maxHp: 0,
+      maxMp: 0,
+      speed: 0,
+      elementAttack: {},
+      elementDefense: {}
+    };
+
+    // 遍历所有装备槽位
+    for (const slotType in this.slots) {
+      const equipment = this.slots[slotType];
+      if (equipment && equipment.stats) {
+        this.addEquipmentStats(equipment.stats);
+      }
+    }
+  }
+
+  /**
+   * 添加装备属性到加成中
+   * @param {Object} stats - 装备属性
+   */
+  addEquipmentStats(stats) {
+    // 基础属性加成
+    if (stats.attack) this.bonusStats.attack += stats.attack;
+    if (stats.defense) this.bonusStats.defense += stats.defense;
+    if (stats.maxHp) this.bonusStats.maxHp += stats.maxHp;
+    if (stats.maxMp) this.bonusStats.maxMp += stats.maxMp;
+    if (stats.speed) this.bonusStats.speed += stats.speed;
+
+    // 元素攻击力加成
+    if (stats.elementAttack) {
+      for (const elementType in stats.elementAttack) {
+        if (!this.bonusStats.elementAttack[elementType]) {
+          this.bonusStats.elementAttack[elementType] = 0;
+        }
+        this.bonusStats.elementAttack[elementType] += stats.elementAttack[elementType];
+      }
+    }
+
+    // 元素防御力加成
+    if (stats.elementDefense) {
+      for (const elementType in stats.elementDefense) {
+        if (!this.bonusStats.elementDefense[elementType]) {
+          this.bonusStats.elementDefense[elementType] = 0;
+        }
+        this.bonusStats.elementDefense[elementType] += stats.elementDefense[elementType];
+      }
+    }
+  }
+
+  /**
+   * 获取装备属性加成
+   * @returns {Object} 属性加成对象
+   */
+  getBonusStats() {
+    return { ...this.bonusStats };
+  }
+
+  /**
+   * 获取指定属性的加成值
+   * @param {string} statType - 属性类型
+   * @returns {number}
+   */
+  getBonusStat(statType) {
+    return this.bonusStats[statType] || 0;
+  }
+
+  /**
+   * 获取元素攻击力加成
+   * @param {number} elementType - 元素类型
+   * @returns {number}
+   */
+  getElementAttackBonus(elementType) {
+    return this.bonusStats.elementAttack[elementType] || 0;
+  }
+
+  /**
+   * 获取元素防御力加成
+   * @param {number} elementType - 元素类型
+   * @returns {number}
+   */
+  getElementDefenseBonus(elementType) {
+    return this.bonusStats.elementDefense[elementType] || 0;
+  }
+
+  /**
+   * 检查是否有装备
+   * @returns {boolean}
+   */
+  hasAnyEquipment() {
+    return Object.values(this.slots).some(equipment => equipment !== null);
+  }
+
+  /**
+   * 获取装备数量
+   * @returns {number}
+   */
+  getEquipmentCount() {
+    return Object.values(this.slots).filter(equipment => equipment !== null).length;
+  }
+
+  /**
+   * 加载装备数据
+   * @param {Object} equipmentData - 装备数据
+   */
+  loadEquipment(equipmentData) {
+    for (const slotType in equipmentData) {
+      if (this.slots.hasOwnProperty(slotType) && equipmentData[slotType]) {
+        this.slots[slotType] = equipmentData[slotType];
+      }
+    }
+    this.recalculateBonusStats();
+  }
+
+  /**
+   * 导出装备数据
+   * @returns {Object} 装备数据
+   */
+  exportEquipment() {
+    const data = {};
+    for (const slotType in this.slots) {
+      if (this.slots[slotType]) {
+        data[slotType] = { ...this.slots[slotType] };
+      }
+    }
+    return data;
+  }
+}
