@@ -1,312 +1,416 @@
-import { MockWebSocket } from './MockWebSocket.js';
-import { MockDataService } from '../data/MockDataService.js';
+/**
+ * NetworkManager.js
+ * 网络管理器 - 管理游戏网络通信和状态同步
+ */
+
+import { WebSocketClient, ConnectionState, MessageType } from './WebSocketClient.js';
 
 /**
- * 网络管理器
- * 统一管理网络通信和数据服务
+ * 网络管理器类
  */
 export class NetworkManager {
-    constructor(config = {}) {
-        this.config = {
-            useMockData: true,
-            mockDelay: 100,
-            serverUrl: 'ws://localhost:8080',
-            debugMode: true,
-            ...config
-        };
+  constructor(config = {}) {
+    this.client = new WebSocketClient(config);
+    this.playerId = null;
+    this.sessionId = null;
+    this.isAuthenticated = false;
+    
+    // 玩家同步
+    this.remotePlayers = new Map();
+    this.localPlayerState = null;
+    this.syncInterval = config.syncInterval || 100;
+    this.syncTimer = null;
+    
+    // 客户端预测
+    this.predictionEnabled = config.predictionEnabled !== false;
+    this.pendingInputs = [];
+    this.inputSequence = 0;
+    
+    // 事件监听器
+    this.listeners = new Map();
+    
+    this.setupMessageHandlers();
+  }
 
-        // 初始化模拟数据服务
-        this.mockDataService = new MockDataService();
-        
-        // 初始化WebSocket客户端
-        this.webSocket = new MockWebSocket(this.config);
-        
-        // 当前会话信息
-        this.sessionId = null;
-        this.currentCharacter = null;
-        
-        this.logDebug('NetworkManager initialized', this.config);
-    }
+  /**
+   * 设置消息处理器
+   */
+  setupMessageHandlers() {
+    // 认证响应
+    this.client.onMessage(MessageType.AUTH_RESPONSE, (data) => {
+      if (data.success) {
+        this.playerId = data.playerId;
+        this.sessionId = data.sessionId;
+        this.isAuthenticated = true;
+        this.emit('authenticated', data);
+      } else {
+        this.emit('authFailed', data);
+      }
+    });
 
-    /**
-     * 连接到服务器
-     */
-    async connect() {
-        try {
-            await this.webSocket.connect();
-            this.logDebug('Connected to server');
-            return true;
-        } catch (error) {
-            console.error('NetworkManager: Failed to connect', error);
-            return false;
+    // 玩家加入
+    this.client.onMessage(MessageType.PLAYER_JOIN, (data) => {
+      this.remotePlayers.set(data.playerId, {
+        id: data.playerId,
+        name: data.name,
+        position: data.position,
+        state: data.state,
+        lastUpdate: Date.now()
+      });
+      this.emit('playerJoin', data);
+    });
+
+    // 玩家离开
+    this.client.onMessage(MessageType.PLAYER_LEAVE, (data) => {
+      this.remotePlayers.delete(data.playerId);
+      this.emit('playerLeave', data);
+    });
+
+    // 玩家移动
+    this.client.onMessage(MessageType.PLAYER_MOVE, (data) => {
+      if (data.playerId !== this.playerId) {
+        const player = this.remotePlayers.get(data.playerId);
+        if (player) {
+          player.position = data.position;
+          player.velocity = data.velocity;
+          player.lastUpdate = Date.now();
         }
-    }
+      }
+    });
 
-    /**
-     * 断开连接
-     */
-    disconnect() {
-        this.webSocket.disconnect();
-        this.sessionId = null;
-        this.currentCharacter = null;
-        this.logDebug('Disconnected from server');
-    }
-
-    /**
-     * 登录
-     */
-    async login(username, password) {
-        try {
-            const response = await this.webSocket.send('login', {
-                username,
-                password
-            });
-
-            if (response.data.success) {
-                this.sessionId = response.data.sessionId;
-                this.logDebug('Login successful', response.data);
-            }
-
-            return response.data;
-        } catch (error) {
-            console.error('NetworkManager: Login failed', error);
-            throw error;
+    // 玩家同步
+    this.client.onMessage(MessageType.PLAYER_SYNC, (data) => {
+      if (data.playerId === this.playerId && this.predictionEnabled) {
+        this.reconcileState(data);
+      } else {
+        const player = this.remotePlayers.get(data.playerId);
+        if (player) {
+          Object.assign(player, data.state);
+          player.lastUpdate = Date.now();
         }
+      }
+    });
+
+    // 战斗消息
+    this.client.onMessage(MessageType.COMBAT_ACTION, (data) => {
+      this.emit('combatAction', data);
+    });
+
+    this.client.onMessage(MessageType.COMBAT_RESULT, (data) => {
+      this.emit('combatResult', data);
+    });
+
+    // 聊天消息
+    this.client.onMessage(MessageType.CHAT_MESSAGE, (data) => {
+      this.emit('chatMessage', data);
+    });
+
+    // 世界事件
+    this.client.onMessage(MessageType.WORLD_EVENT, (data) => {
+      this.emit('worldEvent', data);
+    });
+
+    // 实体生成/消失
+    this.client.onMessage(MessageType.ENTITY_SPAWN, (data) => {
+      this.emit('entitySpawn', data);
+    });
+
+    this.client.onMessage(MessageType.ENTITY_DESPAWN, (data) => {
+      this.emit('entityDespawn', data);
+    });
+
+    // 错误处理
+    this.client.onMessage(MessageType.ERROR, (data) => {
+      this.emit('serverError', data);
+    });
+
+    // 连接事件
+    this.client.on('connected', () => this.emit('connected'));
+    this.client.on('disconnected', (data) => this.emit('disconnected', data));
+    this.client.on('reconnecting', (data) => this.emit('reconnecting', data));
+    this.client.on('error', (data) => this.emit('error', data));
+    this.client.on('latencyUpdate', (latency) => this.emit('latencyUpdate', latency));
+  }
+
+  /**
+   * 连接到服务器
+   * @param {string} url
+   * @returns {Promise<boolean>}
+   */
+  async connect(url) {
+    return this.client.connect(url);
+  }
+
+  /**
+   * 断开连接
+   */
+  disconnect() {
+    this.stopSync();
+    this.client.disconnect();
+    this.isAuthenticated = false;
+    this.remotePlayers.clear();
+  }
+
+  /**
+   * 认证
+   * @param {Object} credentials
+   * @returns {Promise}
+   */
+  authenticate(credentials) {
+    return this.client.send(MessageType.AUTH, credentials, true);
+  }
+
+  /**
+   * 开始状态同步
+   */
+  startSync() {
+    this.stopSync();
+    this.syncTimer = setInterval(() => {
+      if (this.localPlayerState && this.isAuthenticated) {
+        this.sendPlayerState();
+      }
+    }, this.syncInterval);
+  }
+
+  /**
+   * 停止状态同步
+   */
+  stopSync() {
+    if (this.syncTimer) {
+      clearInterval(this.syncTimer);
+      this.syncTimer = null;
     }
+  }
 
-    /**
-     * 创建角色
-     */
-    async createCharacter(name, classType) {
-        try {
-            // 使用MockDataService创建角色
-            const character = this.mockDataService.createCharacter(name, classType);
-            
-            // 发送到服务器（模拟）
-            const response = await this.webSocket.send('create_character', {
-                character
-            });
+  /**
+   * 更新本地玩家状态
+   * @param {Object} state
+   */
+  updateLocalPlayer(state) {
+    this.localPlayerState = { ...this.localPlayerState, ...state };
+  }
 
-            if (response.data.success) {
-                this.logDebug('Character created', character);
-            }
+  /**
+   * 发送玩家状态
+   */
+  sendPlayerState() {
+    if (!this.localPlayerState) return;
+    
+    this.client.send(MessageType.PLAYER_SYNC, {
+      playerId: this.playerId,
+      state: this.localPlayerState,
+      sequence: this.inputSequence
+    });
+  }
 
-            return response.data;
-        } catch (error) {
-            console.error('NetworkManager: Failed to create character', error);
-            throw error;
-        }
+  /**
+   * 发送玩家移动
+   * @param {Object} position
+   * @param {Object} velocity
+   */
+  sendMove(position, velocity) {
+    if (this.predictionEnabled) {
+      this.pendingInputs.push({
+        sequence: ++this.inputSequence,
+        position,
+        velocity,
+        timestamp: Date.now()
+      });
     }
+    
+    this.client.send(MessageType.PLAYER_MOVE, {
+      playerId: this.playerId,
+      position,
+      velocity,
+      sequence: this.inputSequence
+    });
+  }
 
-    /**
-     * 选择角色
-     */
-    async selectCharacter(character) {
-        try {
-            const response = await this.webSocket.send('select_character', {
-                character
-            });
+  /**
+   * 发送玩家动作
+   * @param {string} action
+   * @param {Object} data
+   */
+  sendAction(action, data = {}) {
+    this.client.send(MessageType.PLAYER_ACTION, {
+      playerId: this.playerId,
+      action,
+      data,
+      timestamp: Date.now()
+    });
+  }
 
-            if (response.data.success) {
-                this.currentCharacter = character;
-                this.logDebug('Character selected', character);
-            }
+  /**
+   * 发送战斗动作
+   * @param {Object} action
+   */
+  sendCombatAction(action) {
+    this.client.send(MessageType.COMBAT_ACTION, {
+      playerId: this.playerId,
+      ...action
+    });
+  }
 
-            return response.data;
-        } catch (error) {
-            console.error('NetworkManager: Failed to select character', error);
-            throw error;
-        }
+  /**
+   * 发送聊天消息
+   * @param {string} channel
+   * @param {string} message
+   */
+  sendChatMessage(channel, message) {
+    this.client.send(MessageType.CHAT_MESSAGE, {
+      playerId: this.playerId,
+      channel,
+      message,
+      timestamp: Date.now()
+    });
+  }
+
+  /**
+   * 状态校正（服务器权威）
+   * @param {Object} serverState
+   */
+  reconcileState(serverState) {
+    // 移除已确认的输入
+    this.pendingInputs = this.pendingInputs.filter(
+      input => input.sequence > serverState.lastProcessedInput
+    );
+    
+    // 从服务器状态开始重新应用未确认的输入
+    let reconciledState = { ...serverState.state };
+    
+    for (const input of this.pendingInputs) {
+      reconciledState = this.applyInput(reconciledState, input);
     }
+    
+    this.localPlayerState = reconciledState;
+    this.emit('stateReconciled', reconciledState);
+  }
 
-    /**
-     * 发送移动消息
-     */
-    async sendMove(position) {
-        try {
-            const response = await this.webSocket.send('move', {
-                characterId: this.currentCharacter?.id,
-                position
-            });
+  /**
+   * 应用输入到状态
+   * @param {Object} state
+   * @param {Object} input
+   * @returns {Object}
+   */
+  applyInput(state, input) {
+    return {
+      ...state,
+      position: input.position,
+      velocity: input.velocity
+    };
+  }
 
-            return response.data;
-        } catch (error) {
-            console.error('NetworkManager: Failed to send move', error);
-            throw error;
-        }
+  /**
+   * 获取远程玩家
+   * @param {string} playerId
+   * @returns {Object|null}
+   */
+  getRemotePlayer(playerId) {
+    return this.remotePlayers.get(playerId) || null;
+  }
+
+  /**
+   * 获取所有远程玩家
+   * @returns {Object[]}
+   */
+  getAllRemotePlayers() {
+    return Array.from(this.remotePlayers.values());
+  }
+
+  /**
+   * 插值远程玩家位置
+   * @param {string} playerId
+   * @param {number} renderTime
+   * @returns {Object|null}
+   */
+  interpolatePlayer(playerId, renderTime) {
+    const player = this.remotePlayers.get(playerId);
+    if (!player || !player.positionHistory) return player?.position;
+    
+    const history = player.positionHistory;
+    if (history.length < 2) return player.position;
+    
+    // 找到两个用于插值的状态
+    let before = null, after = null;
+    for (let i = 0; i < history.length - 1; i++) {
+      if (history[i].timestamp <= renderTime && history[i + 1].timestamp >= renderTime) {
+        before = history[i];
+        after = history[i + 1];
+        break;
+      }
     }
+    
+    if (!before || !after) return player.position;
+    
+    const t = (renderTime - before.timestamp) / (after.timestamp - before.timestamp);
+    return {
+      x: before.position.x + (after.position.x - before.position.x) * t,
+      y: before.position.y + (after.position.y - before.position.y) * t
+    };
+  }
 
-    /**
-     * 发送攻击消息
-     */
-    async sendAttack(targetId, attack, defense) {
-        try {
-            const response = await this.webSocket.send('attack', {
-                attackerId: this.currentCharacter?.id,
-                targetId,
-                attack,
-                defense
-            });
-
-            return response.data;
-        } catch (error) {
-            console.error('NetworkManager: Failed to send attack', error);
-            throw error;
-        }
+  /**
+   * 添加事件监听器
+   */
+  on(eventName, callback) {
+    if (!this.listeners.has(eventName)) {
+      this.listeners.set(eventName, []);
     }
+    this.listeners.get(eventName).push(callback);
+  }
 
-    /**
-     * 发送技能使用消息
-     */
-    async sendUseSkill(skillId, targetId, damage, heal) {
-        try {
-            const response = await this.webSocket.send('use_skill', {
-                casterId: this.currentCharacter?.id,
-                skillId,
-                targetId,
-                damage,
-                heal
-            });
-
-            return response.data;
-        } catch (error) {
-            console.error('NetworkManager: Failed to send use skill', error);
-            throw error;
-        }
+  /**
+   * 移除事件监听器
+   */
+  off(eventName, callback) {
+    const callbacks = this.listeners.get(eventName);
+    if (callbacks) {
+      const index = callbacks.indexOf(callback);
+      if (index !== -1) callbacks.splice(index, 1);
     }
+  }
 
-    /**
-     * 发送伤害消息
-     */
-    async sendDamage(targetId, damage, currentHp) {
-        try {
-            const response = await this.webSocket.send('damage', {
-                targetId,
-                damage,
-                currentHp
-            });
-
-            return response.data;
-        } catch (error) {
-            console.error('NetworkManager: Failed to send damage', error);
-            throw error;
-        }
+  /**
+   * 触发事件
+   */
+  emit(eventName, data) {
+    const callbacks = this.listeners.get(eventName);
+    if (callbacks) {
+      callbacks.forEach(callback => callback(data));
     }
+  }
 
-    /**
-     * 发送死亡消息
-     */
-    async sendDeath(entityId, killerId, expReward) {
-        try {
-            const response = await this.webSocket.send('death', {
-                entityId,
-                killerId,
-                expReward
-            });
+  /**
+   * 获取连接状态
+   */
+  getConnectionState() {
+    return this.client.getState();
+  }
 
-            return response.data;
-        } catch (error) {
-            console.error('NetworkManager: Failed to send death', error);
-            throw error;
-        }
-    }
+  /**
+   * 检查是否已连接
+   */
+  isConnected() {
+    return this.client.isConnected();
+  }
 
-    /**
-     * 注册消息处理器
-     */
-    onMessage(messageType, handler) {
-        this.webSocket.on(messageType, handler);
-    }
+  /**
+   * 获取延迟
+   */
+  getLatency() {
+    return this.client.latency;
+  }
 
-    /**
-     * 移除消息处理器
-     */
-    offMessage(messageType, handler) {
-        this.webSocket.off(messageType, handler);
-    }
-
-    /**
-     * 获取角色模板
-     */
-    getCharacterTemplate(classType) {
-        return this.mockDataService.getCharacterTemplate(classType);
-    }
-
-    /**
-     * 获取所有角色模板
-     */
-    getAllCharacterTemplates() {
-        return this.mockDataService.getAllCharacterTemplates();
-    }
-
-    /**
-     * 获取敌人模板
-     */
-    getEnemyTemplate(enemyId) {
-        return this.mockDataService.getEnemyTemplate(enemyId);
-    }
-
-    /**
-     * 获取技能数据
-     */
-    getSkillData(skillId) {
-        return this.mockDataService.getSkillData(skillId);
-    }
-
-    /**
-     * 获取角色技能列表
-     */
-    getCharacterSkills(classType) {
-        return this.mockDataService.getCharacterSkills(classType);
-    }
-
-    /**
-     * 获取地图数据
-     */
-    getMapData(mapId) {
-        return this.mockDataService.getMapData(mapId);
-    }
-
-    /**
-     * 创建敌人实例
-     */
-    createEnemy(templateId, position) {
-        return this.mockDataService.createEnemy(templateId, position);
-    }
-
-    /**
-     * 获取连接状态
-     */
-    getConnectionStatus() {
-        return this.webSocket.getConnectionStatus();
-    }
-
-    /**
-     * 获取当前角色
-     */
-    getCurrentCharacter() {
-        return this.currentCharacter;
-    }
-
-    /**
-     * 切换模式（模拟/真实服务器）
-     */
-    setMockMode(useMockData) {
-        this.config.useMockData = useMockData;
-        this.webSocket.config.useMockData = useMockData;
-        this.logDebug(`Mock mode ${useMockData ? 'enabled' : 'disabled'}`);
-    }
-
-    /**
-     * 调试日志
-     */
-    logDebug(message, data) {
-        if (this.config.debugMode) {
-            if (data) {
-                console.log(`[NetworkManager] ${message}`, data);
-            } else {
-                console.log(`[NetworkManager] ${message}`);
-            }
-        }
-    }
+  /**
+   * 获取统计信息
+   */
+  getStats() {
+    return {
+      ...this.client.getStats(),
+      playerId: this.playerId,
+      isAuthenticated: this.isAuthenticated,
+      remotePlayers: this.remotePlayers.size,
+      pendingInputs: this.pendingInputs.length
+    };
+  }
 }

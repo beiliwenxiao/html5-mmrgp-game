@@ -5,8 +5,10 @@ import { ParticleSystem } from '../rendering/ParticleSystem.js';
 import { SkillEffects } from '../rendering/SkillEffects.js';
 import { MovementSystem } from '../systems/MovementSystem.js';
 import { CombatSystem } from '../systems/CombatSystem.js';
+import { AttributeSystem } from '../systems/AttributeSystem.js';
 import { UISystem } from '../ui/UISystem.js';
 import { PlayerInfoPanel } from '../ui/PlayerInfoPanel.js';
+import { AttributePanel } from '../ui/AttributePanel.js';
 import { EntityFactory } from '../ecs/EntityFactory.js';
 import { MockDataService } from '../data/MockDataService.js';
 
@@ -27,6 +29,7 @@ export class GameScene extends Scene {
     this.skillEffects = null;
     this.movementSystem = null;
     this.combatSystem = null;
+    this.attributeSystem = null;
     this.uiSystem = null;
     
     // 数据服务
@@ -137,6 +140,9 @@ export class GameScene extends Scene {
       skillEffects: this.skillEffects
     });
     
+    // 创建属性系统
+    this.attributeSystem = new AttributeSystem();
+    
     // 创建UI系统
     this.uiSystem = new UISystem({
       canvas: canvas,
@@ -195,6 +201,9 @@ export class GameScene extends Scene {
     this.player = this.entityFactory.createPlayer(characterData);
     this.entities.push(this.player);
     
+    // 初始化玩家属性系统
+    this.initializePlayerAttributes(characterData);
+    
     // 设置系统的玩家引用
     this.movementSystem.setPlayerEntity(this.player);
     this.combatSystem.setPlayerEntity(this.player);
@@ -210,7 +219,98 @@ export class GameScene extends Scene {
     // 创建玩家信息面板
     this.createPlayerInfoPanel();
     
+    // 创建属性面板
+    this.createAttributePanel();
+    
     console.log(`GameScene: Player created - ${this.player.name}`);
+  }
+
+  /**
+   * 初始化玩家属性系统
+   * @param {Object} characterData - 角色数据
+   */
+  initializePlayerAttributes(characterData) {
+    // 初始化角色属性
+    const attributeConfig = {
+      strength: characterData.attributes?.strength || 10,
+      agility: characterData.attributes?.agility || 10,
+      intelligence: characterData.attributes?.intelligence || 10,
+      constitution: characterData.attributes?.constitution || 10,
+      spirit: characterData.attributes?.spirit || 10,
+      availablePoints: characterData.attributes?.availablePoints || (characterData.level - 1) * 5
+    };
+    
+    this.attributeSystem.initializeCharacterAttributes(this.player.id, attributeConfig);
+    
+    // 应用属性效果到角色属性
+    this.applyAttributeEffectsToPlayer();
+    
+    // 监听属性变化事件
+    document.addEventListener('attributeChanged', (event) => {
+      if (event.detail.characterId === this.player.id) {
+        this.applyAttributeEffectsToPlayer();
+        console.log('GameScene: Player attributes updated');
+      }
+    });
+    
+    console.log('GameScene: Player attributes initialized');
+  }
+
+  /**
+   * 应用属性效果到玩家
+   */
+  applyAttributeEffectsToPlayer() {
+    if (!this.player || !this.attributeSystem) return;
+    
+    const statsComponent = this.player.getComponent('stats');
+    if (!statsComponent) return;
+    
+    // 重置到基础属性
+    statsComponent.resetToBaseStats();
+    
+    // 获取基础属性
+    const baseStats = {
+      attack: statsComponent.baseAttack,
+      defense: statsComponent.baseDefense,
+      maxHp: statsComponent.baseMaxHp,
+      maxMp: statsComponent.baseMaxMp,
+      speed: statsComponent.baseSpeed,
+      hp: statsComponent.hp,
+      mp: statsComponent.mp
+    };
+    
+    // 应用属性效果
+    const modifiedStats = this.attributeSystem.applyAttributeEffects(this.player.id, baseStats);
+    
+    // 更新角色属性
+    statsComponent.applyAttributeEffects(modifiedStats.attributeEffects);
+    
+    // 更新移动组件的速度
+    const movementComponent = this.player.getComponent('movement');
+    if (movementComponent) {
+      movementComponent.speed = modifiedStats.speed;
+    }
+  }
+
+  /**
+   * 创建属性面板
+   */
+  createAttributePanel() {
+    if (!this.player || !this.attributeSystem) return;
+    
+    // 创建属性面板容器
+    const container = document.body;
+    this.attributePanel = new AttributePanel(container, this.attributeSystem);
+    
+    // 绑定快捷键 'C' 打开属性面板
+    document.addEventListener('keydown', (event) => {
+      if (event.key.toLowerCase() === 'c' && !this.attributePanel.isOpen()) {
+        event.preventDefault(); // 防止事件冲突
+        this.attributePanel.show(this.player.id);
+      }
+    });
+    
+    console.log('GameScene: Attribute panel created (Press C to open)');
   }
 
   /**
@@ -535,6 +635,40 @@ export class GameScene extends Scene {
     if (inputManager.isKeyPressed('escape')) {
       this.showPauseMenu();
     }
+    
+    // 检查C键打开属性面板
+    if (inputManager.isKeyPressed('c') && this.attributePanel && !this.attributePanel.isOpen()) {
+      this.attributePanel.show(this.player.id);
+      console.log('GameScene: Attribute panel opened via input manager');
+    }
+    
+    // 检查L键模拟升级（测试用）
+    if (inputManager.isKeyPressed('l')) {
+      this.simulateLevelUp();
+    }
+  }
+
+  /**
+   * 模拟升级（测试用）
+   */
+  simulateLevelUp() {
+    if (!this.player || !this.attributeSystem) return;
+    
+    const statsComponent = this.player.getComponent('stats');
+    if (!statsComponent) return;
+    
+    // 升级
+    const oldLevel = statsComponent.level;
+    statsComponent.levelUp();
+    const newLevel = statsComponent.level;
+    
+    // 获得属性点
+    this.attributeSystem.onLevelUp(this.player.id, newLevel);
+    
+    // 应用属性效果
+    this.applyAttributeEffectsToPlayer();
+    
+    console.log(`Player leveled up from ${oldLevel} to ${newLevel}! Press C to allocate attribute points.`);
   }
 
   /**

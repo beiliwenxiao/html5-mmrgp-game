@@ -503,6 +503,8 @@ export class MockDataService {
             level: 1,
             exp: 0,
             expToNextLevel: 100,
+            skillPoints: 3, // 初始技能点
+            attributePoints: 15, // 初始属性点（3级*5点）
             stats: { ...template.baseStats },
             skills: [...template.skills],
             equipment: {
@@ -511,7 +513,17 @@ export class MockDataService {
                 accessory: null
             },
             position: { ...template.startPosition },
-            spriteSheet: template.spriteSheet
+            spriteSheet: template.spriteSheet,
+            // 初始属性（基础值10点）
+            attributes: {
+                strength: 10,
+                agility: 10,
+                intelligence: 10,
+                constitution: 10,
+                spirit: 10,
+                availablePoints: 15, // 初始可用属性点
+                totalInvestedPoints: 0
+            }
         };
     }
 

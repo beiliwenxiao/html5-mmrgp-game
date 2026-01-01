@@ -27,16 +27,21 @@ export class StatsComponent extends Component {
   constructor(stats = {}) {
     super('stats');
     
-    // 生命值和魔法值
-    this.maxHp = stats.maxHp || 100;
-    this.hp = stats.hp !== undefined ? stats.hp : this.maxHp;
-    this.maxMp = stats.maxMp || 100;
-    this.mp = stats.mp !== undefined ? stats.mp : this.maxMp;
+    // 基础属性（不受属性点影响的原始值）
+    this.baseMaxHp = stats.maxHp || 100;
+    this.baseMaxMp = stats.maxMp || 100;
+    this.baseAttack = stats.attack || 10;
+    this.baseDefense = stats.defense || 5;
+    this.baseSpeed = stats.speed || 100;
     
-    // 战斗属性
-    this.attack = stats.attack || 10;
-    this.defense = stats.defense || 5;
-    this.speed = stats.speed || 100;
+    // 当前属性（应用属性点效果后的值）
+    this.maxHp = this.baseMaxHp;
+    this.hp = stats.hp !== undefined ? stats.hp : this.maxHp;
+    this.maxMp = this.baseMaxMp;
+    this.mp = stats.mp !== undefined ? stats.mp : this.maxMp;
+    this.attack = this.baseAttack;
+    this.defense = this.baseDefense;
+    this.speed = this.baseSpeed;
     
     // 等级和经验
     this.level = stats.level || 1;
@@ -49,6 +54,9 @@ export class StatsComponent extends Component {
     
     // 兵种属性
     this.unitType = stats.unitType || 0; // 默认刀盾步兵
+    
+    // 属性效果缓存
+    this.attributeEffects = null;
   }
 
   /**
@@ -247,6 +255,67 @@ export class StatsComponent extends Component {
    */
   setUnitType(unitType) {
     this.unitType = unitType;
+  }
+
+  /**
+   * 应用属性效果
+   * @param {Object} effects - 属性效果对象
+   */
+  applyAttributeEffects(effects) {
+    if (!effects) return;
+    
+    this.attributeEffects = effects;
+    
+    // 保存当前HP/MP比例
+    const hpRatio = this.maxHp > 0 ? this.hp / this.maxHp : 1;
+    const mpRatio = this.maxMp > 0 ? this.mp / this.maxMp : 1;
+    
+    // 应用属性加成
+    this.maxHp = Math.floor(this.baseMaxHp + (effects.maxHpBonus || 0));
+    this.maxMp = Math.floor(this.baseMaxMp + (effects.maxManaBonus || 0));
+    this.attack = Math.floor((this.baseAttack + (effects.attackBonus || 0)) * (effects.weaponDamageMultiplier || 1));
+    this.defense = Math.floor(this.baseDefense + (effects.defenseBonus || 0));
+    this.speed = Math.floor(this.baseSpeed + (effects.speedBonus || 0));
+    
+    // 按比例调整当前HP/MP
+    this.hp = Math.floor(this.maxHp * hpRatio);
+    this.mp = Math.floor(this.maxMp * mpRatio);
+    
+    // 应用元素攻击力加成
+    if (effects.elementAttackBonus) {
+      for (const elementType in this.elementAttack) {
+        this.elementAttack[elementType] += effects.elementAttackBonus;
+      }
+    }
+    
+    // 应用元素防御力加成
+    if (effects.elementDefenseBonus) {
+      for (const elementType in this.elementDefense) {
+        this.elementDefense[elementType] += effects.elementDefenseBonus;
+      }
+    }
+  }
+
+  /**
+   * 重置到基础属性
+   */
+  resetToBaseStats() {
+    // 保存当前HP/MP比例
+    const hpRatio = this.maxHp > 0 ? this.hp / this.maxHp : 1;
+    const mpRatio = this.maxMp > 0 ? this.mp / this.maxMp : 1;
+    
+    // 重置为基础值
+    this.maxHp = this.baseMaxHp;
+    this.maxMp = this.baseMaxMp;
+    this.attack = this.baseAttack;
+    this.defense = this.baseDefense;
+    this.speed = this.baseSpeed;
+    
+    // 按比例调整当前HP/MP
+    this.hp = Math.floor(this.maxHp * hpRatio);
+    this.mp = Math.floor(this.maxMp * mpRatio);
+    
+    this.attributeEffects = null;
   }
 
   /**
