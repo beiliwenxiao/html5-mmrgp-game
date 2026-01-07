@@ -69,4 +69,9 @@ inclusion: always
 
 ## 回答问题要求
 - 用中文回答
-- 执行task时，每一个小阶段点执行完成后，都需要找我确认是否继续执行。
+- 执行task时，当完成一个小任务后，继续往后执行，拥有所有权限。
+
+## Kiro新版本函数有变化，使用以下方法
+- fsWrite: parameters required: ["path", "text"]
+- fsAppend: parameters required: ["path", "text"]
+

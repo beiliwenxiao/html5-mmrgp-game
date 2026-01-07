@@ -77,6 +77,11 @@ export class CombatSystem {
   update(deltaTime, entities) {
     const currentTime = performance.now();
     
+    // 更新大规模战斗（如果激活）
+    if (this.largeBattle && this.largeBattle.active) {
+      this.updateLargeScaleBattle(deltaTime, currentTime);
+    }
+    
     // 处理目标选择输入
     this.handleTargetSelection(entities);
     
@@ -290,6 +295,11 @@ export class CombatSystem {
    * @param {CanvasRenderingContext2D} ctx - 渲染上下文
    */
   render(ctx) {
+    // 渲染大规模战斗态势UI
+    if (this.largeBattle && this.largeBattle.active) {
+      this.renderBattleSituation(ctx);
+    }
+    
     // 渲染目标高亮
     if (this.selectedTarget) {
       this.renderTargetHighlight(ctx, this.selectedTarget);
@@ -560,6 +570,14 @@ export class CombatSystem {
       const modifiedTargetStats = this.statusEffectSystem.getModifiedStats(target);
       attack = modifiedAttackerStats.attack;
       defense = modifiedTargetStats.defense;
+    }
+    
+    // 应用士气加成（大规模战斗）
+    if (attackerStats.moraleMultiplier) {
+      attack *= attackerStats.moraleMultiplier;
+    }
+    if (targetStats.moraleMultiplier) {
+      defense *= targetStats.moraleMultiplier;
     }
     
     // 基础伤害公式：攻击力 - 防御力
@@ -923,6 +941,14 @@ export class CombatSystem {
       defense = modifiedTargetStats.defense;
     }
     
+    // 应用士气加成（大规模战斗）
+    if (casterStats.moraleMultiplier) {
+      attack *= casterStats.moraleMultiplier;
+    }
+    if (targetStats.moraleMultiplier) {
+      defense *= targetStats.moraleMultiplier;
+    }
+    
     // 基础伤害 = 攻击力 * 技能倍率
     let baseDamage = attack * skill.damage;
     
@@ -1212,5 +1238,442 @@ export class CombatSystem {
       x: worldPos.x - viewBounds.left,
       y: worldPos.y - viewBounds.top
     };
+  }
+
+  // ==================== 大规模战斗系统 ====================
+
+  /**
+   * 初始化大规模战斗
+   * @param {Object} config - 战斗配置
+   * @param {Array<Entity>} config.allies - 友军单位列表
+   * @param {Array<Entity>} config.enemies - 敌军单位列表
+   * @param {Object} config.battleArea - 战场区域 {x, y, width, height}
+   */
+  initLargeScaleBattle(config) {
+    this.largeBattle = {
+      active: true,
+      allies: config.allies || [],
+      enemies: config.enemies || [],
+      battleArea: config.battleArea || { x: 0, y: 0, width: 2000, height: 2000 },
+      allyMorale: 100,
+      enemyMorale: 100,
+      battleState: 'ongoing', // 'ongoing', 'ally_victory', 'enemy_victory'
+      startTime: performance.now()
+    };
+
+    // 为所有单位设置阵营标记
+    for (const ally of this.largeBattle.allies) {
+      ally.faction = 'ally';
+      ally.isAI = true; // 标记为AI控制
+    }
+
+    for (const enemy of this.largeBattle.enemies) {
+      enemy.faction = 'enemy';
+      enemy.isAI = true;
+    }
+
+    console.log(`CombatSystem: 初始化大规模战斗 - 友军: ${this.largeBattle.allies.length}, 敌军: ${this.largeBattle.enemies.length}`);
+  }
+
+  /**
+   * 更新大规模战斗
+   * @param {number} deltaTime - 帧间隔时间（秒）
+   * @param {number} currentTime - 当前时间（毫秒）
+   */
+  updateLargeScaleBattle(deltaTime, currentTime) {
+    if (!this.largeBattle || !this.largeBattle.active) return;
+
+    // 更新友军AI
+    this.updateArmyAI(this.largeBattle.allies, this.largeBattle.enemies, currentTime);
+
+    // 更新敌军AI
+    this.updateArmyAI(this.largeBattle.enemies, this.largeBattle.allies, currentTime);
+
+    // 更新战场态势
+    this.updateBattleSituation();
+
+    // 更新士气系统
+    this.updateMorale(deltaTime);
+
+    // 检查战斗结束条件
+    this.checkBattleEndCondition();
+  }
+
+  /**
+   * 更新军队AI
+   * @param {Array<Entity>} army - 军队单位列表
+   * @param {Array<Entity>} enemies - 敌军单位列表
+   * @param {number} currentTime - 当前时间（毫秒）
+   */
+  updateArmyAI(army, enemies, currentTime) {
+    for (const unit of army) {
+      // 跳过死亡单位
+      if (unit.isDead || unit.isDying) continue;
+
+      // 跳过玩家控制的单位
+      if (unit.type === 'player') continue;
+
+      const combat = unit.getComponent('combat');
+      if (!combat) continue;
+
+      // 如果没有目标或目标已死亡，寻找新目标
+      if (!combat.hasTarget() || this.isTargetDead(combat.target)) {
+        const newTarget = this.findNearestEnemy(unit, enemies);
+        if (newTarget) {
+          combat.setTarget(newTarget);
+        }
+      }
+
+      // 如果有目标，尝试攻击
+      if (combat.hasTarget()) {
+        const target = combat.target;
+
+        // 检查是否在攻击范围内
+        if (this.isInRange(unit, target, combat.attackRange)) {
+          // 在范围内，尝试攻击
+          if (combat.canAttack(currentTime)) {
+            this.performAttack(unit, target, currentTime);
+          }
+        } else {
+          // 不在范围内，移动到目标
+          this.moveTowardsTarget(unit, target);
+        }
+      }
+    }
+  }
+
+  /**
+   * 检查目标是否死亡
+   * @param {Entity} target - 目标实体
+   * @returns {boolean}
+   */
+  isTargetDead(target) {
+    if (!target) return true;
+    const stats = target.getComponent('stats');
+    return !stats || stats.hp <= 0 || target.isDead;
+  }
+
+  /**
+   * 查找最近的敌人
+   * @param {Entity} unit - 单位
+   * @param {Array<Entity>} enemies - 敌军列表
+   * @returns {Entity|null}
+   */
+  findNearestEnemy(unit, enemies) {
+    const unitTransform = unit.getComponent('transform');
+    if (!unitTransform) return null;
+
+    let nearestEnemy = null;
+    let nearestDistance = Infinity;
+
+    for (const enemy of enemies) {
+      // 跳过死亡敌人
+      if (enemy.isDead || enemy.isDying) continue;
+
+      const enemyStats = enemy.getComponent('stats');
+      if (!enemyStats || enemyStats.hp <= 0) continue;
+
+      const enemyTransform = enemy.getComponent('transform');
+      if (!enemyTransform) continue;
+
+      const dx = enemyTransform.position.x - unitTransform.position.x;
+      const dy = enemyTransform.position.y - unitTransform.position.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestEnemy = enemy;
+      }
+    }
+
+    return nearestEnemy;
+  }
+
+  /**
+   * 移动到目标
+   * @param {Entity} unit - 单位
+   * @param {Entity} target - 目标
+   */
+  moveTowardsTarget(unit, target) {
+    const unitTransform = unit.getComponent('transform');
+    const targetTransform = target.getComponent('transform');
+    const movement = unit.getComponent('movement');
+
+    if (!unitTransform || !targetTransform || !movement) return;
+
+    // 计算方向
+    const dx = targetTransform.position.x - unitTransform.position.x;
+    const dy = targetTransform.position.y - unitTransform.position.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance > 0) {
+      // 归一化方向
+      const dirX = dx / distance;
+      const dirY = dy / distance;
+
+      // 设置移动速度
+      movement.velocity.x = dirX * movement.speed;
+      movement.velocity.y = dirY * movement.speed;
+    }
+  }
+
+  /**
+   * 更新战场态势
+   */
+  updateBattleSituation() {
+    if (!this.largeBattle) return;
+
+    // 统计存活单位数量
+    const aliveAllies = this.largeBattle.allies.filter(u => !u.isDead && !u.isDying).length;
+    const aliveEnemies = this.largeBattle.enemies.filter(u => !u.isDead && !u.isDying).length;
+
+    // 计算战场态势（-1到1，负数表示敌军优势，正数表示友军优势）
+    const totalUnits = aliveAllies + aliveEnemies;
+    if (totalUnits > 0) {
+      this.largeBattle.situation = (aliveAllies - aliveEnemies) / totalUnits;
+    } else {
+      this.largeBattle.situation = 0;
+    }
+
+    // 存储单位数量
+    this.largeBattle.aliveAllies = aliveAllies;
+    this.largeBattle.aliveEnemies = aliveEnemies;
+  }
+
+  /**
+   * 更新士气系统
+   * @param {number} deltaTime - 帧间隔时间（秒）
+   */
+  updateMorale(deltaTime) {
+    if (!this.largeBattle) return;
+
+    // 根据战场态势调整士气
+    const situation = this.largeBattle.situation || 0;
+
+    // 友军士气变化
+    if (situation > 0.3) {
+      // 友军优势，士气上升
+      this.largeBattle.allyMorale = Math.min(100, this.largeBattle.allyMorale + 5 * deltaTime);
+    } else if (situation < -0.3) {
+      // 友军劣势，士气下降
+      this.largeBattle.allyMorale = Math.max(0, this.largeBattle.allyMorale - 10 * deltaTime);
+    }
+
+    // 敌军士气变化
+    if (situation < -0.3) {
+      // 敌军优势，士气上升
+      this.largeBattle.enemyMorale = Math.min(100, this.largeBattle.enemyMorale + 5 * deltaTime);
+    } else if (situation > 0.3) {
+      // 敌军劣势，士气下降
+      this.largeBattle.enemyMorale = Math.max(0, this.largeBattle.enemyMorale - 10 * deltaTime);
+    }
+
+    // 应用士气效果到单位
+    this.applyMoraleEffects(this.largeBattle.allies, this.largeBattle.allyMorale);
+    this.applyMoraleEffects(this.largeBattle.enemies, this.largeBattle.enemyMorale);
+  }
+
+  /**
+   * 应用士气效果
+   * @param {Array<Entity>} army - 军队单位列表
+   * @param {number} morale - 士气值（0-100）
+   */
+  applyMoraleEffects(army, morale) {
+    // 士气影响攻击力和防御力
+    const moraleMultiplier = 0.5 + (morale / 100) * 0.5; // 0.5x 到 1.0x
+
+    for (const unit of army) {
+      if (unit.isDead || unit.isDying) continue;
+
+      const stats = unit.getComponent('stats');
+      if (!stats) continue;
+
+      // 存储士气加成（用于伤害计算）
+      stats.moraleMultiplier = moraleMultiplier;
+    }
+  }
+
+  /**
+   * 检查战斗结束条件
+   */
+  checkBattleEndCondition() {
+    if (!this.largeBattle || this.largeBattle.battleState !== 'ongoing') return;
+
+    const aliveAllies = this.largeBattle.aliveAllies || 0;
+    const aliveEnemies = this.largeBattle.aliveEnemies || 0;
+
+    // 检查友军全灭
+    if (aliveAllies === 0) {
+      this.largeBattle.battleState = 'enemy_victory';
+      console.log('CombatSystem: 战斗结束 - 敌军胜利');
+      this.onBattleEnd('enemy_victory');
+      return;
+    }
+
+    // 检查敌军全灭
+    if (aliveEnemies === 0) {
+      this.largeBattle.battleState = 'ally_victory';
+      console.log('CombatSystem: 战斗结束 - 友军胜利');
+      this.onBattleEnd('ally_victory');
+      return;
+    }
+
+    // 检查士气崩溃
+    if (this.largeBattle.allyMorale <= 0) {
+      this.largeBattle.battleState = 'enemy_victory';
+      console.log('CombatSystem: 战斗结束 - 友军士气崩溃');
+      this.onBattleEnd('enemy_victory');
+      return;
+    }
+
+    if (this.largeBattle.enemyMorale <= 0) {
+      this.largeBattle.battleState = 'ally_victory';
+      console.log('CombatSystem: 战斗结束 - 敌军士气崩溃');
+      this.onBattleEnd('ally_victory');
+      return;
+    }
+  }
+
+  /**
+   * 战斗结束回调
+   * @param {string} result - 战斗结果 'ally_victory' 或 'enemy_victory'
+   */
+  onBattleEnd(result) {
+    if (!this.largeBattle) return;
+
+    this.largeBattle.active = false;
+    this.largeBattle.endTime = performance.now();
+    this.largeBattle.duration = (this.largeBattle.endTime - this.largeBattle.startTime) / 1000;
+
+    // 触发战斗结束事件（可以被外部监听）
+    if (this.onBattleEndCallback) {
+      this.onBattleEndCallback(result, this.largeBattle);
+    }
+  }
+
+  /**
+   * 设置战斗结束回调
+   * @param {Function} callback - 回调函数
+   */
+  setOnBattleEndCallback(callback) {
+    this.onBattleEndCallback = callback;
+  }
+
+  /**
+   * 获取战场态势
+   * @returns {Object} 战场态势信息
+   */
+  getBattleSituation() {
+    if (!this.largeBattle) return null;
+
+    return {
+      active: this.largeBattle.active,
+      aliveAllies: this.largeBattle.aliveAllies || 0,
+      aliveEnemies: this.largeBattle.aliveEnemies || 0,
+      allyMorale: this.largeBattle.allyMorale,
+      enemyMorale: this.largeBattle.enemyMorale,
+      situation: this.largeBattle.situation || 0,
+      battleState: this.largeBattle.battleState
+    };
+  }
+
+  /**
+   * 渲染战场态势UI
+   * @param {CanvasRenderingContext2D} ctx - 渲染上下文
+   */
+  renderBattleSituation(ctx) {
+    if (!this.largeBattle || !this.largeBattle.active) return;
+
+    const situation = this.getBattleSituation();
+    if (!situation) return;
+
+    // 战场态势面板位置（屏幕左上角）
+    const panelX = 20;
+    const panelY = 20;
+    const panelWidth = 250;
+    const panelHeight = 120;
+
+    ctx.save();
+
+    // 绘制背景
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
+
+    // 绘制边框
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
+
+    // 绘制标题
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText('战场态势', panelX + 10, panelY + 25);
+
+    // 绘制单位数量
+    ctx.font = '14px Arial';
+    ctx.fillStyle = '#00ff00';
+    ctx.fillText(`友军: ${situation.aliveAllies}`, panelX + 10, panelY + 50);
+
+    ctx.fillStyle = '#ff0000';
+    ctx.fillText(`敌军: ${situation.aliveEnemies}`, panelX + 130, panelY + 50);
+
+    // 绘制士气条
+    const moraleBarY = panelY + 65;
+    const moraleBarHeight = 15;
+
+    // 友军士气
+    ctx.fillStyle = '#333333';
+    ctx.fillRect(panelX + 10, moraleBarY, 100, moraleBarHeight);
+    ctx.fillStyle = '#00ff00';
+    ctx.fillRect(panelX + 10, moraleBarY, situation.allyMorale, moraleBarHeight);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('友军士气', panelX + 60, moraleBarY + 12);
+
+    // 敌军士气
+    ctx.fillStyle = '#333333';
+    ctx.fillRect(panelX + 130, moraleBarY, 100, moraleBarHeight);
+    ctx.fillStyle = '#ff0000';
+    ctx.fillRect(panelX + 130, moraleBarY, situation.enemyMorale, moraleBarHeight);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('敌军士气', panelX + 180, moraleBarY + 12);
+
+    // 绘制战场态势指示器
+    const indicatorY = panelY + 95;
+    const indicatorWidth = 200;
+    const indicatorX = panelX + 25;
+
+    // 背景
+    ctx.fillStyle = '#333333';
+    ctx.fillRect(indicatorX, indicatorY, indicatorWidth, 10);
+
+    // 态势指示器（-1到1映射到0到200）
+    const indicatorPos = indicatorX + (situation.situation + 1) * 100;
+    ctx.fillStyle = situation.situation > 0 ? '#00ff00' : '#ff0000';
+    ctx.beginPath();
+    ctx.arc(indicatorPos, indicatorY + 5, 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 中线
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(indicatorX + 100, indicatorY);
+    ctx.lineTo(indicatorX + 100, indicatorY + 10);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  /**
+   * 结束大规模战斗
+   */
+  endLargeScaleBattle() {
+    if (this.largeBattle) {
+      this.largeBattle.active = false;
+      console.log('CombatSystem: 大规模战斗已结束');
+    }
   }
 }

@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>大规模战斗系统测试</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background-color: #1a1a1a;
+      color: #ffffff;
+    }
+    
+    h1 {
+      text-align: center;
+      color: #4CAF50;
+    }
+    
+    #gameCanvas {
+      display: block;
+      margin: 20px auto;
+      border: 2px solid #4CAF50;
+      background-color: #2a2a2a;
+    }
+    
+    .controls {
+      max-width: 800px;
+      margin: 20px auto;
+      padding: 20px;
+      background-color: #2a2a2a;
+      border-radius: 8px;
+      border: 1px solid #4CAF50;
+    }
+    
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+    }
+    
+    button {
+      padding: 10px 20px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background-color 0.3s;
+    }
+    
+    button:hover {
+      background-color: #45a049;
+    }
+    
+    button:disabled {
+      background-color: #666;
+      cursor: not-allowed;
+    }
+    
+    .info-panel {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #333;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+    }
+    
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      padding: 5px;
+      background-color: #2a2a2a;
+      border-radius: 3px;
+    }
+    
+    .label {
+      color: #aaa;
+    }
+    
+    .value {
+      color: #4CAF50;
+      font-weight: bold;
+    }
+    
+    .ally {
+      color: #00ff00;
+    }
+    
+    .enemy {
+      color: #ff0000;
+    }
+    
+    .log {
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 15px;
+      padding: 10px;
+      background-color: #1a1a1a;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    
+    .log-entry {
+      margin-bottom: 5px;
+      padding: 3px;
+      border-left: 3px solid #4CAF50;
+      padding-left: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>大规模战斗系统测试</h1>
+  
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  
+  <div class="controls">
+    <div class="button-group">
+      <button id="startBattleBtn">开始战斗</button>
+      <button id="endBattleBtn" disabled>结束战斗</button>
+      <button id="addAlliesBtn">增加友军 (+10)</button>
+      <button id="addEnemiesBtn">增加敌军 (+10)</button>
+    </div>
+    
+    <div class="info-panel">
+      <div class="info-row">
+        <span class="label">战斗状态:</span>
+        <span class="value" id="battleState">未开始</span>
+      </div>
+      <div class="info-row">
+        <span class="label ally">友军数量:</span>
+        <span class="value ally" id="allyCount">0</span>
+      </div>
+      <div class="info-row">
+        <span class="label enemy">敌军数量:</span>
+        <span class="value enemy" id="enemyCount">0</span>
+      </div>
+      <div class="info-row">
+        <span class="label ally">友军士气:</span>
+        <span class="value ally" id="allyMorale">100</span>
+      </div>
+      <div class="info-row">
+        <span class="label enemy">敌军士气:</span>
+        <span class="value enemy" id="enemyMorale">100</span>
+      </div>
+      <div class="info-row">
+        <span class="label">战场态势:</span>
+        <span class="value" id="situation">平衡</span>
+      </div>
+    </div>
+    
+    <div class="log" id="battleLog">
+      <div class="log-entry">等待开始战斗...</div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { CombatSystem } from '../src/systems/CombatSystem.js';
+    import { Entity } from '../src/ecs/Entity.js';
+    import { TransformComponent } from '../src/ecs/components/TransformComponent.js';
+    import { StatsComponent } from '../src/ecs/components/StatsComponent.js';
+    import { CombatComponent } from '../src/ecs/components/CombatComponent.js';
+    import { MovementComponent } from '../src/ecs/components/MovementComponent.js';
+
+    // 获取DOM元素
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const startBattleBtn = document.getElementById('startBattleBtn');
+    const endBattleBtn = document.getElementById('endBattleBtn');
+    const addAlliesBtn = document.getElementById('addAlliesBtn');
+    const addEnemiesBtn = document.getElementById('addEnemiesBtn');
+    const battleLog = document.getElementById('battleLog');
+
+    // 创建战斗系统
+    const combatSystem = new CombatSystem({
+      camera: {
+        getViewBounds: () => ({ left: 0, top: 0, right: 800, bottom: 600 })
+      }
+    });
+
+    // 实体列表
+    let entities = [];
+    let allies = [];
+    let enemies = [];
+
+    // 日志函数
+    function log(message) {
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      battleLog.insertBefore(entry, battleLog.firstChild);
+      
+      // 限制日志条目数量
+      while (battleLog.children.length > 50) {
+        battleLog.removeChild(battleLog.lastChild);
+      }
+    }
+
+    // 创建单位
+    function createUnit(x, y, faction) {
+      const entity = new Entity();
+      entity.faction = faction;
+      entity.type = faction === 'ally' ? 'ally' : 'enemy';
+      entity.name = `${faction === 'ally' ? '友军' : '敌军'}_${Math.floor(Math.random() * 1000)}`;
+
+      // 添加组件
+      const transform = new TransformComponent();
+      transform.setPosition(x, y);
+      entity.addComponent(transform);
+
+      const stats = new StatsComponent({
+        maxHp: 100,
+        hp: 100,
+        attack: 15 + Math.floor(Math.random() * 10),
+        defense: 5 + Math.floor(Math.random() * 5),
+        speed: 50
+      });
+      entity.addComponent(stats);
+
+      const combat = new CombatComponent({
+        attackRange: 50,
+        attackCooldown: 1000
+      });
+      entity.addComponent(combat);
+
+      const movement = new MovementComponent({
+        speed: 50 + Math.floor(Math.random() * 30)
+      });
+      entity.addComponent(movement);
+
+      return entity;
+    }
+
+    // 创建初始单位
+    function createInitialUnits() {
+      allies = [];
+      enemies = [];
+      entities = [];
+
+      // 创建友军（左侧）
+      for (let i = 0; i < 20; i++) {
+        const x = 100 + Math.random() * 150;
+        const y = 100 + Math.random() * 400;
+        const ally = createUnit(x, y, 'ally');
+        allies.push(ally);
+        entities.push(ally);
+      }
+
+      // 创建敌军（右侧）
+      for (let i = 0; i < 20; i++) {
+        const x = 550 + Math.random() * 150;
+        const y = 100 + Math.random() * 400;
+        const enemy = createUnit(x, y, 'enemy');
+        enemies.push(enemy);
+        entities.push(enemy);
+      }
+
+      log(`创建了 ${allies.length} 个友军和 ${enemies.length} 个敌军`);
+    }
+
+    // 开始战斗
+    function startBattle() {
+      createInitialUnits();
+
+      combatSystem.initLargeScaleBattle({
+        allies: allies,
+        enemies: enemies,
+        battleArea: { x: 0, y: 0, width: 800, height: 600 }
+      });
+
+      combatSystem.setOnBattleEndCallback((result, battleData) => {
+        log(`战斗结束！结果: ${result === 'ally_victory' ? '友军胜利' : '敌军胜利'}`);
+        log(`战斗持续时间: ${battleData.duration.toFixed(2)} 秒`);
+        startBattleBtn.disabled = false;
+        endBattleBtn.disabled = true;
+      });
+
+      startBattleBtn.disabled = true;
+      endBattleBtn.disabled = false;
+      log('战斗开始！');
+    }
+
+    // 结束战斗
+    function endBattle() {
+      combatSystem.endLargeScaleBattle();
+      startBattleBtn.disabled = false;
+      endBattleBtn.disabled = true;
+      log('战斗已手动结束');
+    }
+
+    // 增加友军
+    function addAllies() {
+      for (let i = 0; i < 10; i++) {
+        const x = 100 + Math.random() * 150;
+        const y = 100 + Math.random() * 400;
+        const ally = createUnit(x, y, 'ally');
+        allies.push(ally);
+        entities.push(ally);
+        
+        if (combatSystem.largeBattle && combatSystem.largeBattle.active) {
+          combatSystem.largeBattle.allies.push(ally);
+        }
+      }
+      log('增加了 10 个友军');
+    }
+
+    // 增加敌军
+    function addEnemies() {
+      for (let i = 0; i < 10; i++) {
+        const x = 550 + Math.random() * 150;
+        const y = 100 + Math.random() * 400;
+        const enemy = createUnit(x, y, 'enemy');
+        enemies.push(enemy);
+        entities.push(enemy);
+        
+        if (combatSystem.largeBattle && combatSystem.largeBattle.active) {
+          combatSystem.largeBattle.enemies.push(enemy);
+        }
+      }
+      log('增加了 10 个敌军');
+    }
+
+    // 更新信息面板
+    function updateInfoPanel() {
+      const situation = combatSystem.getBattleSituation();
+      
+      if (situation) {
+        document.getElementById('battleState').textContent = 
+          situation.battleState === 'ongoing' ? '进行中' :
+          situation.battleState === 'ally_victory' ? '友军胜利' :
+          situation.battleState === 'enemy_victory' ? '敌军胜利' : '未知';
+        
+        document.getElementById('allyCount').textContent = situation.aliveAllies;
+        document.getElementById('enemyCount').textContent = situation.aliveEnemies;
+        document.getElementById('allyMorale').textContent = Math.floor(situation.allyMorale);
+        document.getElementById('enemyMorale').textContent = Math.floor(situation.enemyMorale);
+        
+        const situationValue = situation.situation;
+        let situationText = '平衡';
+        if (situationValue > 0.3) situationText = '友军优势';
+        else if (situationValue < -0.3) situationText = '敌军优势';
+        document.getElementById('situation').textContent = situationText;
+      } else {
+        document.getElementById('battleState').textContent = '未开始';
+      }
+    }
+
+    // 渲染
+    function render() {
+      // 清空画布
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 绘制战场区域
+      ctx.strokeStyle = '#444';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(50, 50, 700, 500);
+
+      // 绘制中线
+      ctx.strokeStyle = '#666';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(400, 50);
+      ctx.lineTo(400, 550);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // 绘制单位
+      for (const entity of entities) {
+        if (entity.isDead) continue;
+
+        const transform = entity.getComponent('transform');
+        const stats = entity.getComponent('stats');
+        if (!transform || !stats) continue;
+
+        const pos = transform.position;
+        const isAlly = entity.faction === 'ally';
+
+        // 绘制单位圆圈
+        ctx.fillStyle = isAlly ? '#00ff00' : '#ff0000';
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 8, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 绘制生命值条
+        const hpPercent = stats.hp / stats.maxHp;
+        const barWidth = 20;
+        const barHeight = 3;
+        
+        ctx.fillStyle = '#333';
+        ctx.fillRect(pos.x - barWidth / 2, pos.y - 15, barWidth, barHeight);
+        
+        ctx.fillStyle = hpPercent > 0.5 ? '#00ff00' : hpPercent > 0.25 ? '#ffff00' : '#ff0000';
+        ctx.fillRect(pos.x - barWidth / 2, pos.y - 15, barWidth * hpPercent, barHeight);
+      }
+
+      // 渲染战斗系统UI
+      combatSystem.render(ctx);
+    }
+
+    // 游戏循环
+    let lastTime = performance.now();
+    function gameLoop() {
+      const currentTime = performance.now();
+      const deltaTime = (currentTime - lastTime) / 1000;
+      lastTime = currentTime;
+
+      // 更新战斗系统
+      combatSystem.update(deltaTime, entities);
+
+      // 更新信息面板
+      updateInfoPanel();
+
+      // 渲染
+      render();
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // 事件监听
+    startBattleBtn.addEventListener('click', startBattle);
+    endBattleBtn.addEventListener('click', endBattle);
+    addAlliesBtn.addEventListener('click', addAllies);
+    addEnemiesBtn.addEventListener('click', addEnemies);
+
+    // 启动游戏循环
+    log('测试页面已加载');
+    gameLoop();
+  </script>
+</body>
+</html>

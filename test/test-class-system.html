@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>职业系统测试</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1200px;
+      margin: 20px auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    
+    h1 {
+      color: #333;
+      border-bottom: 2px solid #4CAF50;
+      padding-bottom: 10px;
+    }
+    
+    .test-section {
+      background: white;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .test-section h2 {
+      color: #4CAF50;
+      margin-top: 0;
+    }
+    
+    .test-result {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+    
+    .test-result.success {
+      background-color: #d4edda;
+      border: 1px solid #c3e6cb;
+      color: #155724;
+    }
+    
+    .test-result.error {
+      background-color: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+    }
+    
+    .test-result.info {
+      background-color: #d1ecf1;
+      border: 1px solid #bee5eb;
+      color: #0c5460;
+    }
+    
+    button {
+      background-color: #4CAF50;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 5px;
+    }
+    
+    button:hover {
+      background-color: #45a049;
+    }
+    
+    .class-card {
+      border: 2px solid #ddd;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 8px;
+      background: #fafafa;
+    }
+    
+    .class-card h3 {
+      margin-top: 0;
+      color: #333;
+    }
+    
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin: 10px 0;
+    }
+    
+    .stat-item {
+      background: white;
+      padding: 10px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+    }
+    
+    .stat-label {
+      font-weight: bold;
+      color: #666;
+      font-size: 12px;
+    }
+    
+    .stat-value {
+      font-size: 18px;
+      color: #333;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>职业系统测试</h1>
+  
+  <div class="test-section">
+    <h2>测试控制</h2>
+    <button onclick="runAllTests()">运行所有测试</button>
+    <button onclick="clearResults()">清除结果</button>
+  </div>
+  
+  <div class="test-section">
+    <h2>测试结果</h2>
+    <div id="test-results"></div>
+  </div>
+  
+  <div class="test-section">
+    <h2>职业信息展示</h2>
+    <div id="class-info"></div>
+  </div>
+  
+  <script type="module">
+    import { ClassSystem, ClassType } from '../src/prologue/systems/ClassSystem.js';
+    import { UnitTypes } from '../src/systems/UnitSystem.js';
+    import { AttributeType } from '../src/systems/AttributeSystem.js';
+    
+    const resultsDiv = document.getElementById('test-results');
+    const classInfoDiv = document.getElementById('class-info');
+    let testCount = 0;
+    let passCount = 0;
+    let failCount = 0;
+    
+    function log(message, type = 'info') {
+      const div = document.createElement('div');
+      div.className = `test-result ${type}`;
+      div.textContent = message;
+      resultsDiv.appendChild(div);
+      
+      if (type === 'success') passCount++;
+      if (type === 'error') failCount++;
+    }
+    
+    function assert(condition, message) {
+      testCount++;
+      if (condition) {
+        log(`✓ ${message}`, 'success');
+        return true;
+      } else {
+        log(`✗ ${message}`, 'error');
+        return false;
+      }
+    }
+    
+    function displayClassInfo(classSystem) {
+      classInfoDiv.innerHTML = '';
+      
+      const allClasses = classSystem.getAllClasses();
+      allClasses.forEach(classData => {
+        const card = document.createElement('div');
+        card.className = 'class-card';
+        
+        const instructor = classSystem.getInstructor(classData.id);
+        
+        card.innerHTML = `
+          <h3>${classData.displayName} (${classData.name})</h3>
+          <p><strong>教官：</strong>${instructor.name} - ${instructor.title}</p>
+          <p><strong>描述：</strong>${classData.description}</p>
+          
+          <h4>基础属性</h4>
+          <div class="stats">
+            <div class="stat-item">
+              <div class="stat-label">生命值</div>
+              <div class="stat-value">${classData.baseAttributes.health}</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">法力值</div>
+              <div class="stat-value">${classData.baseAttributes.mana}</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">攻击力</div>
+              <div class="stat-value">${classData.baseAttributes.attack}</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">防御力</div>
+              <div class="stat-value">${classData.baseAttributes.defense}</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">速度</div>
+              <div class="stat-value">${classData.baseAttributes.speed}</div>
+            </div>
+          </div>
+          
+          <h4>兵种特化</h4>
+          ${classData.specializations.map(spec => `
+            <div style="margin: 10px 0; padding: 10px; background: white; border-radius: 4px;">
+              <strong>${spec.name}</strong> (需要等级 ${spec.requiredLevel})<br>
+              ${spec.description}
+            </div>
+          `).join('')}
+        `;
+        
+        classInfoDiv.appendChild(card);
+      });
+    }
+    
+    window.runAllTests = function() {
+      clearResults();
+      log('开始测试职业系统...', 'info');
+      
+      const classSystem = new ClassSystem();
+      
+      // 测试1: 职业数据初始化
+      log('=== 测试职业数据初始化 ===', 'info');
+      const allClasses = classSystem.getAllClasses();
+      assert(allClasses.length === 3, '应该有3个职业');
+      assert(classSystem.getClassData(ClassType.WARRIOR) !== null, '战士职业应该存在');
+      assert(classSystem.getClassData(ClassType.ARCHER) !== null, '弓箭手职业应该存在');
+      assert(classSystem.getClassData(ClassType.MAGE) !== null, '法师职业应该存在');
+      
+      // 测试2: 职业选择
+      log('=== 测试职业选择 ===', 'info');
+      const player1 = 'player1';
+      assert(classSystem.selectClass(player1, ClassType.WARRIOR), '应该能选择战士职业');
+      assert(classSystem.getCharacterClass(player1) === ClassType.WARRIOR, '角色职业应该是战士');
+      assert(!classSystem.selectClass(player1, ClassType.MAGE), '不应该能重复选择职业');
+      
+      // 测试3: 属性系统集成
+      log('=== 测试属性系统集成 ===', 'info');
+      const attributes = classSystem.getCharacterAttributes(player1);
+      assert(attributes !== null, '应该有属性数据');
+      assert(attributes.strength === 10, '初始力量应该是10');
+      assert(attributes.availablePoints === 5, '应该有5个可用属性点');
+      
+      assert(classSystem.allocateAttribute(player1, AttributeType.STRENGTH, 3), '应该能分配3点力量');
+      const updatedAttributes = classSystem.getCharacterAttributes(player1);
+      assert(updatedAttributes.strength === 13, '力量应该是13');
+      assert(updatedAttributes.availablePoints === 2, '剩余属性点应该是2');
+      
+      // 测试4: 兵种特化
+      log('=== 测试兵种特化 ===', 'info');
+      const player2 = 'player2';
+      classSystem.selectClass(player2, ClassType.WARRIOR);
+      
+      assert(!classSystem.selectSpecialization(player2, 'warrior_heavy_infantry', 5), 
+        '等级不足时不应该能选择特化');
+      assert(classSystem.selectSpecialization(player2, 'warrior_heavy_infantry', 10), 
+        '等级足够时应该能选择特化');
+      
+      const specialization = classSystem.getCharacterSpecialization(player2);
+      assert(specialization !== null, '应该有特化数据');
+      assert(specialization.name === '重甲步兵', '特化名称应该是重甲步兵');
+      assert(specialization.unitType === UnitTypes.HEAVY_INFANTRY, '兵种类型应该是重甲步兵');
+      
+      // 测试5: 兵种类型
+      log('=== 测试兵种类型 ===', 'info');
+      assert(classSystem.getCharacterUnitType(player1) === UnitTypes.SWORD_SHIELD, 
+        '未选择特化时应该是基础兵种');
+      assert(classSystem.getCharacterUnitType(player2) === UnitTypes.HEAVY_INFANTRY, 
+        '选择特化后应该是特化兵种');
+      
+      // 测试6: 技能树集成
+      log('=== 测试技能树集成 ===', 'info');
+      const skillTree = classSystem.getCharacterSkillTree(player1);
+      assert(skillTree !== null, '应该有技能树');
+      assert(skillTree.className === 'warrior', '技能树职业应该是战士');
+      
+      const character = { level: 5, skillPoints: 10 };
+      assert(classSystem.learnSkill(player1, 'warrior_basic_combat', character), 
+        '应该能学习技能');
+      assert(character.skillPoints === 9, '技能点应该减少');
+      
+      // 测试7: 最终属性计算
+      log('=== 测试最终属性计算 ===', 'info');
+      const testCharacter = { level: 5, hp: 150, mp: 30 };
+      const stats = classSystem.calculateFinalStats(player1, testCharacter);
+      
+      assert(stats.maxHp > 150, '最终生命值应该大于基础值');
+      assert(stats.attack > 15, '最终攻击力应该大于基础值');
+      assert(stats.unitType === UnitTypes.SWORD_SHIELD, '应该包含兵种类型');
+      
+      // 测试8: 特化加成
+      log('=== 测试特化加成 ===', 'info');
+      const statsWithSpec = classSystem.calculateFinalStats(player2, testCharacter);
+      assert(statsWithSpec.specializationBonuses !== undefined, '应该有特化加成');
+      assert(statsWithSpec.specializationBonuses.defenseMultiplier === 1.3, 
+        '重甲步兵应该有1.3倍防御加成');
+      
+      // 测试9: 角色升级
+      log('=== 测试角色升级 ===', 'info');
+      const player3 = 'player3';
+      classSystem.selectClass(player3, ClassType.ARCHER);
+      const attrBefore = classSystem.getCharacterAttributes(player3);
+      const pointsBefore = attrBefore.availablePoints;
+      
+      classSystem.onLevelUp(player3, 2);
+      const attrAfter = classSystem.getCharacterAttributes(player3);
+      assert(attrAfter.availablePoints === pointsBefore + 5, '升级应该给予5个属性点');
+      
+      // 测试10: 教官信息
+      log('=== 测试教官信息 ===', 'info');
+      const instructor = classSystem.getInstructor(ClassType.WARRIOR);
+      assert(instructor !== null, '应该有教官信息');
+      assert(instructor.name === '张梁', '战士教官应该是张梁');
+      assert(instructor.title === '地公将军', '张梁的称号应该是地公将军');
+      
+      const allInstructors = classSystem.getAllInstructors();
+      assert(allInstructors.length === 3, '应该有3个教官');
+      
+      // 测试11: 不同职业的特性
+      log('=== 测试不同职业的特性 ===', 'info');
+      const warriorData = classSystem.getClassData(ClassType.WARRIOR);
+      const archerData = classSystem.getClassData(ClassType.ARCHER);
+      const mageData = classSystem.getClassData(ClassType.MAGE);
+      
+      assert(warriorData.baseAttributes.health > 100, '战士应该有高生命值');
+      assert(archerData.baseAttributes.speed > 100, '弓箭手应该有高速度');
+      assert(mageData.baseAttributes.mana > 80, '法师应该有高法力值');
+      
+      // 显示职业信息
+      displayClassInfo(classSystem);
+      
+      // 总结
+      log(`\n测试完成！总计: ${testCount}, 通过: ${passCount}, 失败: ${failCount}`, 
+        failCount === 0 ? 'success' : 'error');
+    };
+    
+    window.clearResults = function() {
+      resultsDiv.innerHTML = '';
+      testCount = 0;
+      passCount = 0;
+      failCount = 0;
+    };
+    
+    // 自动运行测试
+    window.addEventListener('load', () => {
+      setTimeout(runAllTests, 500);
+    });
+  </script>
+</body>
+</html>

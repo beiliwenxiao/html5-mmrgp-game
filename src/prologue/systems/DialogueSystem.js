@@ -1,0 +1,607 @@
+/**
+ * 对话系统
+ * 
+ * 职责：
+ * - 对话节点管理
+ * - 打字机效果
+ * - 对话选择分支
+ * - 对话历史记录
+ * 
+ * 需求：6, 9, 35
+ */
+
+export class DialogueSystem {
+  constructor() {
+    // 对话注册表
+    this.dialogues = new Map();
+    
+    // 当前对话
+    this.currentDialogue = null;
+    
+    // 当前节点
+    this.currentNode = null;
+    
+    // 打字机效果状态
+    this.typewriterState = {
+      isTyping: false,
+      currentText: '',
+      displayedText: '',
+      currentIndex: 0,
+      speed: 50, // 每个字符的显示时间（毫秒）
+      timer: 0
+    };
+    
+    // 对话历史
+    this.history = [];
+    
+    // 最大历史记录数
+    this.maxHistorySize = 50;
+    
+    // 回调函数
+    this.onStartCallback = null;
+    this.onNodeChangeCallback = null;
+    this.onEndCallback = null;
+    this.onChoiceCallback = null;
+    
+    // 是否启用打字机效果
+    this.enableTypewriter = true;
+    
+    // 是否可以跳过打字机效果
+    this.canSkipTypewriter = true;
+  }
+
+  /**
+   * 注册对话
+   * @param {string} dialogueId - 对话ID
+   * @param {Object} dialogueData - 对话数据
+   * @returns {boolean} 是否注册成功
+   */
+  registerDialogue(dialogueId, dialogueData) {
+    if (!dialogueId || !dialogueData) {
+      console.error('DialogueSystem: 无效的对话ID或数据');
+      return false;
+    }
+
+    const dialogue = {
+      id: dialogueId,
+      title: dialogueData.title || '',
+      startNode: dialogueData.startNode || 'start',
+      nodes: new Map(),
+      variables: dialogueData.variables || {},
+      metadata: dialogueData.metadata || {}
+    };
+
+    // 转换节点为Map
+    if (dialogueData.nodes) {
+      if (dialogueData.nodes instanceof Map) {
+        dialogue.nodes = dialogueData.nodes;
+      } else if (typeof dialogueData.nodes === 'object') {
+        Object.entries(dialogueData.nodes).forEach(([nodeId, nodeData]) => {
+          dialogue.nodes.set(nodeId, nodeData);
+        });
+      }
+    }
+
+    this.dialogues.set(dialogueId, dialogue);
+    return true;
+  }
+
+  /**
+   * 开始对话
+   * @param {string} dialogueId - 对话ID
+   * @param {Object} context - 上下文数据
+   * @returns {boolean} 是否开始成功
+   */
+  startDialogue(dialogueId, context = {}) {
+    // 获取对话
+    const dialogue = this.dialogues.get(dialogueId);
+    if (!dialogue) {
+      console.warn(`DialogueSystem: 对话不存在: ${dialogueId}`);
+      return false;
+    }
+
+    // 检查是否有对话正在进行
+    if (this.currentDialogue) {
+      console.warn('DialogueSystem: 已有对话正在进行');
+      return false;
+    }
+
+    // 设置当前对话
+    this.currentDialogue = dialogue;
+    
+    // 跳转到起始节点
+    this.goToNode(dialogue.startNode, context);
+
+    // 触发开始回调
+    if (this.onStartCallback) {
+      this.onStartCallback(dialogue, context);
+    }
+
+    // 记录历史
+    this.addToHistory({
+      type: 'start',
+      dialogueId,
+      timestamp: Date.now()
+    });
+
+    return true;
+  }
+
+  /**
+   * 跳转到指定节点
+   * @param {string} nodeId - 节点ID
+   * @param {Object} context - 上下文数据
+   * @returns {boolean} 是否跳转成功
+   */
+  goToNode(nodeId, context = {}) {
+    if (!this.currentDialogue) {
+      return false;
+    }
+
+    // 获取节点
+    const node = this.currentDialogue.nodes.get(nodeId);
+    if (!node) {
+      console.warn(`DialogueSystem: 节点不存在: ${nodeId}`);
+      return false;
+    }
+
+    // 设置当前节点
+    this.currentNode = {
+      id: nodeId,
+      speaker: node.speaker || '',
+      text: node.text || '',
+      portrait: node.portrait || null,
+      emotion: node.emotion || 'neutral',
+      choices: node.choices || [],
+      nextNode: node.nextNode || null,
+      condition: node.condition || null,
+      action: node.action || null,
+      delay: node.delay || 0
+    };
+
+    // 检查条件
+    if (this.currentNode.condition && !this.currentNode.condition(context)) {
+      // 条件不满足，跳过此节点
+      if (this.currentNode.nextNode) {
+        return this.goToNode(this.currentNode.nextNode, context);
+      } else {
+        this.endDialogue();
+        return false;
+      }
+    }
+
+    // 执行节点动作
+    if (this.currentNode.action) {
+      this.currentNode.action(context);
+    }
+
+    // 开始打字机效果
+    if (this.enableTypewriter) {
+      this.startTypewriter(this.currentNode.text);
+    }
+
+    // 触发节点变化回调
+    if (this.onNodeChangeCallback) {
+      this.onNodeChangeCallback(this.currentNode, context);
+    }
+
+    // 记录历史
+    this.addToHistory({
+      type: 'node',
+      nodeId,
+      speaker: this.currentNode.speaker,
+      text: this.currentNode.text,
+      timestamp: Date.now()
+    });
+
+    return true;
+  }
+
+  /**
+   * 选择对话选项
+   * @param {number} choiceIndex - 选项索引
+   * @param {Object} context - 上下文数据
+   * @returns {boolean} 是否选择成功
+   */
+  selectChoice(choiceIndex, context = {}) {
+    if (!this.currentNode || !this.currentNode.choices) {
+      return false;
+    }
+
+    const choice = this.currentNode.choices[choiceIndex];
+    if (!choice) {
+      console.warn(`DialogueSystem: 选项不存在: ${choiceIndex}`);
+      return false;
+    }
+
+    // 检查选项条件
+    if (choice.condition && !choice.condition(context)) {
+      console.warn('DialogueSystem: 选项条件不满足');
+      return false;
+    }
+
+    // 执行选项动作
+    if (choice.action) {
+      choice.action(context);
+    }
+
+    // 触发选择回调
+    if (this.onChoiceCallback) {
+      this.onChoiceCallback(choice, choiceIndex, context);
+    }
+
+    // 记录历史
+    this.addToHistory({
+      type: 'choice',
+      choiceIndex,
+      choiceText: choice.text,
+      timestamp: Date.now()
+    });
+
+    // 跳转到下一个节点
+    if (choice.nextNode) {
+      return this.goToNode(choice.nextNode, context);
+    } else {
+      // 没有下一个节点，结束对话
+      this.endDialogue();
+      return true;
+    }
+  }
+
+  /**
+   * 继续到下一个节点（无选择时）
+   * @param {Object} context - 上下文数据
+   * @returns {boolean} 是否继续成功
+   */
+  continue(context = {}) {
+    if (!this.currentNode) {
+      return false;
+    }
+
+    // 如果正在打字，跳过打字机效果
+    if (this.typewriterState.isTyping && this.canSkipTypewriter) {
+      this.skipTypewriter();
+      return true;
+    }
+
+    // 如果有选项，不能直接继续
+    if (this.currentNode.choices && this.currentNode.choices.length > 0) {
+      return false;
+    }
+
+    // 跳转到下一个节点
+    if (this.currentNode.nextNode) {
+      return this.goToNode(this.currentNode.nextNode, context);
+    } else {
+      // 没有下一个节点，结束对话
+      this.endDialogue();
+      return true;
+    }
+  }
+
+  /**
+   * 结束对话
+   */
+  endDialogue() {
+    if (!this.currentDialogue) {
+      return;
+    }
+
+    const dialogue = this.currentDialogue;
+
+    // 清除状态
+    this.currentDialogue = null;
+    this.currentNode = null;
+    this.stopTypewriter();
+
+    // 触发结束回调
+    if (this.onEndCallback) {
+      this.onEndCallback(dialogue);
+    }
+
+    // 记录历史
+    this.addToHistory({
+      type: 'end',
+      dialogueId: dialogue.id,
+      timestamp: Date.now()
+    });
+  }
+
+  /**
+   * 开始打字机效果
+   * @param {string} text - 要显示的文本
+   */
+  startTypewriter(text) {
+    this.typewriterState.isTyping = true;
+    this.typewriterState.currentText = text;
+    this.typewriterState.displayedText = '';
+    this.typewriterState.currentIndex = 0;
+    this.typewriterState.timer = 0;
+  }
+
+  /**
+   * 停止打字机效果
+   */
+  stopTypewriter() {
+    this.typewriterState.isTyping = false;
+    this.typewriterState.currentText = '';
+    this.typewriterState.displayedText = '';
+    this.typewriterState.currentIndex = 0;
+    this.typewriterState.timer = 0;
+  }
+
+  /**
+   * 跳过打字机效果
+   */
+  skipTypewriter() {
+    if (!this.typewriterState.isTyping) {
+      return;
+    }
+
+    this.typewriterState.displayedText = this.typewriterState.currentText;
+    this.typewriterState.currentIndex = this.typewriterState.currentText.length;
+    this.typewriterState.isTyping = false;
+  }
+
+  /**
+   * 更新打字机效果
+   * @param {number} deltaTime - 时间增量（毫秒）
+   */
+  updateTypewriter(deltaTime) {
+    if (!this.typewriterState.isTyping) {
+      return;
+    }
+
+    this.typewriterState.timer += deltaTime;
+
+    while (this.typewriterState.timer >= this.typewriterState.speed) {
+      this.typewriterState.timer -= this.typewriterState.speed;
+
+      if (this.typewriterState.currentIndex < this.typewriterState.currentText.length) {
+        this.typewriterState.displayedText += 
+          this.typewriterState.currentText[this.typewriterState.currentIndex];
+        this.typewriterState.currentIndex++;
+      } else {
+        this.typewriterState.isTyping = false;
+        break;
+      }
+    }
+  }
+
+  /**
+   * 更新对话系统（每帧调用）
+   * @param {number} deltaTime - 时间增量（毫秒）
+   */
+  update(deltaTime) {
+    if (this.enableTypewriter) {
+      this.updateTypewriter(deltaTime);
+    }
+  }
+
+  /**
+   * 获取当前显示的文本
+   * @returns {string} 当前显示的文本
+   */
+  getDisplayedText() {
+    if (this.enableTypewriter && this.typewriterState.isTyping) {
+      return this.typewriterState.displayedText;
+    }
+    return this.currentNode ? this.currentNode.text : '';
+  }
+
+  /**
+   * 检查是否有对话正在进行
+   * @returns {boolean} 是否有对话正在进行
+   */
+  isDialogueActive() {
+    return this.currentDialogue !== null;
+  }
+
+  /**
+   * 检查是否正在打字
+   * @returns {boolean} 是否正在打字
+   */
+  isTyping() {
+    return this.typewriterState.isTyping;
+  }
+
+  /**
+   * 获取当前对话
+   * @returns {Object|null} 当前对话
+   */
+  getCurrentDialogue() {
+    return this.currentDialogue;
+  }
+
+  /**
+   * 获取当前节点
+   * @returns {Object|null} 当前节点
+   */
+  getCurrentNode() {
+    return this.currentNode;
+  }
+
+  /**
+   * 获取对话
+   * @param {string} dialogueId - 对话ID
+   * @returns {Object|null} 对话对象
+   */
+  getDialogue(dialogueId) {
+    return this.dialogues.get(dialogueId) || null;
+  }
+
+  /**
+   * 设置打字机速度
+   * @param {number} speed - 速度（毫秒/字符）
+   */
+  setTypewriterSpeed(speed) {
+    this.typewriterState.speed = Math.max(1, speed);
+  }
+
+  /**
+   * 启用/禁用打字机效果
+   * @param {boolean} enabled - 是否启用
+   */
+  setTypewriterEnabled(enabled) {
+    this.enableTypewriter = enabled;
+    if (!enabled) {
+      this.stopTypewriter();
+    }
+  }
+
+  /**
+   * 设置是否可以跳过打字机效果
+   * @param {boolean} canSkip - 是否可以跳过
+   */
+  setCanSkipTypewriter(canSkip) {
+    this.canSkipTypewriter = canSkip;
+  }
+
+  /**
+   * 设置开始回调
+   * @param {Function} callback - 回调函数
+   */
+  onStart(callback) {
+    this.onStartCallback = callback;
+  }
+
+  /**
+   * 设置节点变化回调
+   * @param {Function} callback - 回调函数
+   */
+  onNodeChange(callback) {
+    this.onNodeChangeCallback = callback;
+  }
+
+  /**
+   * 设置结束回调
+   * @param {Function} callback - 回调函数
+   */
+  onEnd(callback) {
+    this.onEndCallback = callback;
+  }
+
+  /**
+   * 设置选择回调
+   * @param {Function} callback - 回调函数
+   */
+  onChoice(callback) {
+    this.onChoiceCallback = callback;
+  }
+
+  /**
+   * 添加到历史记录
+   * @param {Object} entry - 历史记录条目
+   */
+  addToHistory(entry) {
+    this.history.push(entry);
+
+    // 限制历史记录大小
+    if (this.history.length > this.maxHistorySize) {
+      this.history.shift();
+    }
+  }
+
+  /**
+   * 获取对话历史
+   * @param {number} limit - 限制数量
+   * @returns {Array} 历史记录
+   */
+  getHistory(limit = 10) {
+    return this.history.slice(-limit);
+  }
+
+  /**
+   * 清除历史记录
+   */
+  clearHistory() {
+    this.history = [];
+  }
+
+  /**
+   * 获取对话变量
+   * @param {string} key - 变量键
+   * @returns {*} 变量值
+   */
+  getVariable(key) {
+    return this.currentDialogue ? this.currentDialogue.variables[key] : undefined;
+  }
+
+  /**
+   * 设置对话变量
+   * @param {string} key - 变量键
+   * @param {*} value - 变量值
+   */
+  setVariable(key, value) {
+    if (this.currentDialogue) {
+      this.currentDialogue.variables[key] = value;
+    }
+  }
+
+  /**
+   * 保存对话状态
+   * @returns {Object} 状态数据
+   */
+  saveState() {
+    return {
+      currentDialogueId: this.currentDialogue ? this.currentDialogue.id : null,
+      currentNodeId: this.currentNode ? this.currentNode.id : null,
+      variables: this.currentDialogue ? { ...this.currentDialogue.variables } : {},
+      history: [...this.history]
+    };
+  }
+
+  /**
+   * 加载对话状态
+   * @param {Object} stateData - 状态数据
+   * @param {Object} context - 上下文数据
+   */
+  loadState(stateData, context = {}) {
+    if (!stateData) {
+      return;
+    }
+
+    // 恢复历史
+    if (stateData.history) {
+      this.history = [...stateData.history];
+    }
+
+    // 恢复对话
+    if (stateData.currentDialogueId) {
+      const dialogue = this.dialogues.get(stateData.currentDialogueId);
+      if (dialogue) {
+        this.currentDialogue = dialogue;
+
+        // 恢复变量
+        if (stateData.variables) {
+          this.currentDialogue.variables = { ...stateData.variables };
+        }
+
+        // 恢复节点
+        if (stateData.currentNodeId) {
+          this.goToNode(stateData.currentNodeId, context);
+        }
+      }
+    }
+  }
+
+  /**
+   * 重置对话系统
+   */
+  reset() {
+    this.currentDialogue = null;
+    this.currentNode = null;
+    this.stopTypewriter();
+    this.clearHistory();
+  }
+
+  /**
+   * 清除所有对话
+   */
+  clearAllDialogues() {
+    this.dialogues.clear();
+    this.reset();
+  }
+}
+
+export default DialogueSystem;

@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>进度管理器测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #4CAF50;
+            text-align: center;
+        }
+        
+        .test-section {
+            background-color: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .test-section h2 {
+            color: #64B5F6;
+            margin-top: 0;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            font-size: 14px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        button.danger {
+            background-color: #f44336;
+        }
+        
+        button.danger:hover {
+            background-color: #da190b;
+        }
+        
+        .info-panel {
+            background-color: #333;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        
+        .info-panel .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #4CAF50;
+            padding-left: 10px;
+        }
+        
+        .info-panel .log-entry.error {
+            border-left-color: #f44336;
+            color: #ff6b6b;
+        }
+        
+        .info-panel .log-entry.success {
+            border-left-color: #4CAF50;
+            color: #69f0ae;
+        }
+        
+        .info-panel .log-entry.warning {
+            border-left-color: #ff9800;
+            color: #ffb74d;
+        }
+        
+        .data-display {
+            background-color: #1a1a1a;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .status-badge.yes {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        .status-badge.no {
+            background-color: #666;
+            color: #ccc;
+        }
+        
+        input[type="text"], input[type="number"] {
+            padding: 8px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background-color: #333;
+            color: white;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        
+        label {
+            margin-right: 10px;
+            color: #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>进度管理器 (ProgressManager) 测试</h1>
+        
+        <div class="test-section">
+            <h2>进度保存</h2>
+            <div class="controls">
+                <label>角色名称:</label>
+                <input type="text" id="characterName" value="测试玩家" />
+                <label>等级:</label>
+                <input type="number" id="level" value="5" min="1" max="100" />
+                <label>货币:</label>
+                <input type="number" id="currency" value="1000" min="0" />
+                <button id="btnSaveProgress">保存进度</button>
+            </div>
+            <div>
+                进度已保存: <span id="saveStatus" class="status-badge no">否</span>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2>进度加载</h2>
+            <div class="controls">
+                <button id="btnLoadProgress">加载进度</button>
+                <button id="btnCheckProgress">检查是否有进度</button>
+            </div>
+            <div>
+                有保存的进度: <span id="hasProgressStatus" class="status-badge no">否</span>
+            </div>
+            <div class="data-display" id="loadedData">暂无数据</div>
+        </div>
+        
+        <div class="test-section">
+            <h2>检查点管理</h2>
+            <div class="controls">
+                <label>检查点ID:</label>
+                <input type="text" id="checkpointId" value="act1_complete" />
+                <button id="btnCreateCheckpoint">创建检查点</button>
+                <button id="btnLoadCheckpoint">加载检查点</button>
+            </div>
+            <div>
+                检查点数量: <span id="checkpointCount">0</span>
+            </div>
+            <div class="data-display" id="checkpointData">暂无检查点数据</div>
+        </div>
+        
+        <div class="test-section">
+            <h2>进度继承</h2>
+            <div class="controls">
+                <button id="btnPrepareInherit">准备继承数据</button>
+            </div>
+            <div class="data-display" id="inheritData">暂无继承数据</div>
+        </div>
+        
+        <div class="test-section">
+            <h2>清理操作</h2>
+            <div class="controls">
+                <button id="btnClearProgress" class="danger">清除所有进度</button>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2>日志输出</h2>
+            <div id="logPanel" class="info-panel"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { ProgressManager } from '../src/prologue/systems/ProgressManager.js';
+
+        // 日志系统
+        const logPanel = document.getElementById('logPanel');
+        
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logPanel.appendChild(entry);
+            logPanel.scrollTop = logPanel.scrollHeight;
+        }
+
+        // 创建进度管理器
+        const progressManager = new ProgressManager();
+        
+        // 模拟玩家数据
+        let mockPlayer = {
+            name: '测试玩家',
+            level: 5,
+            experience: 1500,
+            class: 'warrior',
+            attributes: {
+                health: 100,
+                maxHealth: 100,
+                attack: 20,
+                defense: 10
+            },
+            skills: ['basic_attack', 'power_strike'],
+            equipment: [
+                { id: 'sword1', name: '铁剑', type: 'weapon' }
+            ],
+            inventory: [
+                { id: 'potion1', name: '生命药水', quantity: 5 }
+            ],
+            currency: 1000,
+            allies: ['npc1', 'npc2'],
+            completedQuests: ['quest1', 'quest2']
+        };
+
+        // 更新UI状态
+        function updateUI() {
+            const hasProgress = progressManager.loadProgress() !== null;
+            const hasProgressStatus = document.getElementById('hasProgressStatus');
+            
+            if (hasProgress) {
+                hasProgressStatus.textContent = '是';
+                hasProgressStatus.className = 'status-badge yes';
+            } else {
+                hasProgressStatus.textContent = '否';
+                hasProgressStatus.className = 'status-badge no';
+            }
+            
+            document.getElementById('checkpointCount').textContent = 
+                progressManager.checkpoints.size;
+        }
+
+        // 保存进度
+        document.getElementById('btnSaveProgress').addEventListener('click', () => {
+            const characterName = document.getElementById('characterName').value;
+            const level = parseInt(document.getElementById('level').value);
+            const currency = parseInt(document.getElementById('currency').value);
+            
+            mockPlayer.name = characterName;
+            mockPlayer.level = level;
+            mockPlayer.currency = currency;
+            
+            const progressData = {
+                characterName: mockPlayer.name,
+                currentAct: 3,
+                currentScene: 'Act3Scene',
+                playTime: 3600,
+                player: {
+                    level: mockPlayer.level,
+                    experience: mockPlayer.experience,
+                    class: mockPlayer.class,
+                    attributes: mockPlayer.attributes,
+                    skills: mockPlayer.skills
+                },
+                equipment: mockPlayer.equipment,
+                inventory: mockPlayer.inventory,
+                currency: mockPlayer.currency,
+                completedQuests: mockPlayer.completedQuests,
+                playerChoices: { choice1: 'option_a', choice2: 'option_b' },
+                recruitedNPCs: mockPlayer.allies,
+                battlesWon: 10,
+                enemiesDefeated: 50,
+                rescuedAllies: ['zhang_liang'],
+                isCompleted: false,
+                ending: null
+            };
+            
+            const result = progressManager.saveProgress(progressData);
+            
+            if (result.success) {
+                addLog('进度保存成功！', 'success');
+                document.getElementById('saveStatus').textContent = '是';
+                document.getElementById('saveStatus').className = 'status-badge yes';
+            } else {
+                addLog(`进度保存失败: ${result.error}`, 'error');
+            }
+            
+            updateUI();
+        });
+
+        // 加载进度
+        document.getElementById('btnLoadProgress').addEventListener('click', () => {
+            const progress = progressManager.loadProgress();
+            
+            if (progress) {
+                addLog('进度加载成功！', 'success');
+                document.getElementById('loadedData').textContent = 
+                    JSON.stringify(progress, null, 2);
+                
+                // 更新输入框
+                if (progress.characterName) {
+                    document.getElementById('characterName').value = progress.characterName;
+                }
+                if (progress.player && progress.player.level) {
+                    document.getElementById('level').value = progress.player.level;
+                }
+                if (progress.currency !== undefined) {
+                    document.getElementById('currency').value = progress.currency;
+                }
+            } else {
+                addLog('没有找到保存的进度', 'warning');
+                document.getElementById('loadedData').textContent = '暂无数据';
+            }
+            
+            updateUI();
+        });
+
+        // 检查进度
+        document.getElementById('btnCheckProgress').addEventListener('click', () => {
+            const hasProgress = progressManager.loadProgress() !== null;
+            
+            if (hasProgress) {
+                addLog('检测到保存的进度', 'success');
+            } else {
+                addLog('没有保存的进度', 'warning');
+            }
+            
+            updateUI();
+        });
+
+        // 创建检查点
+        document.getElementById('btnCreateCheckpoint').addEventListener('click', () => {
+            const checkpointId = document.getElementById('checkpointId').value;
+            
+            if (!checkpointId) {
+                addLog('请输入检查点ID', 'error');
+                return;
+            }
+            
+            const checkpointData = {
+                player: mockPlayer,
+                currentAct: 2,
+                timestamp: Date.now()
+            };
+            
+            progressManager.createCheckpoint(checkpointId, checkpointData);
+            addLog(`检查点 "${checkpointId}" 创建成功`, 'success');
+            
+            updateUI();
+        });
+
+        // 加载检查点
+        document.getElementById('btnLoadCheckpoint').addEventListener('click', () => {
+            const checkpointId = document.getElementById('checkpointId').value;
+            
+            if (!checkpointId) {
+                addLog('请输入检查点ID', 'error');
+                return;
+            }
+            
+            const checkpoint = progressManager.loadCheckpoint(checkpointId);
+            
+            if (checkpoint) {
+                addLog(`检查点 "${checkpointId}" 加载成功`, 'success');
+                document.getElementById('checkpointData').textContent = 
+                    JSON.stringify(checkpoint, null, 2);
+            } else {
+                addLog(`检查点 "${checkpointId}" 不存在`, 'error');
+                document.getElementById('checkpointData').textContent = '检查点不存在';
+            }
+        });
+
+        // 准备继承数据
+        document.getElementById('btnPrepareInherit').addEventListener('click', () => {
+            const inheritData = progressManager.prepareInheritData(mockPlayer);
+            
+            addLog('继承数据准备完成', 'success');
+            document.getElementById('inheritData').textContent = 
+                JSON.stringify(inheritData, null, 2);
+        });
+
+        // 清除进度
+        document.getElementById('btnClearProgress').addEventListener('click', () => {
+            if (confirm('确定要清除所有进度吗？此操作不可恢复！')) {
+                progressManager.clearProgress();
+                addLog('所有进度已清除', 'warning');
+                
+                document.getElementById('saveStatus').textContent = '否';
+                document.getElementById('saveStatus').className = 'status-badge no';
+                document.getElementById('loadedData').textContent = '暂无数据';
+                document.getElementById('checkpointData').textContent = '暂无检查点数据';
+                document.getElementById('inheritData').textContent = '暂无继承数据';
+                
+                updateUI();
+            }
+        });
+
+        // 初始化
+        updateUI();
+        addLog('进度管理器测试页面已加载', 'success');
+        addLog('提示: 可以保存进度、创建检查点、测试加载功能', 'info');
+    </script>
+</body>
+</html>

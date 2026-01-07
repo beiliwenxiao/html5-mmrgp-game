@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>对话系统测试</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Microsoft YaHei', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      width: 100%;
+    }
+
+    h1 {
+      text-align: center;
+      color: white;
+      margin-bottom: 30px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .game-screen {
+      background: #2c3e50;
+      border-radius: 15px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+
+    .scene {
+      background: linear-gradient(to bottom, #34495e, #2c3e50);
+      height: 400px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .character {
+      width: 200px;
+      height: 300px;
+      background: #95a5a6;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 80px;
+      transition: all 0.3s;
+      position: relative;
+    }
+
+    .character.speaking {
+      transform: scale(1.1);
+      box-shadow: 0 0 30px rgba(52, 152, 219, 0.6);
+    }
+
+    .character-name {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.7);
+      color: white;
+      padding: 5px 15px;
+      border-radius: 15px;
+      font-size: 14px;
+    }
+
+    .dialogue-box {
+      background: rgba(0,0,0,0.9);
+      color: white;
+      padding: 30px;
+      min-height: 200px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .speaker-name {
+      color: #3498db;
+      font-weight: bold;
+      font-size: 1.2em;
+      margin-bottom: 15px;
+    }
+
+    .dialogue-text {
+      font-size: 1.1em;
+      line-height: 1.8;
+      min-height: 80px;
+      margin-bottom: 20px;
+    }
+
+    .dialogue-text.typing::after {
+      content: '▌';
+      animation: blink 0.7s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    .choices {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .choice-button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 15px 25px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 1em;
+      transition: all 0.3s;
+      text-align: left;
+    }
+
+    .choice-button:hover {
+      transform: translateX(10px);
+      box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    .choice-button:disabled {
+      background: #95a5a6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .continue-hint {
+      text-align: center;
+      color: #95a5a6;
+      font-size: 0.9em;
+      margin-top: 10px;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+
+    .controls {
+      background: #34495e;
+      padding: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .control-button {
+      background: #3498db;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.9em;
+      transition: background 0.3s;
+    }
+
+    .control-button:hover {
+      background: #2980b9;
+    }
+
+    .control-button.danger {
+      background: #e74c3c;
+    }
+
+    .control-button.danger:hover {
+      background: #c0392b;
+    }
+
+    .info {
+      color: #ecf0f1;
+      font-size: 0.9em;
+    }
+
+    .dialogue-selector {
+      background: #2c3e50;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+
+    .dialogue-selector h2 {
+      color: white;
+      margin-bottom: 15px;
+    }
+
+    .dialogue-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 10px;
+    }
+
+    .dialogue-item {
+      background: #34495e;
+      padding: 15px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+      border: 2px solid transparent;
+    }
+
+    .dialogue-item:hover {
+      background: #3d566e;
+      border-color: #3498db;
+      transform: translateY(-2px);
+    }
+
+    .dialogue-item h3 {
+      color: #3498db;
+      margin-bottom: 5px;
+      font-size: 1em;
+    }
+
+    .dialogue-item p {
+      color: #95a5a6;
+      font-size: 0.85em;
+    }
+
+    .stats {
+      display: flex;
+      gap: 20px;
+    }
+
+    .stat {
+      color: #ecf0f1;
+    }
+
+    .stat-label {
+      color: #95a5a6;
+      font-size: 0.85em;
+    }
+
+    .stat-value {
+      color: #3498db;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>💬 对话系统测试</h1>
+
+    <div class="dialogue-selector">
+      <h2>选择对话</h2>
+      <div class="dialogue-list" id="dialogue-list"></div>
+    </div>
+
+    <div class="game-screen">
+      <div class="scene">
+        <div class="character" id="character">
+          <span id="character-emoji">🧙</span>
+          <div class="character-name" id="character-name">张角</div>
+        </div>
+      </div>
+
+      <div class="dialogue-box">
+        <div>
+          <div class="speaker-name" id="speaker-name">张角</div>
+          <div class="dialogue-text" id="dialogue-text">
+            点击上方选择一个对话开始...
+          </div>
+        </div>
+
+        <div>
+          <div class="choices" id="choices"></div>
+          <div class="continue-hint" id="continue-hint" style="display: none;">
+            点击任意处继续 ▼
+          </div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="stats">
+          <div class="stat">
+            <span class="stat-label">打字速度:</span>
+            <span class="stat-value" id="speed-value">50ms</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">节点:</span>
+            <span class="stat-value" id="node-value">-</span>
+          </div>
+        </div>
+        <div>
+          <button class="control-button" onclick="window.skipTypewriter()">跳过打字</button>
+          <button class="control-button" onclick="window.toggleTypewriter()">
+            <span id="typewriter-toggle">禁用打字机</span>
+          </button>
+          <button class="control-button danger" onclick="window.endDialogue()">结束对话</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { DialogueSystem } from '../src/prologue/systems/DialogueSystem.js';
+
+    // 初始化系统
+    const dialogueSystem = new DialogueSystem();
+    
+    // 角色表情映射
+    const characterEmojis = {
+      '张角': '🧙',
+      '张梁': '⚔️',
+      '张宝': '🏹',
+      '玩家': '🎮',
+      '旁白': '📖'
+    };
+
+    // 更新UI
+    function updateUI() {
+      const node = dialogueSystem.getCurrentNode();
+      
+      if (!node) {
+        document.getElementById('speaker-name').textContent = '';
+        document.getElementById('dialogue-text').textContent = '点击上方选择一个对话开始...';
+        document.getElementById('choices').innerHTML = '';
+        document.getElementById('continue-hint').style.display = 'none';
+        document.getElementById('node-value').textContent = '-';
+        return;
+      }
+
+      // 更新说话者
+      document.getElementById('speaker-name').textContent = node.speaker || '旁白';
+      document.getElementById('node-value').textContent = node.id;
+
+      // 更新角色
+      const character = document.getElementById('character');
+      const emoji = characterEmojis[node.speaker] || '👤';
+      document.getElementById('character-emoji').textContent = emoji;
+      document.getElementById('character-name').textContent = node.speaker || '旁白';
+      character.classList.add('speaking');
+      setTimeout(() => character.classList.remove('speaking'), 300);
+
+      // 更新对话文本
+      const textElement = document.getElementById('dialogue-text');
+      textElement.textContent = dialogueSystem.getDisplayedText();
+      textElement.classList.toggle('typing', dialogueSystem.isTyping());
+
+      // 更新选项
+      const choicesContainer = document.getElementById('choices');
+      choicesContainer.innerHTML = '';
+
+      if (node.choices && node.choices.length > 0 && !dialogueSystem.isTyping()) {
+        node.choices.forEach((choice, index) => {
+          const button = document.createElement('button');
+          button.className = 'choice-button';
+          button.textContent = `${index + 1}. ${choice.text}`;
+          button.onclick = () => selectChoice(index);
+          choicesContainer.appendChild(button);
+        });
+        document.getElementById('continue-hint').style.display = 'none';
+      } else if (!dialogueSystem.isTyping() && node.nextNode) {
+        document.getElementById('continue-hint').style.display = 'block';
+      } else {
+        document.getElementById('continue-hint').style.display = 'none';
+      }
+    }
+
+    // 选择选项
+    function selectChoice(index) {
+      dialogueSystem.selectChoice(index);
+      updateUI();
+    }
+
+    // 继续对话
+    function continueDialogue() {
+      if (dialogueSystem.isDialogueActive()) {
+        dialogueSystem.continue();
+        updateUI();
+      }
+    }
+
+    // 全局函数
+    window.skipTypewriter = function() {
+      dialogueSystem.skipTypewriter();
+      updateUI();
+    };
+
+    window.toggleTypewriter = function() {
+      const enabled = !dialogueSystem.enableTypewriter;
+      dialogueSystem.setTypewriterEnabled(enabled);
+      document.getElementById('typewriter-toggle').textContent = 
+        enabled ? '禁用打字机' : '启用打字机';
+    };
+
+    window.endDialogue = function() {
+      dialogueSystem.endDialogue();
+      updateUI();
+    };
+
+    window.startDialogue = function(dialogueId) {
+      dialogueSystem.startDialogue(dialogueId);
+      updateUI();
+    };
+
+    // 点击对话框继续
+    document.querySelector('.dialogue-box').addEventListener('click', (e) => {
+      if (!e.target.classList.contains('choice-button')) {
+        continueDialogue();
+      }
+    });
+
+    // 设置回调
+    dialogueSystem.onNodeChange(() => updateUI());
+    dialogueSystem.onEnd(() => updateUI());
+
+    // 注册测试对话
+    const dialogues = [
+      {
+        id: 'zhang_jiao_intro',
+        title: '张角的邀请',
+        description: '张角邀请你加入黄巾军',
+        data: {
+          title: '张角的邀请',
+          startNode: 'node1',
+          nodes: {
+            node1: {
+              speaker: '张角',
+              text: '你好，流民。我是张角，太平道的创始人。',
+              nextNode: 'node2'
+            },
+            node2: {
+              speaker: '张角',
+              text: '这个世道，官府腐败，百姓民不聊生。你也是受害者吧？',
+              nextNode: 'node3'
+            },
+            node3: {
+              speaker: '张角',
+              text: '我们正在组织起义，推翻这个腐朽的朝廷。你愿意加入我们吗？',
+              choices: [
+                { text: '我愿意加入！', nextNode: 'join' },
+                { text: '让我再想想...', nextNode: 'hesitate' },
+                { text: '我拒绝', nextNode: 'refuse' }
+              ]
+            },
+            join: {
+              speaker: '张角',
+              text: '很好！欢迎加入黄巾军！从今天起，你就是我们的一员了。',
+              nextNode: 'join2'
+            },
+            join2: {
+              speaker: '张角',
+              text: '这是你的黄巾，戴上它，你就是黄巾军的战士了！',
+              nextNode: null
+            },
+            hesitate: {
+              speaker: '张角',
+              text: '我理解你的犹豫。但时间不多了，希望你能尽快做出决定。',
+              nextNode: null
+            },
+            refuse: {
+              speaker: '张角',
+              text: '那真是遗憾...但我尊重你的选择。愿你平安。',
+              nextNode: null
+            }
+          }
+        }
+      },
+      {
+        id: 'fu_shui',
+        title: '符水的秘密',
+        description: '张角解释符水的真相',
+        data: {
+          title: '符水的秘密',
+          startNode: 'node1',
+          nodes: {
+            node1: {
+              speaker: '玩家',
+              text: '张角大人，这符水真的有神奇的力量吗？',
+              nextNode: 'node2'
+            },
+            node2: {
+              speaker: '张角',
+              text: '（微笑）你想知道真相吗？',
+              choices: [
+                { text: '是的，请告诉我', nextNode: 'truth' },
+                { text: '我相信它是神奇的', nextNode: 'believe' }
+              ]
+            },
+            truth: {
+              speaker: '张角',
+              text: '其实...符水只是烧了黄纸的白粥而已。',
+              nextNode: 'truth2'
+            },
+            truth2: {
+              speaker: '张角',
+              text: '官府不允许私人施粥，但如果说这是"仙家符水"，就合法了。',
+              nextNode: 'truth3'
+            },
+            truth3: {
+              speaker: '张角',
+              text: '这是我们帮助百姓的方法。有时候，善意的谎言是必要的。',
+              nextNode: null
+            },
+            believe: {
+              speaker: '张角',
+              text: '你的信仰很珍贵。继续保持这份信念吧。',
+              nextNode: null
+            }
+          }
+        }
+      },
+      {
+        id: 'three_brothers',
+        title: '三兄弟',
+        description: '认识张角三兄弟',
+        data: {
+          title: '三兄弟',
+          startNode: 'node1',
+          nodes: {
+            node1: {
+              speaker: '张角',
+              text: '来，让我介绍一下我的两个弟弟。',
+              nextNode: 'node2'
+            },
+            node2: {
+              speaker: '张梁',
+              text: '我是张梁，地公将军。擅长近战，如果你想学战士之道，可以来找我。',
+              nextNode: 'node3'
+            },
+            node3: {
+              speaker: '张宝',
+              text: '我是张宝，人公将军。精通弓箭，如果你对远程攻击感兴趣，我可以教你。',
+              nextNode: 'node4'
+            },
+            node4: {
+              speaker: '张角',
+              text: '而我，天公将军张角，精通法术。你想学习哪一种？',
+              choices: [
+                { text: '我想学战士之道', nextNode: 'warrior' },
+                { text: '我想学弓箭手之道', nextNode: 'archer' },
+                { text: '我想学法师之道', nextNode: 'mage' }
+              ]
+            },
+            warrior: {
+              speaker: '张梁',
+              text: '好！跟我来，我会教你如何成为一名强大的战士！',
+              nextNode: null
+            },
+            archer: {
+              speaker: '张宝',
+              text: '很好的选择！弓箭手需要敏捷和精准，我会好好训练你。',
+              nextNode: null
+            },
+            mage: {
+              speaker: '张角',
+              text: '明智的选择。法术的力量是无穷的，让我来指导你吧。',
+              nextNode: null
+            }
+          }
+        }
+      }
+    ];
+
+    // 注册所有对话
+    dialogues.forEach(d => {
+      dialogueSystem.registerDialogue(d.id, d.data);
+    });
+
+    // 渲染对话列表
+    function renderDialogueList() {
+      const container = document.getElementById('dialogue-list');
+      container.innerHTML = '';
+
+      dialogues.forEach(d => {
+        const item = document.createElement('div');
+        item.className = 'dialogue-item';
+        item.onclick = () => window.startDialogue(d.id);
+        
+        item.innerHTML = `
+          <h3>${d.title}</h3>
+          <p>${d.description}</p>
+        `;
+        
+        container.appendChild(item);
+      });
+    }
+
+    renderDialogueList();
+
+    // 游戏循环
+    let lastTime = Date.now();
+    function gameLoop() {
+      const now = Date.now();
+      const deltaTime = now - lastTime;
+      lastTime = now;
+
+      dialogueSystem.update(deltaTime);
+      updateUI();
+
+      requestAnimationFrame(gameLoop);
+    }
+    gameLoop();
+  </script>
+</body>
+</html>

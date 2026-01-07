@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>背包系统测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .test-result.pass {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .test-result.fail {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .inventory-display {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .inventory-slot {
+            border: 2px solid #ddd;
+            padding: 10px;
+            text-align: center;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+        .inventory-slot.filled {
+            background: #e3f2fd;
+            border-color: #2196f3;
+        }
+        .item-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .item-quantity {
+            color: #666;
+            font-size: 0.9em;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background-color: #2196f3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #1976d2;
+        }
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin: 10px 0;
+        }
+        .stat-item {
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>背包系统测试</h1>
+
+    <div class="test-section">
+        <h2>自动化测试结果</h2>
+        <div id="test-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>交互式测试</h2>
+        <div class="stats">
+            <div class="stat-item">
+                <strong>已使用槽位:</strong> <span id="used-slots">0</span>
+            </div>
+            <div class="stat-item">
+                <strong>剩余槽位:</strong> <span id="remaining-slots">10</span>
+            </div>
+            <div class="stat-item">
+                <strong>背包状态:</strong> <span id="inventory-status">空</span>
+            </div>
+        </div>
+
+        <div>
+            <button onclick="addSword()">添加木剑</button>
+            <button onclick="addPotion()">添加药水 x5</button>
+            <button onclick="addCoins()">添加铜钱 x15</button>
+            <button onclick="removePotion()">移除药水 x3</button>
+            <button onclick="clearInventory()">清空背包</button>
+        </div>
+
+        <h3>背包内容</h3>
+        <div id="inventory-display" class="inventory-display"></div>
+    </div>
+
+    <script type="module">
+        import { InventorySystem } from '../src/prologue/systems/InventorySystem.js';
+
+        // 创建背包实例
+        const inventory = new InventorySystem(10);
+        
+        // 添加监听器
+        inventory.addListener((eventType, data) => {
+            console.log(`背包事件: ${eventType}`, data);
+            updateDisplay();
+        });
+
+        // 测试函数
+        function runTests() {
+            const results = [];
+            
+            // 测试 1: 创建背包
+            try {
+                const testInventory = new InventorySystem(10);
+                results.push({
+                    name: '创建背包',
+                    pass: testInventory.maxSlots === 10 && testInventory.items.length === 0
+                });
+            } catch (e) {
+                results.push({ name: '创建背包', pass: false, error: e.message });
+            }
+
+            // 测试 2: 添加单个物品
+            try {
+                const testInventory = new InventorySystem(10);
+                const item = { id: 'sword1', name: '木剑', type: 'equipment', stackable: false };
+                const result = testInventory.addItem(item);
+                results.push({
+                    name: '添加单个物品',
+                    pass: result && testInventory.getItemCount('sword1') === 1
+                });
+            } catch (e) {
+                results.push({ name: '添加单个物品', pass: false, error: e.message });
+            }
+
+            // 测试 3: 添加可堆叠物品
+            try {
+                const testInventory = new InventorySystem(10);
+                const item = { id: 'potion', name: '药水', type: 'consumable', stackable: true, maxStack: 99 };
+                testInventory.addItem(item, 5);
+                testInventory.addItem(item, 3);
+                results.push({
+                    name: '添加可堆叠物品',
+                    pass: testInventory.getItemCount('potion') === 8 && testInventory.getUsedSlots() === 1
+                });
+            } catch (e) {
+                results.push({ name: '添加可堆叠物品', pass: false, error: e.message });
+            }
+
+            // 测试 4: 达到最大堆叠数
+            try {
+                const testInventory = new InventorySystem(10);
+                const item = { id: 'coin', name: '铜钱', type: 'currency', stackable: true, maxStack: 10 };
+                testInventory.addItem(item, 15);
+                results.push({
+                    name: '达到最大堆叠数时创建新槽位',
+                    pass: testInventory.getItemCount('coin') === 15 && testInventory.getUsedSlots() === 2
+                });
+            } catch (e) {
+                results.push({ name: '达到最大堆叠数时创建新槽位', pass: false, error: e.message });
+            }
+
+            // 测试 5: 移除物品
+            try {
+                const testInventory = new InventorySystem(10);
+                const item = { id: 'potion', name: '药水', stackable: true, maxStack: 99 };
+                testInventory.addItem(item, 10);
+                testInventory.removeItem('potion', 3);
+                results.push({
+                    name: '移除物品',
+                    pass: testInventory.getItemCount('potion') === 7
+                });
+            } catch (e) {
+                results.push({ name: '移除物品', pass: false, error: e.message });
+            }
+
+            // 测试 6: 背包已满
+            try {
+                const testInventory = new InventorySystem(3);
+                for (let i = 0; i < 3; i++) {
+                    testInventory.addItem({ id: `item${i}`, name: `物品${i}`, stackable: false });
+                }
+                const result = testInventory.addItem({ id: 'extra', name: '额外物品', stackable: false });
+                results.push({
+                    name: '背包已满时拒绝添加',
+                    pass: !result && testInventory.getUsedSlots() === 3
+                });
+            } catch (e) {
+                results.push({ name: '背包已满时拒绝添加', pass: false, error: e.message });
+            }
+
+            // 测试 7: 序列化和反序列化
+            try {
+                const testInventory = new InventorySystem(10);
+                testInventory.addItem({ id: 'item1', name: '物品1' }, 5);
+                const data = testInventory.serialize();
+                
+                const newInventory = new InventorySystem();
+                newInventory.deserialize(data);
+                results.push({
+                    name: '序列化和反序列化',
+                    pass: newInventory.getItemCount('item1') === 5 && newInventory.maxSlots === 10
+                });
+            } catch (e) {
+                results.push({ name: '序列化和反序列化', pass: false, error: e.message });
+            }
+
+            // 显示结果
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML = results.map(r => `
+                <div class="test-result ${r.pass ? 'pass' : 'fail'}">
+                    <strong>${r.name}:</strong> ${r.pass ? '✓ 通过' : '✗ 失败'}
+                    ${r.error ? `<br>错误: ${r.error}` : ''}
+                </div>
+            `).join('');
+        }
+
+        // 更新显示
+        function updateDisplay() {
+            document.getElementById('used-slots').textContent = inventory.getUsedSlots();
+            document.getElementById('remaining-slots').textContent = inventory.getRemainingSlots();
+            document.getElementById('inventory-status').textContent = inventory.isFull() ? '已满' : '未满';
+
+            const displayDiv = document.getElementById('inventory-display');
+            const items = inventory.getAllItems();
+            
+            displayDiv.innerHTML = '';
+            for (let i = 0; i < inventory.maxSlots; i++) {
+                const slot = items[i];
+                const slotDiv = document.createElement('div');
+                slotDiv.className = 'inventory-slot' + (slot ? ' filled' : '');
+                
+                if (slot) {
+                    slotDiv.innerHTML = `
+                        <div class="item-name">${slot.item.name}</div>
+                        <div class="item-quantity">x${slot.quantity}</div>
+                    `;
+                } else {
+                    slotDiv.innerHTML = '<div style="color: #ccc;">空</div>';
+                }
+                
+                displayDiv.appendChild(slotDiv);
+            }
+        }
+
+        // 交互式测试函数
+        window.addSword = function() {
+            const item = { id: 'sword', name: '木剑', type: 'equipment', stackable: false };
+            const result = inventory.addItem(item);
+            if (!result) alert('背包已满！');
+        };
+
+        window.addPotion = function() {
+            const item = { id: 'potion', name: '药水', type: 'consumable', stackable: true, maxStack: 99 };
+            inventory.addItem(item, 5);
+        };
+
+        window.addCoins = function() {
+            const item = { id: 'coin', name: '铜钱', type: 'currency', stackable: true, maxStack: 10 };
+            inventory.addItem(item, 15);
+        };
+
+        window.removePotion = function() {
+            const result = inventory.removeItem('potion', 3);
+            if (!result) alert('药水数量不足！');
+        };
+
+        window.clearInventory = function() {
+            inventory.clear();
+        };
+
+        // 运行测试
+        runTests();
+        updateDisplay();
+    </script>
+</body>
+</html>

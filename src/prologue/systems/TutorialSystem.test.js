@@ -1,0 +1,370 @@
+/**
+ * 教程系统测试
+ */
+
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { TutorialSystem } from './TutorialSystem.js';
+
+describe('TutorialSystem', () => {
+  let tutorialSystem;
+  let testTutorial;
+
+  beforeEach(() => {
+    tutorialSystem = new TutorialSystem();
+    
+    // 创建测试教程
+    testTutorial = {
+      title: '移动教程',
+      description: '学习如何移动角色',
+      steps: [
+        {
+          text: '使用WASD键移动',
+          target: 'player',
+          highlightTarget: true
+        },
+        {
+          text: '或点击地面移动',
+          target: 'ground'
+        }
+      ],
+      pauseGame: false,
+      canSkip: true,
+      priority: 1,
+      category: 'movement'
+    };
+
+    tutorialSystem.registerTutorial('movement_tutorial', testTutorial);
+  });
+
+  describe('教程注册', () => {
+    it('应该能注册教程', () => {
+      const result = tutorialSystem.registerTutorial('test', {
+        title: '测试教程',
+        steps: []
+      });
+      
+      expect(result).toBe(true);
+      expect(tutorialSystem.getTutorial('test')).toBeDefined();
+    });
+
+    it('应该拒绝无效的教程数据', () => {
+      const result = tutorialSystem.registerTutorial(null, null);
+      expect(result).toBe(false);
+    });
+
+    it('应该能获取所有教程', () => {
+      tutorialSystem.registerTutorial('test2', { title: '测试2', steps: [] });
+      const tutorials = tutorialSystem.getAllTutorials();
+      
+      expect(tutorials.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe('教程显示', () => {
+    it('应该能显示教程', () => {
+      const result = tutorialSystem.showTutorial('movement_tutorial');
+      
+      expect(result).toBe(true);
+      expect(tutorialSystem.isShowingTutorial()).toBe(true);
+      expect(tutorialSystem.getCurrentTutorial()).toBeDefined();
+    });
+
+    it('应该不显示已完成的教程', () => {
+      tutorialSystem.completedTutorials.add('movement_tutorial');
+      const result = tutorialSystem.showTutorial('movement_tutorial');
+      
+      expect(result).toBe(false);
+    });
+
+    it('应该不显示不存在的教程', () => {
+      const result = tutorialSystem.showTutorial('nonexistent');
+      
+      expect(result).toBe(false);
+    });
+
+    it('应该在有教程显示时拒绝显示新教程', () => {
+      tutorialSystem.showTutorial('movement_tutorial');
+      
+      tutorialSystem.registerTutorial('test2', { title: '测试2', steps: [] });
+      const result = tutorialSystem.showTutorial('test2');
+      
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('教程步骤', () => {
+    beforeEach(() => {
+      tutorialSystem.showTutorial('movement_tutorial');
+    });
+
+    it('应该从第一步开始', () => {
+      expect(tutorialSystem.getCurrentStepIndex()).toBe(0);
+    });
+
+    it('应该能前进到下一步', () => {
+      const hasNext = tutorialSystem.nextStep();
+      
+      expect(hasNext).toBe(true);
+      expect(tutorialSystem.getCurrentStepIndex()).toBe(1);
+    });
+
+    it('应该在最后一步时完成教程', () => {
+      tutorialSystem.nextStep(); // 到第2步
+      const hasNext = tutorialSystem.nextStep(); // 尝试到第3步
+      
+      expect(hasNext).toBe(false);
+      expect(tutorialSystem.isShowingTutorial()).toBe(false);
+      expect(tutorialSystem.isTutorialCompleted('movement_tutorial')).toBe(true);
+    });
+
+    it('应该能返回上一步', () => {
+      tutorialSystem.nextStep(); // 到第2步
+      const hasPrev = tutorialSystem.previousStep();
+      
+      expect(hasPrev).toBe(true);
+      expect(tutorialSystem.getCurrentStepIndex()).toBe(0);
+    });
+
+    it('应该在第一步时不能返回上一步', () => {
+      const hasPrev = tutorialSystem.previousStep();
+      
+      expect(hasPrev).toBe(false);
+      expect(tutorialSystem.getCurrentStepIndex()).toBe(0);
+    });
+  });
+
+  describe('教程跳过', () => {
+    it('应该能跳过可跳过的教程', () => {
+      tutorialSystem.showTutorial('movement_tutorial');
+      const result = tutorialSystem.skipTutorial();
+      
+      expect(result).toBe(true);
+      expect(tutorialSystem.isShowingTutorial()).toBe(false);
+      expect(tutorialSystem.isTutorialCompleted('movement_tutorial')).toBe(true);
+    });
+
+    it('应该不能跳过不可跳过的教程', () => {
+      tutorialSystem.registerTutorial('mandatory', {
+        title: '必须教程',
+        steps: [{ text: '步骤1' }],
+        canSkip: false
+      });
+      
+      tutorialSystem.showTutorial('mandatory');
+      const result = tutorialSystem.skipTutorial();
+      
+      expect(result).toBe(false);
+      expect(tutorialSystem.isShowingTutorial()).toBe(true);
+    });
+  });
+
+  describe('教程完成', () => {
+    it('应该能完成教程', () => {
+      tutorialSystem.showTutorial('movement_tutorial');
+      tutorialSystem.completeTutorial();
+      
+      expect(tutorialSystem.isShowingTutorial()).toBe(false);
+      expect(tutorialSystem.isTutorialCompleted('movement_tutorial')).toBe(true);
+    });
+
+    it('应该触发完成回调', () => {
+      const callback = vi.fn();
+      tutorialSystem.onComplete(callback);
+      
+      tutorialSystem.showTutorial('movement_tutorial');
+      tutorialSystem.completeTutorial();
+      
+      expect(callback).toHaveBeenCalledWith('movement_tutorial', expect.any(Object));
+    });
+  });
+
+  describe('回调函数', () => {
+    it('应该触发显示回调', () => {
+      const callback = vi.fn();
+      tutorialSystem.onShow(callback);
+      
+      tutorialSystem.showTutorial('movement_tutorial');
+      
+      expect(callback).toHaveBeenCalled();
+    });
+
+    it('应该触发隐藏回调', () => {
+      const callback = vi.fn();
+      tutorialSystem.onHide(callback);
+      
+      tutorialSystem.showTutorial('movement_tutorial');
+      tutorialSystem.hideTutorial();
+      
+      expect(callback).toHaveBeenCalled();
+    });
+  });
+
+  describe('自动触发', () => {
+    it('应该在满足条件时自动触发教程', () => {
+      tutorialSystem.registerTutorial('auto_tutorial', {
+        title: '自动教程',
+        steps: [{ text: '步骤1' }],
+        autoTrigger: true,
+        triggerCondition: (state) => state.playerLevel >= 5
+      });
+
+      tutorialSystem.update(0, { playerLevel: 5 });
+      
+      expect(tutorialSystem.isShowingTutorial()).toBe(true);
+      expect(tutorialSystem.getCurrentTutorial().id).toBe('auto_tutorial');
+    });
+
+    it('应该按优先级触发教程', () => {
+      tutorialSystem.registerTutorial('low_priority', {
+        title: '低优先级',
+        steps: [{ text: '步骤1' }],
+        autoTrigger: true,
+        priority: 1,
+        triggerCondition: () => true
+      });
+
+      tutorialSystem.registerTutorial('high_priority', {
+        title: '高优先级',
+        steps: [{ text: '步骤1' }],
+        autoTrigger: true,
+        priority: 10,
+        triggerCondition: () => true
+      });
+
+      tutorialSystem.update(0, {});
+      
+      expect(tutorialSystem.getCurrentTutorial().id).toBe('high_priority');
+    });
+  });
+
+  describe('教程进度', () => {
+    it('应该正确计算进度', () => {
+      tutorialSystem.registerTutorial('test2', { title: '测试2', steps: [] });
+      tutorialSystem.registerTutorial('test3', { title: '测试3', steps: [] });
+      
+      tutorialSystem.completedTutorials.add('movement_tutorial');
+      
+      const progress = tutorialSystem.getProgress();
+      
+      expect(progress.total).toBe(3);
+      expect(progress.completed).toBe(1);
+      expect(progress.remaining).toBe(2);
+      expect(progress.percentage).toBeCloseTo(33.33, 1);
+    });
+
+    it('应该能获取未完成的教程', () => {
+      tutorialSystem.registerTutorial('test2', { title: '测试2', steps: [] });
+      tutorialSystem.completedTutorials.add('movement_tutorial');
+      
+      const incomplete = tutorialSystem.getIncompleteTutorials();
+      
+      expect(incomplete.length).toBe(1);
+      expect(incomplete[0].id).toBe('test2');
+    });
+  });
+
+  describe('教程类别', () => {
+    it('应该能按类别获取教程', () => {
+      tutorialSystem.registerTutorial('combat1', {
+        title: '战斗1',
+        steps: [],
+        category: 'combat'
+      });
+      
+      tutorialSystem.registerTutorial('combat2', {
+        title: '战斗2',
+        steps: [],
+        category: 'combat'
+      });
+
+      const combatTutorials = tutorialSystem.getTutorialsByCategory('combat');
+      
+      expect(combatTutorials.length).toBe(2);
+    });
+  });
+
+  describe('教程重置', () => {
+    it('应该能重置单个教程', () => {
+      tutorialSystem.completedTutorials.add('movement_tutorial');
+      tutorialSystem.resetTutorial('movement_tutorial');
+      
+      expect(tutorialSystem.isTutorialCompleted('movement_tutorial')).toBe(false);
+    });
+
+    it('应该能重置所有教程', () => {
+      tutorialSystem.completedTutorials.add('movement_tutorial');
+      tutorialSystem.registerTutorial('test2', { title: '测试2', steps: [] });
+      tutorialSystem.completedTutorials.add('test2');
+      
+      tutorialSystem.resetTutorial();
+      
+      expect(tutorialSystem.completedTutorials.size).toBe(0);
+    });
+  });
+
+  describe('启用/禁用', () => {
+    it('应该能禁用教程系统', () => {
+      tutorialSystem.setEnabled(false);
+      const result = tutorialSystem.showTutorial('movement_tutorial');
+      
+      expect(result).toBe(false);
+    });
+
+    it('应该在禁用时隐藏当前教程', () => {
+      tutorialSystem.showTutorial('movement_tutorial');
+      tutorialSystem.setEnabled(false);
+      
+      expect(tutorialSystem.isShowingTutorial()).toBe(false);
+    });
+  });
+
+  describe('进度保存和加载', () => {
+    it('应该能保存进度', () => {
+      tutorialSystem.completedTutorials.add('movement_tutorial');
+      const progress = tutorialSystem.saveProgress();
+      
+      expect(progress.completedTutorials).toContain('movement_tutorial');
+      expect(progress.enabled).toBe(true);
+    });
+
+    it('应该能加载进度', () => {
+      const progress = {
+        completedTutorials: ['movement_tutorial', 'test2'],
+        enabled: false
+      };
+      
+      tutorialSystem.loadProgress(progress);
+      
+      expect(tutorialSystem.isTutorialCompleted('movement_tutorial')).toBe(true);
+      expect(tutorialSystem.isTutorialCompleted('test2')).toBe(true);
+      expect(tutorialSystem.enabled).toBe(false);
+    });
+  });
+
+  describe('游戏暂停', () => {
+    it('应该在教程要求时暂停游戏', () => {
+      tutorialSystem.registerTutorial('pause_tutorial', {
+        title: '暂停教程',
+        steps: [{ text: '步骤1' }],
+        pauseGame: true
+      });
+
+      tutorialSystem.showTutorial('pause_tutorial');
+      
+      expect(tutorialSystem.shouldPauseGame()).toBe(true);
+    });
+
+    it('应该在教程结束时恢复游戏', () => {
+      tutorialSystem.registerTutorial('pause_tutorial', {
+        title: '暂停教程',
+        steps: [{ text: '步骤1' }],
+        pauseGame: true
+      });
+
+      tutorialSystem.showTutorial('pause_tutorial');
+      tutorialSystem.completeTutorial();
+      
+      expect(tutorialSystem.shouldPauseGame()).toBe(false);
+    });
+  });
+});

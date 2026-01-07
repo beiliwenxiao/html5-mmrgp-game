@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>装备强化系统测试</title>
+  <style>
+    body {
+      font-family: 'Microsoft YaHei', Arial, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    
+    h1 {
+      color: #333;
+      text-align: center;
+    }
+    
+    .test-section {
+      background: white;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .test-section h2 {
+      color: #2c3e50;
+      border-bottom: 2px solid #3498db;
+      padding-bottom: 10px;
+    }
+    
+    .equipment-card {
+      background: #ecf0f1;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 5px;
+      border-left: 4px solid #3498db;
+    }
+    
+    .equipment-card.rare {
+      border-left-color: #9b59b6;
+    }
+    
+    .equipment-card.epic {
+      border-left-color: #e74c3c;
+    }
+    
+    .attribute {
+      display: inline-block;
+      margin: 5px 10px 5px 0;
+      padding: 5px 10px;
+      background: #fff;
+      border-radius: 3px;
+    }
+    
+    .enhance-level {
+      color: #27ae60;
+      font-weight: bold;
+      font-size: 1.2em;
+    }
+    
+    button {
+      background: #3498db;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      margin: 5px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    
+    button:hover {
+      background: #2980b9;
+    }
+    
+    button:disabled {
+      background: #95a5a6;
+      cursor: not-allowed;
+    }
+    
+    .success {
+      color: #27ae60;
+      font-weight: bold;
+    }
+    
+    .failure {
+      color: #e74c3c;
+      font-weight: bold;
+    }
+    
+    .info {
+      color: #7f8c8d;
+    }
+    
+    .currency {
+      font-size: 1.2em;
+      color: #f39c12;
+      font-weight: bold;
+    }
+    
+    .log {
+      background: #2c3e50;
+      color: #ecf0f1;
+      padding: 15px;
+      border-radius: 5px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+    
+    .log-entry {
+      margin: 5px 0;
+      padding: 3px 0;
+      border-bottom: 1px solid #34495e;
+    }
+    
+    .preview-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0;
+    }
+    
+    .preview-table th,
+    .preview-table td {
+      padding: 8px;
+      text-align: left;
+      border: 1px solid #ddd;
+    }
+    
+    .preview-table th {
+      background: #3498db;
+      color: white;
+    }
+    
+    .preview-table tr:nth-child(even) {
+      background: #f9f9f9;
+    }
+  </style>
+</head>
+<body>
+  <h1>🛡️ 装备强化系统测试</h1>
+
+  <div class="test-section">
+    <h2>玩家状态</h2>
+    <div id="player-status">
+      <p>货币: <span class="currency" id="player-currency">10000</span> 铜钱</p>
+    </div>
+  </div>
+
+  <div class="test-section">
+    <h2>测试装备</h2>
+    <div id="equipment-list"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>操作日志</h2>
+    <div class="log" id="log"></div>
+  </div>
+
+  <script type="module">
+    import { EnhancementSystem } from '../src/prologue/systems/EnhancementSystem.js';
+
+    // 初始化系统
+    const enhancementSystem = new EnhancementSystem();
+    
+    // 创建玩家
+    const player = {
+      currency: 10000
+    };
+
+    // 创建测试装备
+    const equipments = [
+      {
+        id: 'iron_sword',
+        name: '铁剑',
+        type: 'weapon',
+        rarity: 'common',
+        enhanceLevel: 0,
+        attributes: {
+          attack: 10,
+          defense: 0
+        }
+      },
+      {
+        id: 'steel_armor',
+        name: '钢铠',
+        type: 'armor',
+        rarity: 'uncommon',
+        enhanceLevel: 0,
+        attributes: {
+          attack: 0,
+          defense: 15
+        }
+      },
+      {
+        id: 'magic_ring',
+        name: '魔法戒指',
+        type: 'accessory',
+        rarity: 'rare',
+        enhanceLevel: 0,
+        attributes: {
+          attack: 5,
+          defense: 5
+        }
+      },
+      {
+        id: 'legendary_blade',
+        name: '传说之刃',
+        type: 'weapon',
+        rarity: 'legendary',
+        enhanceLevel: 0,
+        attributes: {
+          attack: 50,
+          defense: 10
+        }
+      }
+    ];
+
+    // 日志函数
+    function log(message, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logDiv.appendChild(entry);
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    // 更新玩家状态显示
+    function updatePlayerStatus() {
+      document.getElementById('player-currency').textContent = player.currency;
+    }
+
+    // 获取品质颜色类
+    function getRarityClass(rarity) {
+      const classes = {
+        'common': '',
+        'uncommon': '',
+        'rare': 'rare',
+        'epic': 'epic',
+        'legendary': 'epic'
+      };
+      return classes[rarity] || '';
+    }
+
+    // 渲染装备卡片
+    function renderEquipment(equipment) {
+      const card = document.createElement('div');
+      card.className = `equipment-card ${getRarityClass(equipment.rarity)}`;
+      card.id = `equipment-${equipment.id}`;
+
+      const enhanceText = enhancementSystem.getEnhanceLevelText(equipment.enhanceLevel);
+      
+      card.innerHTML = `
+        <h3>${equipment.name} <span class="enhance-level">${enhanceText}</span></h3>
+        <p class="info">品质: ${equipment.rarity} | 类型: ${equipment.type}</p>
+        <div>
+          ${Object.entries(equipment.attributes).map(([key, value]) => 
+            `<span class="attribute">${key}: ${value}</span>`
+          ).join('')}
+        </div>
+        <div style="margin-top: 10px;">
+          <button onclick="window.enhanceEquipment('${equipment.id}')">强化装备</button>
+          <button onclick="window.previewEnhance('${equipment.id}')">预览强化</button>
+          <button onclick="window.dismantleEquipment('${equipment.id}')">拆解装备</button>
+        </div>
+      `;
+
+      return card;
+    }
+
+    // 渲染所有装备
+    function renderAllEquipments() {
+      const container = document.getElementById('equipment-list');
+      container.innerHTML = '';
+      equipments.forEach(eq => {
+        container.appendChild(renderEquipment(eq));
+      });
+    }
+
+    // 强化装备
+    window.enhanceEquipment = function(equipmentId) {
+      const equipment = equipments.find(eq => eq.id === equipmentId);
+      if (!equipment) return;
+
+      log(`尝试强化 ${equipment.name}...`);
+
+      const result = enhancementSystem.enhanceEquipment(equipment, player);
+
+      if (result.success) {
+        log(`✓ 强化成功! ${equipment.name} 现在是 ${enhancementSystem.getEnhanceLevelText(result.newLevel)}`, 'success');
+        log(`  消耗: ${result.cost} 铜钱 | 成功率: ${(result.successRate * 100).toFixed(0)}%`);
+      } else {
+        if (result.reason === 'enhance_failed') {
+          log(`✗ 强化失败! 消耗: ${result.cost} 铜钱 | 成功率: ${(result.successRate * 100).toFixed(0)}%`, 'failure');
+        } else if (result.reason === 'insufficient_currency') {
+          log(`✗ 货币不足! 需要: ${result.cost} 铜钱`, 'failure');
+        } else if (result.reason === 'max_level_reached') {
+          log(`✗ 已达到最大强化等级!`, 'failure');
+        } else {
+          log(`✗ 强化失败: ${result.reason}`, 'failure');
+        }
+      }
+
+      updatePlayerStatus();
+      renderAllEquipments();
+    };
+
+    // 预览强化
+    window.previewEnhance = function(equipmentId) {
+      const equipment = equipments.find(eq => eq.id === equipmentId);
+      if (!equipment) return;
+
+      const preview = enhancementSystem.previewEnhancedAttributes(equipment);
+
+      if (!preview) {
+        log(`${equipment.name} 已达到最大强化等级，无法预览`, 'info');
+        return;
+      }
+
+      log(`预览 ${equipment.name} 强化效果:`);
+      log(`  当前等级: ${preview.currentLevel} -> 下一级: ${preview.nextLevel}`);
+      log(`  成功率: ${(preview.successRate * 100).toFixed(0)}% | 消耗: ${preview.cost} 铜钱`);
+      
+      for (const [attr, value] of Object.entries(preview.currentAttributes)) {
+        const nextValue = preview.previewAttributes[attr];
+        const increase = nextValue - value;
+        log(`  ${attr}: ${value} -> ${nextValue} (+${increase})`);
+      }
+    };
+
+    // 拆解装备
+    window.dismantleEquipment = function(equipmentId) {
+      const equipment = equipments.find(eq => eq.id === equipmentId);
+      if (!equipment) return;
+
+      if (!confirm(`确定要拆解 ${equipment.name} 吗？此操作不可逆！`)) {
+        return;
+      }
+
+      const result = enhancementSystem.dismantleEquipment(equipment);
+
+      if (result.success) {
+        player.currency += result.currency;
+        log(`✓ 拆解成功! 获得 ${result.currency} 铜钱`, 'success');
+        
+        // 从列表中移除装备
+        const index = equipments.findIndex(eq => eq.id === equipmentId);
+        if (index !== -1) {
+          equipments.splice(index, 1);
+        }
+      } else {
+        log(`✗ 拆解失败: ${result.reason}`, 'failure');
+      }
+
+      updatePlayerStatus();
+      renderAllEquipments();
+    };
+
+    // 初始化
+    log('装备强化系统初始化完成');
+    log(`玩家初始货币: ${player.currency} 铜钱`);
+    log(`加载了 ${equipments.length} 件装备`);
+    renderAllEquipments();
+
+    // 运行自动测试
+    function runAutoTests() {
+      log('=== 开始自动测试 ===', 'info');
+
+      // 测试1: 强化成功率
+      log('测试1: 验证强化成功率配置');
+      const rate0 = enhancementSystem.getEnhanceRate(0);
+      const rate5 = enhancementSystem.getEnhanceRate(5);
+      log(`  +0->+1 成功率: ${(rate0 * 100).toFixed(0)}% (预期: 100%)`);
+      log(`  +5->+6 成功率: ${(rate5 * 100).toFixed(0)}% (预期: 50%)`);
+
+      // 测试2: 消耗计算
+      log('测试2: 验证强化消耗计算');
+      const testEq = { ...equipments[0], enhanceLevel: 0 };
+      const cost0 = enhancementSystem.calculateEnhanceCost(testEq);
+      testEq.enhanceLevel = 5;
+      const cost5 = enhancementSystem.calculateEnhanceCost(testEq);
+      log(`  +0 强化消耗: ${cost0} 铜钱`);
+      log(`  +5 强化消耗: ${cost5} 铜钱`);
+      log(`  消耗增长: ${((cost5 / cost0 - 1) * 100).toFixed(0)}%`);
+
+      // 测试3: 拆解价值
+      log('测试3: 验证拆解价值计算');
+      const commonEq = { ...equipments[0], enhanceLevel: 0 };
+      const rareEq = { ...equipments[2], enhanceLevel: 0 };
+      const commonValue = enhancementSystem.calculateDismantleValue(commonEq);
+      const rareValue = enhancementSystem.calculateDismantleValue(rareEq);
+      log(`  普通装备拆解: ${commonValue} 铜钱`);
+      log(`  稀有装备拆解: ${rareValue} 铜钱`);
+
+      // 测试4: 属性加成
+      log('测试4: 验证属性加成计算');
+      const attrTestEq = {
+        id: 'test',
+        name: '测试',
+        rarity: 'common',
+        enhanceLevel: 0,
+        attributes: { attack: 10 }
+      };
+      const originalAttack = attrTestEq.attributes.attack;
+      enhancementSystem.enhanceEquipment(attrTestEq, { currency: 10000 });
+      const newAttack = attrTestEq.attributes.attack;
+      log(`  原始攻击: ${originalAttack}`);
+      log(`  +1 攻击: ${newAttack}`);
+      log(`  增幅: ${((newAttack / originalAttack - 1) * 100).toFixed(0)}% (预期: 10%)`);
+
+      log('=== 自动测试完成 ===', 'success');
+    }
+
+    // 延迟运行自动测试
+    setTimeout(runAutoTests, 500);
+  </script>
+</body>
+</html>

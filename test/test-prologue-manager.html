@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>序章管理器测试</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .test-section h2 {
+            color: #667eea;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button.secondary {
+            background: #6c757d;
+        }
+
+        button.secondary:hover {
+            background: #5a6268;
+        }
+
+        button.danger {
+            background: #dc3545;
+        }
+
+        button.danger:hover {
+            background: #c82333;
+        }
+
+        .info-box {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            border: 1px solid #dee2e6;
+        }
+
+        .info-box h3 {
+            margin-top: 0;
+            color: #495057;
+            font-size: 16px;
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .info-item:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            font-weight: bold;
+            color: #495057;
+        }
+
+        .info-value {
+            color: #667eea;
+        }
+
+        .log-container {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+        }
+
+        .log-entry.info {
+            color: #4ec9b0;
+        }
+
+        .log-entry.warn {
+            color: #dcdcaa;
+        }
+
+        .log-entry.error {
+            color: #f48771;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .status-badge.active {
+            background: #28a745;
+            color: white;
+        }
+
+        .status-badge.inactive {
+            background: #6c757d;
+            color: white;
+        }
+
+        .status-badge.completed {
+            background: #17a2b8;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 序章管理器测试</h1>
+        <p class="subtitle">张角黄巾起义序章 - PrologueManager 功能测试</p>
+
+        <!-- 初始化测试 -->
+        <div class="test-section">
+            <h2>1. 初始化测试</h2>
+            <div class="button-group">
+                <button onclick="testInit()">初始化序章管理器</button>
+                <button onclick="testStartPrologue()">开始序章</button>
+                <button class="secondary" onclick="testLoadProgress()">加载进度</button>
+            </div>
+            <div class="info-box" id="initInfo">
+                <h3>初始化状态</h3>
+                <div class="info-item">
+                    <span class="info-label">初始化状态:</span>
+                    <span class="info-value" id="initStatus">未初始化</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">序章状态:</span>
+                    <span class="info-value" id="activeStatus">未激活</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 场景切换测试 -->
+        <div class="test-section">
+            <h2>2. 场景切换测试</h2>
+            <div class="button-group">
+                <button onclick="testGoToAct(1)">第一幕</button>
+                <button onclick="testGoToAct(2)">第二幕</button>
+                <button onclick="testGoToAct(3)">第三幕</button>
+                <button onclick="testGoToAct(4)">第四幕</button>
+                <button onclick="testGoToAct(5)">第五幕</button>
+                <button onclick="testGoToAct(6)">第六幕</button>
+            </div>
+            <div class="info-box" id="sceneInfo">
+                <h3>当前场景信息</h3>
+                <div class="info-item">
+                    <span class="info-label">当前幕数:</span>
+                    <span class="info-value" id="currentAct">0</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">幕名称:</span>
+                    <span class="info-value" id="actName">-</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 玩家数据测试 -->
+        <div class="test-section">
+            <h2>3. 玩家数据测试</h2>
+            <div class="button-group">
+                <button onclick="testRecordChoice()">记录选择</button>
+                <button onclick="testRecruitNPC()">招募NPC</button>
+                <button onclick="testRecordBattle()">记录战斗</button>
+                <button onclick="testShowPlayerData()">显示玩家数据</button>
+            </div>
+            <div class="info-box" id="playerInfo">
+                <h3>玩家数据</h3>
+                <div class="info-item">
+                    <span class="info-label">角色名称:</span>
+                    <span class="info-value" id="playerName">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">等级:</span>
+                    <span class="info-value" id="playerLevel">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">货币:</span>
+                    <span class="info-value" id="playerCurrency">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">招募的NPC:</span>
+                    <span class="info-value" id="recruitedNPCs">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">战斗胜利:</span>
+                    <span class="info-value" id="battlesWon">-</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 进度管理测试 -->
+        <div class="test-section">
+            <h2>4. 进度管理测试</h2>
+            <div class="button-group">
+                <button onclick="testSaveProgress()">保存进度</button>
+                <button onclick="testLoadProgress()">加载进度</button>
+                <button class="danger" onclick="testClearProgress()">清除进度</button>
+                <button onclick="testCompleteAct()">完成当前幕</button>
+                <button onclick="testCompletePrologue()">完成序章</button>
+            </div>
+            <div class="info-box" id="progressInfo">
+                <h3>进度信息</h3>
+                <div class="info-item">
+                    <span class="info-label">已完成幕数:</span>
+                    <span class="info-value" id="completedActs">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">序章完成:</span>
+                    <span class="info-value" id="prologueCompleted">否</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 日志输出 -->
+        <div class="test-section">
+            <h2>5. 控制台日志</h2>
+            <div class="button-group">
+                <button class="secondary" onclick="clearLog()">清除日志</button>
+            </div>
+            <div class="log-container" id="logContainer">
+                <div class="log-entry info">等待测试...</div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { PrologueManager } from '../src/prologue/PrologueManager.js';
+        import { SceneManager } from '../src/core/SceneManager.js';
+        import { AudioManager } from '../src/core/AudioManager.js';
+        import { InputManager } from '../src/core/InputManager.js';
+        import { AssetManager } from '../src/core/AssetManager.js';
+        import { ErrorHandler } from '../src/core/ErrorHandler.js';
+
+        // 创建模拟的游戏引擎
+        const mockGameEngine = {
+            sceneManager: new SceneManager(),
+            audioManager: new AudioManager(),
+            inputManager: new InputManager(document.createElement('canvas')),
+            assetManager: new AssetManager(),
+            errorHandler: new ErrorHandler()
+        };
+
+        // 创建序章管理器实例
+        let prologueManager = null;
+
+        // 日志系统
+        const logContainer = document.getElementById('logContainer');
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        // 更新UI
+        function updateUI() {
+            if (!prologueManager) return;
+
+            document.getElementById('initStatus').textContent = prologueManager.isInitialized ? '已初始化' : '未初始化';
+            document.getElementById('activeStatus').textContent = prologueManager.isActivePrologue() ? '已激活' : '未激活';
+            document.getElementById('currentAct').textContent = prologueManager.getCurrentAct();
+            document.getElementById('actName').textContent = prologueManager.getCurrentActName();
+            
+            const playerData = prologueManager.getPlayerData();
+            if (playerData) {
+                document.getElementById('playerName').textContent = playerData.name || '-';
+                document.getElementById('playerLevel').textContent = playerData.level;
+                document.getElementById('playerCurrency').textContent = playerData.currency;
+                document.getElementById('recruitedNPCs').textContent = playerData.prologueData.recruitedNPCs.join(', ') || '-';
+                document.getElementById('battlesWon').textContent = playerData.prologueData.battlesWon;
+                document.getElementById('completedActs').textContent = playerData.prologueData.completedActs.join(', ') || '-';
+            }
+            
+            document.getElementById('prologueCompleted').textContent = prologueManager.isComplete() ? '是' : '否';
+        }
+
+        // 测试函数
+        window.testInit = async function() {
+            try {
+                addLog('开始初始化序章管理器...', 'info');
+                prologueManager = new PrologueManager(mockGameEngine);
+                await prologueManager.init();
+                addLog('✓ 序章管理器初始化成功', 'info');
+                updateUI();
+            } catch (error) {
+                addLog(`✗ 初始化失败: ${error.message}`, 'error');
+            }
+        };
+
+        window.testStartPrologue = function() {
+            if (!prologueManager || !prologueManager.isInitialized) {
+                addLog('✗ 请先初始化序章管理器', 'warn');
+                return;
+            }
+            try {
+                prologueManager.start('测试角色');
+                addLog('✓ 序章已开始', 'info');
+                updateUI();
+            } catch (error) {
+                addLog(`✗ 开始序章失败: ${error.message}`, 'error');
+            }
+        };
+
+        window.testGoToAct = function(actNumber) {
+            if (!prologueManager || !prologueManager.isActivePrologue()) {
+                addLog('✗ 请先开始序章', 'warn');
+                return;
+            }
+            try {
+                prologueManager.goToAct(actNumber);
+                addLog(`✓ 切换到第${actNumber}幕`, 'info');
+                updateUI();
+            } catch (error) {
+                addLog(`✗ 切换场景失败: ${error.message}`, 'error');
+            }
+        };
+
+        window.testRecordChoice = function() {
+            if (!prologueManager) {
+                addLog('✗ 请先初始化序章管理器', 'warn');
+                return;
+            }
+            prologueManager.recordPlayerChoice('test_choice_1', '选择A');
+            addLog('✓ 记录玩家选择: test_choice_1 = 选择A', 'info');
+            updateUI();
+        };
+
+        window.testRecruitNPC = function() {
+            if (!prologueManager) {
+                addLog('✗ 请先初始化序章管理器', 'warn');
+                return;
+            }
+            const npcs = ['管骇', '周仓'];
+            const npc = npcs[Math.floor(Math.random() * npcs.length)];
+            prologueManager.recruitNPC(npc);
+            addLog(`✓ 招募NPC: ${npc}`, 'info');
+            updateUI();
+        };
+
+        window.testRecordBattle = function() {
+            if (!prologueManager) {
+                addLog('✗ 请先初始化序章管理器', 'warn');
+                return;
+            }
+            prologueManager.recordBattleWon();
+            prologueManager.recordEnemiesDefeated(5);
+            addLog('✓ 记录战斗胜利，击败5个敌人', 'info');
+            updateUI();
+        };
+
+        window.testShowPlayerData = function() {
+            if (!prologueManager) {
+                addLog('✗ 请先初始化序章管理器', 'warn');
+                return;
+            }
+            const playerData = prologueManager.getPlayerData();
+            addLog('玩家数据:', 'info');
+            addLog(JSON.stringify(playerData, null, 2), 'info');
+        };
+
+        window.testSaveProgress = function() {
+            if (!prologueManager) {
+                addLog('✗ 请先初始化序章管理器', 'warn');
+                return;
+            }
+            prologueManager.saveProgress();
+            addLog('✓ 进度已保存到本地存储', 'info');
+        };
+
+        window.testLoadProgress = function() {
+            if (!prologueManager) {
+                addLog('✗ 请先初始化序章管理器', 'warn');
+                return;
+            }
+            const success = prologueManager.loadProgress();
+            if (success) {
+                addLog('✓ 进度加载成功', 'info');
+                updateUI();
+            } else {
+                addLog('✗ 没有找到保存的进度', 'warn');
+            }
+        };
+
+        window.testClearProgress = function() {
+            if (!prologueManager) {
+                addLog('✗ 请先初始化序章管理器', 'warn');
+                return;
+            }
+            if (confirm('确定要清除保存的进度吗？')) {
+                prologueManager.clearProgress();
+                addLog('✓ 进度已清除', 'info');
+            }
+        };
+
+        window.testCompleteAct = function() {
+            if (!prologueManager || !prologueManager.isActivePrologue()) {
+                addLog('✗ 请先开始序章', 'warn');
+                return;
+            }
+            prologueManager.completeCurrentAct();
+            addLog(`✓ 完成第${prologueManager.getCurrentAct() - 1}幕`, 'info');
+            updateUI();
+        };
+
+        window.testCompletePrologue = function() {
+            if (!prologueManager) {
+                addLog('✗ 请先初始化序章管理器', 'warn');
+                return;
+            }
+            prologueManager.complete();
+            addLog('✓ 序章完成！', 'info');
+            updateUI();
+        };
+
+        window.clearLog = function() {
+            logContainer.innerHTML = '<div class="log-entry info">日志已清除</div>';
+        };
+
+        // 拦截console.log
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addLog(args.join(' '), 'info');
+        };
+
+        const originalWarn = console.warn;
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            addLog(args.join(' '), 'warn');
+        };
+
+        const originalError = console.error;
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addLog(args.join(' '), 'error');
+        };
+
+        // 页面加载完成
+        addLog('测试页面加载完成，请点击"初始化序章管理器"开始测试', 'info');
+    </script>
+</body>
+</html>

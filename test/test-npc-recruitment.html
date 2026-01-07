@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NPC招募系统测试</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Microsoft YaHei', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      color: white;
+      text-align: center;
+      margin-bottom: 30px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .panel {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .panel h2 {
+      color: #667eea;
+      margin-bottom: 15px;
+      border-bottom: 2px solid #667eea;
+      padding-bottom: 10px;
+    }
+
+    .npc-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 15px;
+      margin-top: 15px;
+    }
+
+    .npc-card {
+      background: #f8f9fa;
+      border: 2px solid #dee2e6;
+      border-radius: 8px;
+      padding: 15px;
+      transition: all 0.3s;
+    }
+
+    .npc-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .npc-card.recruited {
+      border-color: #28a745;
+      background: #d4edda;
+    }
+
+    .npc-card.available {
+      border-color: #ffc107;
+      background: #fff3cd;
+    }
+
+    .npc-card.unavailable {
+      border-color: #dc3545;
+      background: #f8d7da;
+      opacity: 0.7;
+    }
+
+    .npc-name {
+      font-size: 18px;
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .npc-description {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 10px;
+    }
+
+    .npc-attributes {
+      font-size: 12px;
+      color: #555;
+      margin-bottom: 10px;
+    }
+
+    .npc-condition {
+      font-size: 12px;
+      color: #888;
+      font-style: italic;
+      margin-bottom: 10px;
+    }
+
+    .npc-status {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .status-recruited {
+      background: #28a745;
+      color: white;
+    }
+
+    .status-available {
+      background: #ffc107;
+      color: #333;
+    }
+
+    .status-unavailable {
+      background: #dc3545;
+      color: white;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.3s;
+      margin-right: 5px;
+    }
+
+    .btn:hover {
+      transform: scale(1.05);
+    }
+
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+
+    .btn-success {
+      background: #28a745;
+      color: white;
+    }
+
+    .btn-danger {
+      background: #dc3545;
+      color: white;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 15px;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 32px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .stat-label {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+
+    .log {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      padding: 15px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+    }
+
+    .log-entry {
+      margin-bottom: 5px;
+      padding: 5px;
+      border-left: 3px solid #667eea;
+      padding-left: 10px;
+    }
+
+    .log-entry.success {
+      border-left-color: #28a745;
+      background: #d4edda;
+    }
+
+    .log-entry.error {
+      border-left-color: #dc3545;
+      background: #f8d7da;
+    }
+
+    .log-entry.info {
+      border-left-color: #17a2b8;
+      background: #d1ecf1;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎖️ NPC招募系统测试</h1>
+
+    <!-- 统计面板 -->
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-value" id="totalNPCs">0</div>
+        <div class="stat-label">总NPC数</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="recruitedCount">0</div>
+        <div class="stat-label">已招募</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="availableCount">0</div>
+        <div class="stat-label">可招募</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="partyPower">0</div>
+        <div class="stat-label">队伍战斗力</div>
+      </div>
+    </div>
+
+    <!-- 控制面板 -->
+    <div class="panel">
+      <h2>🎮 控制面板</h2>
+      <div class="controls">
+        <button class="btn btn-success" onclick="rescueZhangLiang()">救援张梁（解锁管骇）</button>
+        <button class="btn btn-success" onclick="rescueZhangBao()">救援张宝（解锁周仓）</button>
+        <button class="btn btn-primary" onclick="completeQuest()">完成主线任务</button>
+        <button class="btn btn-primary" onclick="levelUp()">升级到10级</button>
+        <button class="btn btn-danger" onclick="resetSystem()">重置系统</button>
+      </div>
+    </div>
+
+    <!-- NPC列表 -->
+    <div class="panel">
+      <h2>👥 NPC列表</h2>
+      <div class="npc-grid" id="npcGrid"></div>
+    </div>
+
+    <!-- 已招募队伍 -->
+    <div class="panel">
+      <h2>⚔️ 我的队伍</h2>
+      <div class="npc-grid" id="partyGrid"></div>
+    </div>
+
+    <!-- 日志 -->
+    <div class="panel">
+      <h2>📋 操作日志</h2>
+      <div class="log" id="logContainer"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { NPCRecruitmentSystem } from '../src/prologue/systems/NPCRecruitmentSystem.js';
+
+    // 创建系统实例
+    const system = new NPCRecruitmentSystem();
+
+    // 游戏状态
+    const gameState = {
+      rescuedTargets: [],
+      completedQuests: [],
+      playerLevel: 1,
+      inventory: []
+    };
+
+    // 注册NPC
+    function registerNPCs() {
+      // 管骇 - 需要救援张梁
+      system.registerNPC({
+        id: 'guan_hai',
+        name: '管骇',
+        description: '黄巾军猛将，力大无穷',
+        attributes: {
+          health: 150,
+          maxHealth: 150,
+          attack: 25,
+          defense: 15,
+          speed: 90
+        },
+        skills: ['重击', '狂暴'],
+        unitType: 'heavy_infantry',
+        recruitCondition: {
+          type: 'rescue_success',
+          targetId: 'zhang_liang'
+        },
+        dialogue: {
+          recruitment: '管骇愿意追随将军，共创大业！',
+          greeting: '在下管骇，久仰将军大名！'
+        }
+      });
+
+      // 周仓 - 需要救援张宝
+      system.registerNPC({
+        id: 'zhou_cang',
+        name: '周仓',
+        description: '忠勇之士，武艺高强',
+        attributes: {
+          health: 180,
+          maxHealth: 180,
+          attack: 30,
+          defense: 20,
+          speed: 85
+        },
+        skills: ['护主', '铁壁'],
+        unitType: 'heavy_infantry',
+        recruitCondition: {
+          type: 'rescue_success',
+          targetId: 'zhang_bao'
+        },
+        dialogue: {
+          recruitment: '周仓愿为将军效犬马之劳！',
+          greeting: '周仓见过将军！'
+        }
+      });
+
+      // 测试NPC - 需要完成任务
+      system.registerNPC({
+        id: 'quest_npc',
+        name: '任务NPC',
+        description: '完成主线任务后可招募',
+        attributes: {
+          health: 100,
+          maxHealth: 100,
+          attack: 15,
+          defense: 10,
+          speed: 100
+        },
+        skills: ['治疗'],
+        unitType: 'support',
+        recruitCondition: {
+          type: 'quest_completed',
+          questId: 'main_quest_1'
+        },
+        dialogue: {
+          recruitment: '感谢将军的帮助，我愿意加入！',
+          greeting: '你好，将军！'
+        }
+      });
+
+      // 测试NPC - 需要等级
+      system.registerNPC({
+        id: 'level_npc',
+        name: '高级NPC',
+        description: '需要10级才能招募',
+        attributes: {
+          health: 120,
+          maxHealth: 120,
+          attack: 20,
+          defense: 12,
+          speed: 95
+        },
+        skills: ['强化', '鼓舞'],
+        unitType: 'support',
+        recruitCondition: {
+          type: 'level_requirement',
+          level: 10
+        },
+        dialogue: {
+          recruitment: '将军实力不凡，我愿追随！',
+          greeting: '将军威武！'
+        }
+      });
+
+      // 总是可招募的NPC
+      system.registerNPC({
+        id: 'always_npc',
+        name: '普通士兵',
+        description: '随时可以招募',
+        attributes: {
+          health: 80,
+          maxHealth: 80,
+          attack: 12,
+          defense: 8,
+          speed: 100
+        },
+        skills: ['普通攻击'],
+        unitType: 'infantry',
+        recruitCondition: {
+          type: 'always'
+        },
+        dialogue: {
+          recruitment: '愿为将军效力！',
+          greeting: '将军好！'
+        }
+      });
+    }
+
+    // 设置回调
+    function setupCallbacks() {
+      system.on('NPCRecruited', (npc) => {
+        addLog(`✅ 成功招募 ${npc.name}！`, 'success');
+        updateUI();
+      });
+
+      system.on('NPCDismissed', (npc) => {
+        addLog(`❌ ${npc.name} 离开了队伍`, 'error');
+        updateUI();
+      });
+
+      system.on('RecruitmentAvailable', (npc) => {
+        addLog(`💡 ${npc.name} 现在可以招募了！`, 'info');
+        updateUI();
+      });
+    }
+
+    // 添加日志
+    function addLog(message, type = 'info') {
+      const logContainer = document.getElementById('logContainer');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      const timestamp = new Date().toLocaleTimeString();
+      entry.textContent = `[${timestamp}] ${message}`;
+      logContainer.insertBefore(entry, logContainer.firstChild);
+    }
+
+    // 更新UI
+    function updateUI() {
+      updateStats();
+      updateNPCGrid();
+      updatePartyGrid();
+    }
+
+    // 更新统计
+    function updateStats() {
+      const totalNPCs = Array.from(system.npcs.values()).length;
+      const recruitedCount = system.getRecruitedNPCs().length;
+      const availableCount = system.getAvailableNPCs(gameState).length;
+      const partyPower = system.getPartyPower();
+
+      document.getElementById('totalNPCs').textContent = totalNPCs;
+      document.getElementById('recruitedCount').textContent = recruitedCount;
+      document.getElementById('availableCount').textContent = availableCount;
+      document.getElementById('partyPower').textContent = partyPower;
+    }
+
+    // 更新NPC网格
+    function updateNPCGrid() {
+      const grid = document.getElementById('npcGrid');
+      grid.innerHTML = '';
+
+      for (const npc of system.npcs.values()) {
+        const card = createNPCCard(npc);
+        grid.appendChild(card);
+      }
+    }
+
+    // 更新队伍网格
+    function updatePartyGrid() {
+      const grid = document.getElementById('partyGrid');
+      grid.innerHTML = '';
+
+      const party = system.getRecruitedNPCs();
+      if (party.length === 0) {
+        grid.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">队伍为空，快去招募NPC吧！</p>';
+        return;
+      }
+
+      for (const npc of party) {
+        const card = createPartyCard(npc);
+        grid.appendChild(card);
+      }
+    }
+
+    // 创建NPC卡片
+    function createNPCCard(npc) {
+      const card = document.createElement('div');
+      const isRecruited = system.isRecruited(npc.id);
+      const isAvailable = system.isAvailable(npc.id, gameState);
+      
+      let statusClass = 'unavailable';
+      let statusText = '不可招募';
+      if (isRecruited) {
+        statusClass = 'recruited';
+        statusText = '已招募';
+      } else if (isAvailable) {
+        statusClass = 'available';
+        statusText = '可招募';
+      }
+
+      card.className = `npc-card ${statusClass}`;
+      card.innerHTML = `
+        <div class="npc-name">${npc.name}</div>
+        <div class="npc-status status-${statusClass}">${statusText}</div>
+        <div class="npc-description">${npc.description}</div>
+        <div class="npc-attributes">
+          ❤️ ${npc.attributes.health}/${npc.attributes.maxHealth} | 
+          ⚔️ ${npc.attributes.attack} | 
+          🛡️ ${npc.attributes.defense} | 
+          ⚡ ${npc.attributes.speed}
+        </div>
+        <div class="npc-condition">
+          ${getConditionText(npc.recruitCondition)}
+        </div>
+        <button class="btn btn-success" 
+                onclick="recruitNPC('${npc.id}')" 
+                ${!isAvailable || isRecruited ? 'disabled' : ''}>
+          招募
+        </button>
+      `;
+
+      return card;
+    }
+
+    // 创建队伍卡片
+    function createPartyCard(npc) {
+      const card = document.createElement('div');
+      card.className = 'npc-card recruited';
+      card.innerHTML = `
+        <div class="npc-name">${npc.name}</div>
+        <div class="npc-status status-recruited">队伍成员</div>
+        <div class="npc-description">${npc.description}</div>
+        <div class="npc-attributes">
+          ❤️ ${npc.attributes.health}/${npc.attributes.maxHealth} | 
+          ⚔️ ${npc.attributes.attack} | 
+          🛡️ ${npc.attributes.defense} | 
+          ⚡ ${npc.attributes.speed}
+        </div>
+        <div class="npc-attributes">
+          💖 忠诚度: ${npc.loyalty}%
+        </div>
+        <button class="btn btn-danger" onclick="dismissNPC('${npc.id}')">
+          解雇
+        </button>
+      `;
+
+      return card;
+    }
+
+    // 获取条件文本
+    function getConditionText(condition) {
+      switch (condition.type) {
+        case 'always':
+          return '📌 无条件可招募';
+        case 'rescue_success':
+          return `🆘 需要救援 ${condition.targetId}`;
+        case 'quest_completed':
+          return `📜 需要完成任务 ${condition.questId}`;
+        case 'level_requirement':
+          return `⭐ 需要等级 ${condition.level}`;
+        case 'battle_won':
+          return `⚔️ 需要赢得战斗 ${condition.battleId}`;
+        default:
+          return '❓ 未知条件';
+      }
+    }
+
+    // 招募NPC
+    window.recruitNPC = function(npcId) {
+      const result = system.recruitNPC(npcId, gameState);
+      if (result.success) {
+        addLog(result.message, 'success');
+      } else {
+        addLog(`招募失败: ${result.message}`, 'error');
+      }
+      updateUI();
+    };
+
+    // 解雇NPC
+    window.dismissNPC = function(npcId) {
+      const npc = system.getNPC(npcId);
+      if (system.dismissNPC(npcId)) {
+        addLog(`${npc.name} 离开了队伍`, 'info');
+      }
+      updateUI();
+    };
+
+    // 救援张梁
+    window.rescueZhangLiang = function() {
+      if (!gameState.rescuedTargets.includes('zhang_liang')) {
+        gameState.rescuedTargets.push('zhang_liang');
+        system.makeAvailable('guan_hai');
+        addLog('✅ 成功救援张梁！管骇现在可以招募了', 'success');
+        updateUI();
+      } else {
+        addLog('⚠️ 已经救援过张梁了', 'info');
+      }
+    };
+
+    // 救援张宝
+    window.rescueZhangBao = function() {
+      if (!gameState.rescuedTargets.includes('zhang_bao')) {
+        gameState.rescuedTargets.push('zhang_bao');
+        system.makeAvailable('zhou_cang');
+        addLog('✅ 成功救援张宝！周仓现在可以招募了', 'success');
+        updateUI();
+      } else {
+        addLog('⚠️ 已经救援过张宝了', 'info');
+      }
+    };
+
+    // 完成任务
+    window.completeQuest = function() {
+      if (!gameState.completedQuests.includes('main_quest_1')) {
+        gameState.completedQuests.push('main_quest_1');
+        addLog('✅ 完成主线任务！任务NPC现在可以招募了', 'success');
+        updateUI();
+      } else {
+        addLog('⚠️ 已经完成过这个任务了', 'info');
+      }
+    };
+
+    // 升级
+    window.levelUp = function() {
+      if (gameState.playerLevel < 10) {
+        gameState.playerLevel = 10;
+        addLog('✅ 升级到10级！高级NPC现在可以招募了', 'success');
+        updateUI();
+      } else {
+        addLog('⚠️ 已经是10级了', 'info');
+      }
+    };
+
+    // 重置系统
+    window.resetSystem = function() {
+      system.reset();
+      gameState.rescuedTargets = [];
+      gameState.completedQuests = [];
+      gameState.playerLevel = 1;
+      addLog('🔄 系统已重置', 'info');
+      updateUI();
+    };
+
+    // 初始化
+    registerNPCs();
+    setupCallbacks();
+    updateUI();
+    addLog('🎮 NPC招募系统已初始化', 'info');
+  </script>
+</body>
+</html>

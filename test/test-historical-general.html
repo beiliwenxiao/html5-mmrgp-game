@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>历史武将系统测试</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Microsoft YaHei', Arial, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #fff;
+      overflow: hidden;
+    }
+
+    #container {
+      display: flex;
+      height: 100vh;
+    }
+
+    #canvas-container {
+      flex: 1;
+      position: relative;
+      background: #0f0f1e;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(180deg, #1a1a2e 0%, #0f0f1e 100%);
+    }
+
+    #controls {
+      width: 350px;
+      background: rgba(26, 26, 46, 0.95);
+      padding: 20px;
+      overflow-y: auto;
+      border-left: 2px solid #ffd700;
+    }
+
+    h1 {
+      font-size: 24px;
+      margin-bottom: 20px;
+      color: #ffd700;
+      text-align: center;
+      text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+    }
+
+    h2 {
+      font-size: 18px;
+      margin: 20px 0 10px;
+      color: #ffd700;
+      border-bottom: 1px solid #ffd700;
+      padding-bottom: 5px;
+    }
+
+    .general-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .general-button {
+      padding: 12px;
+      background: linear-gradient(135deg, #2a2a4e 0%, #1a1a3e 100%);
+      border: 2px solid #4a4a6e;
+      border-radius: 8px;
+      color: #fff;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-size: 14px;
+      text-align: left;
+    }
+
+    .general-button:hover {
+      background: linear-gradient(135deg, #3a3a5e 0%, #2a2a4e 100%);
+      border-color: #ffd700;
+      transform: translateX(5px);
+    }
+
+    .general-button.active {
+      background: linear-gradient(135deg, #ffd700 0%, #ffaa00 100%);
+      border-color: #ffd700;
+      color: #1a1a2e;
+      font-weight: bold;
+    }
+
+    .general-name {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .general-title {
+      font-size: 12px;
+      opacity: 0.8;
+    }
+
+    .action-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    button {
+      padding: 12px 20px;
+      background: linear-gradient(135deg, #4a4a6e 0%, #3a3a5e 100%);
+      border: 2px solid #6a6a8e;
+      border-radius: 8px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.3s;
+    }
+
+    button:hover:not(:disabled) {
+      background: linear-gradient(135deg, #5a5a7e 0%, #4a4a6e 100%);
+      border-color: #ffd700;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(255, 215, 0, 0.3);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    button.primary {
+      background: linear-gradient(135deg, #ffd700 0%, #ffaa00 100%);
+      border-color: #ffd700;
+      color: #1a1a2e;
+      font-weight: bold;
+    }
+
+    button.danger {
+      background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
+      border-color: #ff4444;
+    }
+
+    #info-panel {
+      background: rgba(42, 42, 78, 0.8);
+      border: 2px solid #4a4a6e;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 20px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .info-row:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .info-label {
+      color: #ffd700;
+      font-weight: bold;
+    }
+
+    .info-value {
+      color: #fff;
+    }
+
+    .health-bar {
+      width: 100%;
+      height: 20px;
+      background: rgba(0, 0, 0, 0.5);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-top: 10px;
+      border: 1px solid #4a4a6e;
+    }
+
+    .health-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #ff4444 0%, #ffaa00 50%, #44ff44 100%);
+      transition: width 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: bold;
+      color: #fff;
+      text-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
+    }
+
+    #log {
+      background: rgba(0, 0, 0, 0.5);
+      border: 2px solid #4a4a6e;
+      border-radius: 8px;
+      padding: 10px;
+      height: 150px;
+      overflow-y: auto;
+      font-size: 12px;
+      font-family: 'Courier New', monospace;
+      margin-top: 20px;
+    }
+
+    .log-entry {
+      margin-bottom: 5px;
+      padding: 3px 5px;
+      border-radius: 3px;
+    }
+
+    .log-info {
+      color: #44ff44;
+    }
+
+    .log-warning {
+      color: #ffaa00;
+    }
+
+    .log-error {
+      color: #ff4444;
+    }
+
+    .log-special {
+      color: #ffd700;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div id="canvas-container">
+      <canvas id="gameCanvas"></canvas>
+    </div>
+    
+    <div id="controls">
+      <h1>⚔️ 历史武将系统测试</h1>
+      
+      <h2>选择武将</h2>
+      <div class="general-list" id="generalList"></div>
+      
+      <h2>操作</h2>
+      <div class="action-buttons">
+        <button id="btnIntro" class="primary">播放登场特写</button>
+        <button id="btnSkill">使用技能</button>
+        <button id="btnDamage" class="danger">造成伤害 (20%)</button>
+        <button id="btnRetreat">强制撤退</button>
+        <button id="btnClear">清除所有武将</button>
+      </div>
+      
+      <h2>武将信息</h2>
+      <div id="info-panel">
+        <div class="info-row">
+          <span class="info-label">名称:</span>
+          <span class="info-value" id="infoName">-</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">字:</span>
+          <span class="info-value" id="infoTitle">-</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">等级:</span>
+          <span class="info-value" id="infoLevel">-</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">状态:</span>
+          <span class="info-value" id="infoStatus">-</span>
+        </div>
+        <div class="health-bar">
+          <div class="health-fill" id="healthFill" style="width: 100%">100%</div>
+        </div>
+      </div>
+      
+      <h2>日志</h2>
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { HistoricalGeneral, HistoricalGeneralFactory } from '../src/prologue/entities/HistoricalGeneral.js';
+    import { Camera } from '../src/rendering/Camera.js';
+    import { ParticleSystem } from '../src/rendering/ParticleSystem.js';
+    import { SkillEffects } from '../src/rendering/SkillEffects.js';
+
+    // 初始化Canvas
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      const container = document.getElementById('canvas-container');
+      canvas.width = container.clientWidth;
+      canvas.height = container.clientHeight;
+      camera.width = canvas.width;
+      camera.height = canvas.height;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    // 初始化系统
+    const camera = new Camera(canvas.width / 2, canvas.height / 2, canvas.width, canvas.height);
+    camera.setBounds(0, 0, 2000, 2000);
+
+    const particleSystem = new ParticleSystem(2000);
+    const skillEffects = new SkillEffects(particleSystem);
+
+    const systems = {
+      camera,
+      particleSystem,
+      skillEffects
+    };
+
+    // 创建武将工厂
+    const factory = new HistoricalGeneralFactory(systems);
+
+    // 游戏状态
+    let generals = [];
+    let selectedGeneral = null;
+    let lastTime = performance.now();
+
+    // 日志系统
+    function log(message, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const entry = document.createElement('div');
+      entry.className = `log-entry log-${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logDiv.appendChild(entry);
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    // 初始化武将列表
+    function initGeneralList() {
+      const listDiv = document.getElementById('generalList');
+      const availableGenerals = factory.getAvailableGenerals();
+
+      availableGenerals.forEach(generalId => {
+        const button = document.createElement('button');
+        button.className = 'general-button';
+        button.dataset.generalId = generalId;
+
+        // 创建临时武将获取信息
+        const tempGeneral = factory.createGeneral(generalId);
+        const info = tempGeneral.getInfo();
+
+        button.innerHTML = `
+          <div class="general-name">${info.name}</div>
+          <div class="general-title">字 ${info.title} | Lv.${info.level}</div>
+        `;
+
+        button.addEventListener('click', () => {
+          createGeneral(generalId);
+        });
+
+        listDiv.appendChild(button);
+      });
+    }
+
+    // 创建武将
+    function createGeneral(generalId) {
+      // 随机位置
+      const x = 400 + Math.random() * 800;
+      const y = 400 + Math.random() * 600;
+
+      const general = factory.createGeneral(generalId, {
+        position: { x, y }
+      });
+
+      if (general) {
+        generals.push(general);
+        selectedGeneral = general;
+        updateInfoPanel();
+        log(`创建武将: ${general.generalName} (${general.title})`, 'special');
+
+        // 自动播放登场特写
+        general.playIntroduction().then(() => {
+          log(`${general.generalName} 登场特写播放完成`, 'info');
+        });
+      }
+    }
+
+    // 更新信息面板
+    function updateInfoPanel() {
+      if (!selectedGeneral) {
+        document.getElementById('infoName').textContent = '-';
+        document.getElementById('infoTitle').textContent = '-';
+        document.getElementById('infoLevel').textContent = '-';
+        document.getElementById('infoStatus').textContent = '-';
+        document.getElementById('healthFill').style.width = '0%';
+        document.getElementById('healthFill').textContent = '0%';
+        return;
+      }
+
+      const info = selectedGeneral.getInfo();
+      const healthPercent = (info.health / info.maxHealth * 100).toFixed(0);
+
+      document.getElementById('infoName').textContent = info.name;
+      document.getElementById('infoTitle').textContent = info.title;
+      document.getElementById('infoLevel').textContent = info.level;
+      document.getElementById('infoStatus').textContent = info.isRetreating ? '撤退中' : '战斗中';
+      document.getElementById('healthFill').style.width = `${healthPercent}%`;
+      document.getElementById('healthFill').textContent = `${healthPercent}%`;
+    }
+
+    // 按钮事件
+    document.getElementById('btnIntro').addEventListener('click', () => {
+      if (!selectedGeneral) {
+        log('请先选择一个武将', 'warning');
+        return;
+      }
+
+      selectedGeneral.hasIntroPlayed = false;
+      selectedGeneral.playIntroduction().then(() => {
+        log(`${selectedGeneral.generalName} 登场特写播放完成`, 'info');
+      });
+    });
+
+    document.getElementById('btnSkill').addEventListener('click', () => {
+      if (!selectedGeneral) {
+        log('请先选择一个武将', 'warning');
+        return;
+      }
+
+      if (selectedGeneral.skills.length === 0) {
+        log('该武将没有可用技能', 'warning');
+        return;
+      }
+
+      const skill = selectedGeneral.skills[0];
+      const success = selectedGeneral.useSpecialSkill(skill);
+      
+      if (success) {
+        log(`${selectedGeneral.generalName} 使用技能: ${skill}`, 'special');
+      } else {
+        log('技能使用失败（可能在冷却中）', 'warning');
+      }
+    });
+
+    document.getElementById('btnDamage').addEventListener('click', () => {
+      if (!selectedGeneral) {
+        log('请先选择一个武将', 'warning');
+        return;
+      }
+
+      const stats = selectedGeneral.getComponent('stats');
+      const damage = Math.floor(stats.maxHealth * 0.2);
+      stats.takeDamage(damage);
+      updateInfoPanel();
+      log(`${selectedGeneral.generalName} 受到 ${damage} 点伤害`, 'error');
+    });
+
+    document.getElementById('btnRetreat').addEventListener('click', () => {
+      if (!selectedGeneral) {
+        log('请先选择一个武将', 'warning');
+        return;
+      }
+
+      selectedGeneral.retreat();
+      updateInfoPanel();
+      log(`${selectedGeneral.generalName} 开始撤退`, 'warning');
+    });
+
+    document.getElementById('btnClear').addEventListener('click', () => {
+      generals = [];
+      selectedGeneral = null;
+      updateInfoPanel();
+      particleSystem.clear();
+      log('清除所有武将', 'info');
+    });
+
+    // 游戏循环
+    function gameLoop(currentTime) {
+      const deltaTime = (currentTime - lastTime) / 1000;
+      lastTime = currentTime;
+
+      // 更新
+      generals.forEach(general => {
+        general.update(deltaTime * 1000); // 转换为毫秒
+      });
+
+      particleSystem.update(deltaTime);
+      skillEffects.update(deltaTime);
+      camera.update(deltaTime);
+
+      // 移除不活跃的武将
+      generals = generals.filter(g => g.active);
+
+      // 渲染
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 绘制背景网格
+      drawGrid();
+
+      // 绘制武将
+      generals.forEach(general => {
+        drawGeneral(general);
+      });
+
+      // 绘制粒子
+      particleSystem.render(ctx, camera);
+      skillEffects.render(ctx, camera);
+
+      // 更新信息面板
+      if (selectedGeneral && !selectedGeneral.active) {
+        selectedGeneral = null;
+        updateInfoPanel();
+      } else if (selectedGeneral) {
+        updateInfoPanel();
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // 绘制网格
+    function drawGrid() {
+      const viewBounds = camera.getViewBounds();
+      const gridSize = 50;
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.lineWidth = 1;
+
+      // 垂直线
+      for (let x = Math.floor(viewBounds.left / gridSize) * gridSize; x < viewBounds.right; x += gridSize) {
+        const screenX = x - viewBounds.left;
+        ctx.beginPath();
+        ctx.moveTo(screenX, 0);
+        ctx.lineTo(screenX, canvas.height);
+        ctx.stroke();
+      }
+
+      // 水平线
+      for (let y = Math.floor(viewBounds.top / gridSize) * gridSize; y < viewBounds.bottom; y += gridSize) {
+        const screenY = y - viewBounds.top;
+        ctx.beginPath();
+        ctx.moveTo(0, screenY);
+        ctx.lineTo(canvas.width, screenY);
+        ctx.stroke();
+      }
+    }
+
+    // 绘制武将
+    function drawGeneral(general) {
+      const transform = general.getComponent('transform');
+      const sprite = general.getComponent('sprite');
+      const stats = general.getComponent('stats');
+
+      if (!transform || !sprite) return;
+
+      const viewBounds = camera.getViewBounds();
+      const screenX = transform.position.x - viewBounds.left;
+      const screenY = transform.position.y - viewBounds.top;
+
+      // 绘制武将
+      ctx.save();
+      
+      // 撤退中的武将半透明
+      if (general.isRetreating) {
+        ctx.globalAlpha = 0.5;
+      }
+
+      // 绘制身体
+      ctx.fillStyle = sprite.color;
+      ctx.fillRect(
+        screenX - sprite.width / 2,
+        screenY - sprite.height / 2,
+        sprite.width,
+        sprite.height
+      );
+
+      // 绘制边框
+      ctx.strokeStyle = general === selectedGeneral ? '#ffd700' : '#ffffff';
+      ctx.lineWidth = general === selectedGeneral ? 3 : 1;
+      ctx.strokeRect(
+        screenX - sprite.width / 2,
+        screenY - sprite.height / 2,
+        sprite.width,
+        sprite.height
+      );
+
+      ctx.restore();
+
+      // 绘制名字
+      ctx.fillStyle = '#ffd700';
+      ctx.font = 'bold 14px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(general.generalName, screenX, screenY - sprite.height / 2 - 10);
+
+      // 绘制生命值条
+      const barWidth = sprite.width;
+      const barHeight = 6;
+      const healthPercent = stats.health / stats.maxHealth;
+
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(
+        screenX - barWidth / 2,
+        screenY + sprite.height / 2 + 5,
+        barWidth,
+        barHeight
+      );
+
+      ctx.fillStyle = healthPercent > 0.5 ? '#44ff44' : healthPercent > 0.2 ? '#ffaa00' : '#ff4444';
+      ctx.fillRect(
+        screenX - barWidth / 2,
+        screenY + sprite.height / 2 + 5,
+        barWidth * healthPercent,
+        barHeight
+      );
+    }
+
+    // 初始化
+    initGeneralList();
+    log('历史武将系统测试已启动', 'info');
+    log('点击左侧武将列表创建武将', 'info');
+
+    // 启动游戏循环
+    requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>
