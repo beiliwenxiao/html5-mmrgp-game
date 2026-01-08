@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>职业选择面板测试</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    
+    h1 {
+      text-align: center;
+      margin-bottom: 10px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    }
+    
+    .description {
+      text-align: center;
+      margin-bottom: 20px;
+      opacity: 0.9;
+    }
+    
+    #gameCanvas {
+      display: block;
+      margin: 20px auto;
+      background: #1a1a1a;
+      border: 3px solid #444;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      cursor: pointer;
+    }
+    
+    .controls {
+      text-align: center;
+      margin: 20px 0;
+    }
+    
+    button {
+      padding: 12px 24px;
+      margin: 0 10px;
+      font-size: 16px;
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: 2px solid white;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    button:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+    
+    .info {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 20px;
+    }
+    
+    .info h3 {
+      margin-top: 0;
+      color: #ffd700;
+    }
+    
+    .info ul {
+      margin: 10px 0;
+      padding-left: 20px;
+    }
+    
+    .info li {
+      margin: 5px 0;
+    }
+    
+    #status {
+      text-align: center;
+      margin-top: 15px;
+      padding: 10px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 5px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎮 职业选择面板测试</h1>
+    <p class="description">测试序章职业选择面板的功能和交互</p>
+    
+    <canvas id="gameCanvas" width="1200" height="700"></canvas>
+    
+    <div class="controls">
+      <button id="showPanelBtn">显示职业选择面板</button>
+      <button id="hidePanelBtn">隐藏面板</button>
+      <button id="resetBtn">重置状态</button>
+    </div>
+    
+    <div id="status">等待操作...</div>
+    
+    <div class="info">
+      <h3>📋 测试说明</h3>
+      <ul>
+        <li><strong>显示面板:</strong> 点击"显示职业选择面板"按钮</li>
+        <li><strong>选择职业:</strong> 点击职业卡片选择职业（战士、弓箭手、法师）</li>
+        <li><strong>查看技能树:</strong> 点击卡片底部的"查看技能树"按钮</li>
+        <li><strong>确认选择:</strong> 选择职业后点击底部的"确认选择"按钮</li>
+        <li><strong>关闭预览:</strong> 点击技能树预览窗口的×按钮或窗口外部</li>
+      </ul>
+      
+      <h3>✨ 功能特性</h3>
+      <ul>
+        <li>三个职业卡片展示（战士、弓箭手、法师）</li>
+        <li>教官NPC信息显示（张梁、张宝、张角）</li>
+        <li>职业基础属性和推荐属性</li>
+        <li>技能树预览功能</li>
+        <li>悬停和选中状态高亮</li>
+        <li>职业颜色主题（红、青、紫）</li>
+      </ul>
+    </div>
+  </div>
+
+  <script type="module">
+    import { ClassSelectionPanel } from '../src/prologue/ui/ClassSelectionPanel.js';
+    import { ClassSystem } from '../src/prologue/systems/ClassSystem.js';
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const statusDiv = document.getElementById('status');
+
+    // 初始化系统
+    const classSystem = new ClassSystem();
+    
+    // 创建职业选择面板
+    const classSelectionPanel = new ClassSelectionPanel({
+      x: 0,
+      y: 0,
+      width: canvas.width,
+      height: canvas.height,
+      classSystem: classSystem,
+      visible: false,
+      onClassSelect: (classType) => {
+        updateStatus(`选择了职业: ${classType}`);
+        console.log('职业选择:', classType);
+      },
+      onConfirm: (classType) => {
+        updateStatus(`确认选择职业: ${classType} ✓`);
+        console.log('确认职业:', classType);
+      },
+      onCancel: () => {
+        updateStatus('取消选择');
+        console.log('取消选择');
+      }
+    });
+
+    // 更新状态显示
+    function updateStatus(message) {
+      statusDiv.textContent = message;
+      statusDiv.style.background = 'rgba(0, 255, 0, 0.2)';
+      setTimeout(() => {
+        statusDiv.style.background = 'rgba(0, 0, 0, 0.3)';
+      }, 2000);
+    }
+
+    // 渲染循环
+    function render() {
+      // 清空画布
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // 绘制背景提示
+      if (!classSelectionPanel.visible) {
+        ctx.fillStyle = '#666666';
+        ctx.font = '24px Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('点击"显示职业选择面板"按钮开始测试', canvas.width / 2, canvas.height / 2);
+      }
+      
+      // 渲染职业选择面板
+      classSelectionPanel.render(ctx);
+      
+      requestAnimationFrame(render);
+    }
+
+    // 鼠标事件处理
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      
+      classSelectionPanel.handleMouseMove(mouseX, mouseY);
+    });
+
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      
+      classSelectionPanel.handleMouseClick(mouseX, mouseY);
+    });
+
+    // 按钮事件
+    document.getElementById('showPanelBtn').addEventListener('click', () => {
+      classSelectionPanel.show();
+      updateStatus('职业选择面板已显示');
+    });
+
+    document.getElementById('hidePanelBtn').addEventListener('click', () => {
+      classSelectionPanel.hide();
+      updateStatus('职业选择面板已隐藏');
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      classSelectionPanel.reset();
+      updateStatus('状态已重置');
+    });
+
+    // 启动渲染
+    render();
+    updateStatus('测试页面已加载，点击按钮开始测试');
+    
+    console.log('职业选择面板测试页面已初始化');
+    console.log('ClassSystem:', classSystem);
+    console.log('ClassSelectionPanel:', classSelectionPanel);
+  </script>
+</body>
+</html>

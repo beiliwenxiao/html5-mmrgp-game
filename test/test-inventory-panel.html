@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>背包面板测试 - 张角黄巾起义序章</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Microsoft YaHei', Arial, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #ffffff;
+      overflow: hidden;
+    }
+
+    #gameCanvas {
+      display: block;
+      margin: 0 auto;
+      background: #0f0f1e;
+      box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+    }
+
+    .controls {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 20px;
+      border-radius: 10px;
+      border: 2px solid #4080ff;
+      max-width: 300px;
+      z-index: 1000;
+    }
+
+    .controls h2 {
+      color: #4080ff;
+      margin-bottom: 15px;
+      font-size: 18px;
+      border-bottom: 2px solid #4080ff;
+      padding-bottom: 10px;
+    }
+
+    .control-group {
+      margin-bottom: 15px;
+    }
+
+    .control-group label {
+      display: block;
+      margin-bottom: 5px;
+      color: #cccccc;
+      font-size: 14px;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0;
+      background: linear-gradient(135deg, #4080ff 0%, #6080ff 100%);
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+      transition: all 0.3s;
+    }
+
+    button:hover {
+      background: linear-gradient(135deg, #5090ff 0%, #7090ff 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(64, 128, 255, 0.4);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button.danger {
+      background: linear-gradient(135deg, #ff4040 0%, #ff6060 100%);
+    }
+
+    button.danger:hover {
+      background: linear-gradient(135deg, #ff5050 0%, #ff7070 100%);
+    }
+
+    .info {
+      background: rgba(40, 40, 60, 0.6);
+      padding: 10px;
+      border-radius: 5px;
+      margin-top: 10px;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .info p {
+      margin: 5px 0;
+    }
+
+    .info .label {
+      color: #4080ff;
+      font-weight: bold;
+    }
+
+    .status {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 15px;
+      border-radius: 10px;
+      border: 2px solid #40ff40;
+      max-width: 300px;
+      z-index: 1000;
+    }
+
+    .status h3 {
+      color: #40ff40;
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+
+    .status p {
+      margin: 5px 0;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="1200" height="800"></canvas>
+
+  <div class="controls">
+    <h2>🎒 背包面板测试</h2>
+    
+    <div class="control-group">
+      <button id="togglePanel">切换背包面板 (I)</button>
+      <button id="addEquipment">添加装备</button>
+      <button id="addConsumable">添加消耗品</button>
+      <button id="addMaterial">添加材料</button>
+      <button id="fillInventory">填满背包</button>
+      <button id="clearInventory" class="danger">清空背包</button>
+    </div>
+
+    <div class="info">
+      <p><span class="label">操作说明:</span></p>
+      <p>• 按 I 键切换背包面板</p>
+      <p>• 左键拖拽物品移动</p>
+      <p>• 右键使用/装备物品</p>
+      <p>• 悬停查看物品详情</p>
+      <p>• 点击筛选按钮过滤物品</p>
+    </div>
+  </div>
+
+  <div class="status">
+    <h3>📊 背包状态</h3>
+    <p>容量: <span id="capacity">0/30</span></p>
+    <p>装备: <span id="equipmentCount">0</span></p>
+    <p>消耗品: <span id="consumableCount">0</span></p>
+    <p>材料: <span id="materialCount">0</span></p>
+    <p>最后操作: <span id="lastAction">无</span></p>
+  </div>
+
+  <script type="module">
+    import { InventorySystem } from '../src/prologue/systems/InventorySystem.js';
+    import { InventoryPanel } from '../src/prologue/ui/InventoryPanel.js';
+
+    // 获取Canvas和上下文
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // 创建背包系统
+    const inventorySystem = new InventorySystem(30);
+
+    // 创建背包面板
+    const inventoryPanel = new InventoryPanel({
+      x: 300,
+      y: 100,
+      width: 600,
+      height: 600,
+      inventorySystem: inventorySystem,
+      visible: true,  // 默认显示
+      onItemUse: (item) => {
+        console.log('使用物品:', item.name);
+        updateStatus(`使用了 ${item.name}`);
+        // 移除消耗品
+        inventorySystem.removeItem(item.id, 1);
+      },
+      onItemEquip: (item) => {
+        console.log('装备物品:', item.name);
+        updateStatus(`装备了 ${item.name}`);
+      }
+    });
+
+    // 示例物品数据
+    const sampleItems = {
+      equipment: [
+        {
+          id: 'sword1',
+          name: '木剑',
+          type: 'equipment',
+          description: '简陋的木制武器，聊胜于无',
+          stackable: false,
+          attributes: { attack: 5, defense: 0, health: 0, speed: 0 }
+        },
+        {
+          id: 'armor1',
+          name: '布衣',
+          type: 'equipment',
+          description: '普通的布制衣服，提供基础防护',
+          stackable: false,
+          attributes: { attack: 0, defense: 3, health: 10, speed: 0 }
+        },
+        {
+          id: 'ring1',
+          name: '铜戒指',
+          type: 'equipment',
+          description: '简单的铜制戒指',
+          stackable: false,
+          attributes: { attack: 1, defense: 1, health: 5, speed: 2 }
+        }
+      ],
+      consumable: [
+        {
+          id: 'potion',
+          name: '药水',
+          type: 'consumable',
+          description: '恢复50点生命值',
+          stackable: true,
+          maxStack: 99
+        },
+        {
+          id: 'food',
+          name: '干粮',
+          type: 'consumable',
+          description: '恢复30点生命值',
+          stackable: true,
+          maxStack: 99
+        },
+        {
+          id: 'talisman',
+          name: '符水',
+          type: 'consumable',
+          description: '张角的符水，恢复50点生命值',
+          stackable: true,
+          maxStack: 20
+        }
+      ],
+      material: [
+        {
+          id: 'wood',
+          name: '木材',
+          type: 'material',
+          description: '普通的木材，可用于制作',
+          stackable: true,
+          maxStack: 99
+        },
+        {
+          id: 'iron',
+          name: '铁矿',
+          type: 'material',
+          description: '铁矿石，可用于锻造',
+          stackable: true,
+          maxStack: 99
+        },
+        {
+          id: 'cloth',
+          name: '布料',
+          type: 'material',
+          description: '普通布料，可用于缝制',
+          stackable: true,
+          maxStack: 99
+        }
+      ]
+    };
+
+    // 鼠标状态
+    let mouseX = 0;
+    let mouseY = 0;
+    let mouseDown = false;
+
+    // 更新状态显示
+    function updateStatus(action = null) {
+      const capacity = `${inventorySystem.getUsedSlots()}/${inventorySystem.maxSlots}`;
+      document.getElementById('capacity').textContent = capacity;
+      
+      const equipmentCount = inventorySystem.getItemsByType('equipment').length;
+      const consumableCount = inventorySystem.getItemsByType('consumable').length;
+      const materialCount = inventorySystem.getItemsByType('material').length;
+      
+      document.getElementById('equipmentCount').textContent = equipmentCount;
+      document.getElementById('consumableCount').textContent = consumableCount;
+      document.getElementById('materialCount').textContent = materialCount;
+      
+      if (action) {
+        document.getElementById('lastAction').textContent = action;
+      }
+    }
+
+    // 添加随机装备
+    function addRandomEquipment() {
+      const items = sampleItems.equipment;
+      const item = items[Math.floor(Math.random() * items.length)];
+      const newItem = { ...item, id: `${item.id}_${Date.now()}` };
+      
+      if (inventorySystem.addItem(newItem)) {
+        updateStatus(`添加了 ${item.name}`);
+      } else {
+        updateStatus('背包已满！');
+      }
+    }
+
+    // 添加随机消耗品
+    function addRandomConsumable() {
+      const items = sampleItems.consumable;
+      const item = items[Math.floor(Math.random() * items.length)];
+      const quantity = Math.floor(Math.random() * 10) + 1;
+      
+      if (inventorySystem.addItem(item, quantity)) {
+        updateStatus(`添加了 ${quantity} 个 ${item.name}`);
+      } else {
+        updateStatus('背包已满！');
+      }
+    }
+
+    // 添加随机材料
+    function addRandomMaterial() {
+      const items = sampleItems.material;
+      const item = items[Math.floor(Math.random() * items.length)];
+      const quantity = Math.floor(Math.random() * 20) + 1;
+      
+      if (inventorySystem.addItem(item, quantity)) {
+        updateStatus(`添加了 ${quantity} 个 ${item.name}`);
+      } else {
+        updateStatus('背包已满！');
+      }
+    }
+
+    // 填满背包
+    function fillInventory() {
+      while (!inventorySystem.isFull()) {
+        const type = Math.random();
+        if (type < 0.3) {
+          addRandomEquipment();
+        } else if (type < 0.6) {
+          addRandomConsumable();
+        } else {
+          addRandomMaterial();
+        }
+      }
+      updateStatus('背包已填满');
+    }
+
+    // 清空背包
+    function clearInventory() {
+      inventorySystem.clear();
+      updateStatus('背包已清空');
+    }
+
+    // 事件监听
+    document.getElementById('togglePanel').addEventListener('click', () => {
+      inventoryPanel.toggle();
+      updateStatus(inventoryPanel.visible ? '打开背包' : '关闭背包');
+    });
+
+    document.getElementById('addEquipment').addEventListener('click', addRandomEquipment);
+    document.getElementById('addConsumable').addEventListener('click', addRandomConsumable);
+    document.getElementById('addMaterial').addEventListener('click', addRandomMaterial);
+    document.getElementById('fillInventory').addEventListener('click', fillInventory);
+    document.getElementById('clearInventory').addEventListener('click', clearInventory);
+
+    // 键盘事件
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'i' || e.key === 'I') {
+        inventoryPanel.toggle();
+        updateStatus(inventoryPanel.visible ? '打开背包' : '关闭背包');
+      }
+    });
+
+    // 鼠标事件
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouseX = e.clientX - rect.left;
+      mouseY = e.clientY - rect.top;
+      
+      inventoryPanel.handleMouseMove(mouseX, mouseY);
+    });
+
+    canvas.addEventListener('mousedown', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouseX = e.clientX - rect.left;
+      mouseY = e.clientY - rect.top;
+      mouseDown = true;
+      
+      inventoryPanel.handleMouseDown(mouseX, mouseY, e.button);
+      e.preventDefault();
+    });
+
+    canvas.addEventListener('mouseup', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouseX = e.clientX - rect.left;
+      mouseY = e.clientY - rect.top;
+      mouseDown = false;
+      
+      inventoryPanel.handleMouseUp(mouseX, mouseY);
+    });
+
+    canvas.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+    });
+
+    // 渲染循环
+    let lastTime = 0;
+    function gameLoop(currentTime) {
+      const deltaTime = currentTime - lastTime;
+      lastTime = currentTime;
+
+      // 清空画布
+      ctx.fillStyle = '#0f0f1e';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 绘制背景网格
+      ctx.strokeStyle = 'rgba(64, 128, 255, 0.1)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < canvas.width; x += 50) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y < canvas.height; y += 50) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+
+      // 绘制标题
+      ctx.fillStyle = '#4080ff';
+      ctx.font = 'bold 32px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText('背包面板测试', canvas.width / 2, 30);
+
+      ctx.fillStyle = '#cccccc';
+      ctx.font = '16px Arial, sans-serif';
+      ctx.fillText('按 I 键打开/关闭背包面板', canvas.width / 2, 70);
+
+      // 更新和渲染背包面板
+      inventoryPanel.update(deltaTime);
+      inventoryPanel.render(ctx);
+
+      // 绘制鼠标坐标（调试用）
+      if (inventoryPanel.visible) {
+        ctx.fillStyle = '#888888';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(`鼠标: (${mouseX}, ${mouseY})`, 10, canvas.height - 20);
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // 初始化
+    updateStatus('初始化完成');
+    
+    // 添加一些初始物品
+    inventorySystem.addItem(sampleItems.equipment[0]);
+    inventorySystem.addItem(sampleItems.consumable[0], 5);
+    inventorySystem.addItem(sampleItems.material[0], 10);
+    updateStatus('添加了初始物品');
+
+    // 启动游戏循环
+    requestAnimationFrame(gameLoop);
+
+    console.log('背包面板测试已启动');
+    console.log('背包系统:', inventorySystem);
+    console.log('背包面板:', inventoryPanel);
+  </script>
+</body>
+</html>

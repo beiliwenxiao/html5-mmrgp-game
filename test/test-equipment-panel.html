@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>装备面板测试 - Equipment Panel Test</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background-color: #1a1a1a;
+      color: #ffffff;
+    }
+    
+    #gameCanvas {
+      border: 2px solid #666;
+      display: block;
+      margin: 20px auto;
+      background-color: #2a2a2a;
+    }
+    
+    .controls {
+      max-width: 800px;
+      margin: 0 auto 20px;
+      padding: 15px;
+      background-color: #333;
+      border-radius: 5px;
+    }
+    
+    .controls h2 {
+      margin-top: 0;
+      color: #ffff00;
+    }
+    
+    .button-group {
+      margin: 10px 0;
+    }
+    
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    
+    button:hover {
+      background-color: #45a049;
+    }
+    
+    button.secondary {
+      background-color: #2196F3;
+    }
+    
+    button.secondary:hover {
+      background-color: #0b7dda;
+    }
+    
+    button.danger {
+      background-color: #f44336;
+    }
+    
+    button.danger:hover {
+      background-color: #da190b;
+    }
+    
+    .info {
+      margin-top: 10px;
+      padding: 10px;
+      background-color: #444;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    
+    .info p {
+      margin: 5px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <h2>装备面板测试 (Equipment Panel Test)</h2>
+    
+    <div class="button-group">
+      <button onclick="togglePanel()">切换面板显示 (Toggle Panel)</button>
+      <button class="secondary" onclick="equipWeapon()">装备武器 (Equip Weapon)</button>
+      <button class="secondary" onclick="equipArmor()">装备防具 (Equip Armor)</button>
+      <button class="secondary" onclick="equipAccessory()">装备饰品 (Equip Accessory)</button>
+      <button class="danger" onclick="unequipAll()">卸下所有装备 (Unequip All)</button>
+    </div>
+    
+    <div class="button-group">
+      <button class="secondary" onclick="equipNegativeItem()">装备铜钱剑（负属性）</button>
+      <button class="secondary" onclick="equipEnhancedItem()">装备+5强化武器</button>
+      <button class="secondary" onclick="equipLegendaryItem()">装备传说装备</button>
+    </div>
+    
+    <div class="info">
+      <p><strong>操作说明:</strong></p>
+      <p>• 点击"切换面板显示"按钮打开/关闭装备面板</p>
+      <p>• 点击装备按钮装备不同的物品</p>
+      <p>• 鼠标悬停在装备槽上查看装备详情</p>
+      <p>• 点击装备槽选中该槽位</p>
+      <p>• 注意观察负属性的红色标注</p>
+      <p id="status">状态: 等待操作...</p>
+    </div>
+  </div>
+  
+  <canvas id="gameCanvas" width="1200" height="700"></canvas>
+  
+  <script type="module">
+    import { EquipmentPanel } from '../src/prologue/ui/EquipmentPanel.js';
+    import { EquipmentSystem, Equipment, EquipmentType, EquipmentRarity, EquipmentSlot } from '../src/prologue/systems/EquipmentSystem.js';
+    import { UISystem } from '../src/ui/UISystem.js';
+    
+    // 获取Canvas和上下文
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // 创建装备系统
+    const equipmentSystem = new EquipmentSystem();
+    
+    // 创建UI系统
+    const uiSystem = new UISystem();
+    
+    // 创建装备面板
+    const equipmentPanel = new EquipmentPanel({
+      x: 50,
+      y: 50,
+      width: 350,
+      height: 450,
+      visible: true,
+      equipmentSystem: equipmentSystem
+    });
+    
+    // 添加到UI系统
+    uiSystem.addElement(equipmentPanel);
+    
+    // 创建模拟玩家
+    const player = {
+      level: 5,
+      class: 'warrior',
+      baseAttributes: {
+        attack: 10,
+        defense: 5,
+        health: 100,
+        maxHealth: 100,
+        speed: 100
+      },
+      attack: 10,
+      defense: 5,
+      health: 100,
+      maxHealth: 100,
+      speed: 100
+    };
+    
+    equipmentPanel.setPlayer(player);
+    
+    // 创建测试装备数据
+    const testEquipments = {
+      weapon1: new Equipment({
+        id: 'weapon_stick',
+        name: '树棍',
+        type: EquipmentType.WEAPON,
+        rarity: EquipmentRarity.COMMON,
+        level: 1,
+        attributes: {
+          attack: 5,
+          defense: 0,
+          health: 0,
+          speed: 0
+        },
+        negativeAttributes: {
+          durability: 0,
+          weight: 0
+        },
+        description: '一根普通的树棍，聊胜于无。'
+      }),
+      
+      weapon2: new Equipment({
+        id: 'weapon_coin_sword',
+        name: '铜钱剑',
+        type: EquipmentType.WEAPON,
+        rarity: EquipmentRarity.UNCOMMON,
+        level: 3,
+        attributes: {
+          attack: 8,
+          defense: 0,
+          health: 0,
+          speed: 0
+        },
+        negativeAttributes: {
+          durability: -10,
+          weight: 0
+        },
+        description: '张角的铜钱法器，攻击力不错但耐久度较低。'
+      }),
+      
+      weapon3: new Equipment({
+        id: 'weapon_legendary',
+        name: '青龙偃月刀',
+        type: EquipmentType.WEAPON,
+        rarity: EquipmentRarity.LEGENDARY,
+        level: 10,
+        enhanceLevel: 5,
+        attributes: {
+          attack: 50,
+          defense: 10,
+          health: 0,
+          speed: 5
+        },
+        negativeAttributes: {
+          durability: 0,
+          weight: -5
+        },
+        description: '传说中的神兵利器，威力无穷。'
+      }),
+      
+      armor1: new Equipment({
+        id: 'armor_cloth',
+        name: '破旧衣服',
+        type: EquipmentType.ARMOR,
+        rarity: EquipmentRarity.COMMON,
+        level: 1,
+        attributes: {
+          attack: 0,
+          defense: 3,
+          health: 10,
+          speed: 0
+        },
+        negativeAttributes: {
+          durability: 0,
+          weight: 0
+        },
+        description: '破旧的布衣，勉强能遮体。'
+      }),
+      
+      armor2: new Equipment({
+        id: 'armor_leather',
+        name: '皮甲',
+        type: EquipmentType.ARMOR,
+        rarity: EquipmentRarity.RARE,
+        level: 5,
+        attributes: {
+          attack: 0,
+          defense: 15,
+          health: 50,
+          speed: -5
+        },
+        negativeAttributes: {
+          durability: 0,
+          weight: -3
+        },
+        description: '坚固的皮甲，提供良好的防护。'
+      }),
+      
+      accessory1: new Equipment({
+        id: 'accessory_ring',
+        name: '铜戒指',
+        type: EquipmentType.ACCESSORY,
+        rarity: EquipmentRarity.UNCOMMON,
+        level: 2,
+        attributes: {
+          attack: 2,
+          defense: 2,
+          health: 20,
+          speed: 3
+        },
+        negativeAttributes: {
+          durability: 0,
+          weight: 0
+        },
+        description: '普通的铜戒指，略微提升属性。'
+      })
+    };
+    
+    // 全局函数供按钮调用
+    window.togglePanel = function() {
+      equipmentPanel.toggle();
+      updateStatus('面板显示状态: ' + (equipmentPanel.visible ? '显示' : '隐藏'));
+    };
+    
+    window.equipWeapon = function() {
+      const result = equipmentSystem.equipItem(player, testEquipments.weapon1, EquipmentSlot.WEAPON);
+      if (result.success) {
+        updateStatus('成功装备: ' + testEquipments.weapon1.name);
+      } else {
+        updateStatus('装备失败: ' + result.message);
+      }
+    };
+    
+    window.equipArmor = function() {
+      const result = equipmentSystem.equipItem(player, testEquipments.armor1, EquipmentSlot.ARMOR);
+      if (result.success) {
+        updateStatus('成功装备: ' + testEquipments.armor1.name);
+      } else {
+        updateStatus('装备失败: ' + result.message);
+      }
+    };
+    
+    window.equipAccessory = function() {
+      const result = equipmentSystem.equipItem(player, testEquipments.accessory1, EquipmentSlot.ACCESSORY);
+      if (result.success) {
+        updateStatus('成功装备: ' + testEquipments.accessory1.name);
+      } else {
+        updateStatus('装备失败: ' + result.message);
+      }
+    };
+    
+    window.equipNegativeItem = function() {
+      const result = equipmentSystem.equipItem(player, testEquipments.weapon2, EquipmentSlot.WEAPON);
+      if (result.success) {
+        updateStatus('成功装备铜钱剑（注意负属性显示为红色）');
+      } else {
+        updateStatus('装备失败: ' + result.message);
+      }
+    };
+    
+    window.equipEnhancedItem = function() {
+      const result = equipmentSystem.equipItem(player, testEquipments.weapon3, EquipmentSlot.WEAPON);
+      if (result.success) {
+        updateStatus('成功装备+5强化武器（注意强化等级显示）');
+      } else {
+        updateStatus('装备失败: ' + result.message);
+      }
+    };
+    
+    window.equipLegendaryItem = function() {
+      const result = equipmentSystem.equipItem(player, testEquipments.weapon3, EquipmentSlot.WEAPON);
+      if (result.success) {
+        updateStatus('成功装备传说装备（注意橙色边框）');
+      } else {
+        updateStatus('装备失败: ' + result.message);
+      }
+    };
+    
+    window.unequipAll = function() {
+      equipmentSystem.clearAllEquipment(player);
+      updateStatus('已卸下所有装备');
+    };
+    
+    function updateStatus(message) {
+      document.getElementById('status').textContent = '状态: ' + message;
+      console.log(message);
+    }
+    
+    // 鼠标事件处理
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      
+      equipmentPanel.handleMouseMove(mouseX, mouseY);
+    });
+    
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      
+      const handled = equipmentPanel.handleMouseClick(mouseX, mouseY);
+      if (handled && equipmentPanel.selectedSlot) {
+        updateStatus('选中槽位: ' + equipmentPanel.selectedSlot);
+      }
+    });
+    
+    // 渲染循环
+    let lastTime = 0;
+    function gameLoop(currentTime) {
+      const deltaTime = currentTime - lastTime;
+      lastTime = currentTime;
+      
+      // 清空画布
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // 绘制背景网格
+      ctx.strokeStyle = '#333333';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < canvas.width; x += 50) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y < canvas.height; y += 50) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+      
+      // 绘制标题
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 24px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('装备面板测试 - Equipment Panel Test', canvas.width / 2, 30);
+      
+      // 更新和渲染UI系统
+      uiSystem.update(deltaTime);
+      uiSystem.render(ctx);
+      
+      // 显示玩家属性
+      if (equipmentPanel.visible) {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText('玩家属性:', 500, 100);
+        ctx.fillText(`攻击力: ${player.attack}`, 500, 120);
+        ctx.fillText(`防御力: ${player.defense}`, 500, 140);
+        ctx.fillText(`生命值: ${player.maxHealth}`, 500, 160);
+        ctx.fillText(`速度: ${player.speed}`, 500, 180);
+        
+        if (player.durabilityPenalty || player.weightPenalty) {
+          ctx.fillStyle = '#ff0000';
+          ctx.fillText('负属性影响:', 500, 210);
+          if (player.durabilityPenalty) {
+            ctx.fillText(`耐久度惩罚: ${player.durabilityPenalty}`, 500, 230);
+          }
+          if (player.weightPenalty) {
+            ctx.fillText(`负重惩罚: ${player.weightPenalty}`, 500, 250);
+          }
+        }
+      }
+      
+      requestAnimationFrame(gameLoop);
+    }
+    
+    // 启动游戏循环
+    requestAnimationFrame(gameLoop);
+    
+    // 初始化提示
+    updateStatus('装备面板已加载，点击按钮进行测试');
+    console.log('装备面板测试页面已加载');
+    console.log('装备系统:', equipmentSystem);
+    console.log('装备面板:', equipmentPanel);
+  </script>
+</body>
+</html>

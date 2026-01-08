@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI系统测试</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background-color: #1a1a1a;
+      color: #ffffff;
+    }
+
+    h1 {
+      text-align: center;
+      color: #4CAF50;
+    }
+
+    #controls {
+      text-align: center;
+      margin-bottom: 20px;
+      padding: 15px;
+      background-color: #2a2a2a;
+      border-radius: 8px;
+    }
+
+    button {
+      margin: 5px;
+      padding: 10px 20px;
+      font-size: 14px;
+      cursor: pointer;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      transition: background-color 0.3s;
+    }
+
+    button:hover {
+      background-color: #45a049;
+    }
+
+    button:disabled {
+      background-color: #666;
+      cursor: not-allowed;
+    }
+
+    #info {
+      text-align: center;
+      margin-bottom: 10px;
+      padding: 10px;
+      background-color: #2a2a2a;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    #canvas {
+      display: block;
+      margin: 0 auto;
+      background-color: #333;
+      border: 2px solid #4CAF50;
+      border-radius: 8px;
+    }
+
+    .legend {
+      text-align: center;
+      margin-top: 15px;
+      padding: 10px;
+      background-color: #2a2a2a;
+      border-radius: 8px;
+    }
+
+    .legend-item {
+      display: inline-block;
+      margin: 0 15px;
+      font-size: 14px;
+    }
+
+    .legend-color {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      margin-right: 5px;
+      vertical-align: middle;
+      border: 1px solid #fff;
+    }
+
+    #stats {
+      margin-top: 15px;
+      padding: 15px;
+      background-color: #2a2a2a;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-around;
+      margin: 5px 0;
+    }
+
+    .stat-item {
+      flex: 1;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>AI系统测试</h1>
+
+  <div id="controls">
+    <button id="startBtn">开始测试</button>
+    <button id="pauseBtn" disabled>暂停</button>
+    <button id="resetBtn">重置</button>
+    <br>
+    <button id="addAggressiveBtn">添加激进AI</button>
+    <button id="addDefensiveBtn">添加防御AI</button>
+    <button id="addSupportBtn">添加支援AI</button>
+    <button id="clearAIBtn">清除所有AI</button>
+  </div>
+
+  <div id="info">
+    <span id="fpsDisplay">FPS: 0</span> | 
+    <span id="entityCount">实体: 0</span> | 
+    <span id="aiCount">AI单位: 0</span>
+  </div>
+
+  <canvas id="canvas" width="1200" height="700"></canvas>
+
+  <div class="legend">
+    <div class="legend-item">
+      <span class="legend-color" style="background-color: #00ff00;"></span>
+      <span>玩家</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-color" style="background-color: #ff0000;"></span>
+      <span>激进AI</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-color" style="background-color: #0000ff;"></span>
+      <span>防御AI</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-color" style="background-color: #ffff00;"></span>
+      <span>支援AI</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-color" style="background-color: #ffffff;"></span>
+      <span>目标线</span>
+    </div>
+  </div>
+
+  <div id="stats">
+    <div class="stat-row">
+      <div class="stat-item">
+        <strong>激进AI:</strong> <span id="aggressiveCount">0</span>
+      </div>
+      <div class="stat-item">
+        <strong>防御AI:</strong> <span id="defensiveCount">0</span>
+      </div>
+      <div class="stat-item">
+        <strong>支援AI:</strong> <span id="supportCount">0</span>
+      </div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-item">
+        <strong>存活敌人:</strong> <span id="aliveEnemies">0</span>
+      </div>
+      <div class="stat-item">
+        <strong>死亡敌人:</strong> <span id="deadEnemies">0</span>
+      </div>
+      <div class="stat-item">
+        <strong>玩家HP:</strong> <span id="playerHp">100/100</span>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { AISystem } from '../src/prologue/systems/AISystem.js';
+
+    // 简单的实体类
+    class Entity {
+      constructor(id, type = 'enemy', faction = 'enemy') {
+        this.id = id;
+        this.type = type;
+        this.faction = faction;
+        this.isDead = false;
+        this.isDying = false;
+        this.isAI = false;
+        this.aiType = null;
+        this.components = new Map();
+      }
+
+      getComponent(name) {
+        return this.components.get(name);
+      }
+
+      addComponent(name, component) {
+        this.components.set(name, component);
+      }
+    }
+
+    // 组件
+    class Transform {
+      constructor(x = 0, y = 0) {
+        this.position = { x, y };
+      }
+
+      setPosition(x, y) {
+        this.position.x = x;
+        this.position.y = y;
+      }
+    }
+
+    class Combat {
+      constructor() {
+        this.target = null;
+        this.attackRange = 80;
+        this.attackCooldown = 1000; // 1秒
+        this.lastAttackTime = 0;
+      }
+
+      hasTarget() {
+        return this.target !== null;
+      }
+
+      setTarget(target) {
+        this.target = target;
+      }
+
+      clearTarget() {
+        this.target = null;
+      }
+
+      canAttack(currentTime) {
+        return currentTime - this.lastAttackTime >= this.attackCooldown;
+      }
+
+      attack(currentTime) {
+        this.lastAttackTime = currentTime;
+        return true;
+      }
+    }
+
+    class Movement {
+      constructor() {
+        this.velocity = { x: 0, y: 0 };
+        this.speed = 100;
+      }
+    }
+
+    class Stats {
+      constructor(hp = 100, maxHp = 100) {
+        this.hp = hp;
+        this.maxHp = maxHp;
+        this.attack = 10;
+        this.defense = 5;
+      }
+
+      takeDamage(amount) {
+        this.hp = Math.max(0, this.hp - amount);
+      }
+
+      isDead() {
+        return this.hp <= 0;
+      }
+    }
+
+    class Sprite {
+      constructor() {
+        this.currentAnimation = 'idle';
+      }
+
+      playAnimation(name) {
+        this.currentAnimation = name;
+      }
+    }
+
+    // 简单的战斗系统
+    class SimpleCombatSystem {
+      constructor() {
+        this.attacks = [];
+      }
+
+      isInRange(entity, target, range) {
+        const transform = entity.getComponent('transform');
+        const targetTransform = target.getComponent('transform');
+        if (!transform || !targetTransform) return false;
+
+        const dx = targetTransform.position.x - transform.position.x;
+        const dy = targetTransform.position.y - transform.position.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        return distance <= range;
+      }
+
+      performAttack(attacker, target, currentTime) {
+        const combat = attacker.getComponent('combat');
+        const attackerStats = attacker.getComponent('stats');
+        const targetStats = target.getComponent('stats');
+
+        if (!combat || !attackerStats || !targetStats) return;
+
+        if (combat.canAttack(currentTime)) {
+          combat.attack(currentTime);
+          
+          // 计算伤害
+          const damage = Math.max(1, attackerStats.attack - targetStats.defense);
+          targetStats.takeDamage(damage);
+
+          this.attacks.push({ attacker, target, damage, time: currentTime });
+
+          // 检查死亡
+          if (targetStats.isDead() && !target.isDead) {
+            target.isDead = true;
+            combat.clearTarget();
+          }
+        }
+      }
+
+      updateArmyAI(army, enemies, currentTime) {
+        for (const unit of army) {
+          if (unit.isDead || unit.isDying) continue;
+          if (unit.type === 'player') continue;
+
+          const combat = unit.getComponent('combat');
+          if (!combat) continue;
+
+          // 如果有目标且在范围内，攻击
+          if (combat.hasTarget()) {
+            const target = combat.target;
+            if (this.isInRange(unit, target, combat.attackRange)) {
+              this.performAttack(unit, target, currentTime);
+            }
+          }
+        }
+      }
+    }
+
+    // 游戏状态
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    let entities = [];
+    let aiSystem = new AISystem();
+    let combatSystem = new SimpleCombatSystem();
+    let player = null;
+    let isRunning = false;
+    let isPaused = false;
+    let lastTime = 0;
+    let fps = 0;
+    let frameCount = 0;
+    let fpsTime = 0;
+    let entityIdCounter = 0;
+
+    // 初始化
+    function init() {
+      entities = [];
+      aiSystem = new AISystem();
+      combatSystem = new SimpleCombatSystem();
+      entityIdCounter = 0;
+
+      // 创建玩家
+      player = new Entity('player', 'player', 'ally');
+      player.addComponent('transform', new Transform(canvas.width / 2, canvas.height / 2));
+      player.addComponent('combat', new Combat());
+      player.addComponent('movement', new Movement());
+      player.addComponent('stats', new Stats(200, 200));
+      player.addComponent('sprite', new Sprite());
+      entities.push(player);
+
+      // 创建一些初始敌人
+      for (let i = 0; i < 3; i++) {
+        addEnemy('aggressive');
+      }
+      for (let i = 0; i < 2; i++) {
+        addEnemy('defensive');
+      }
+      for (let i = 0; i < 2; i++) {
+        addEnemy('support');
+      }
+
+      updateStats();
+    }
+
+    // 添加敌人
+    function addEnemy(aiType) {
+      const enemy = new Entity(`enemy${entityIdCounter++}`, 'enemy', 'enemy');
+      
+      // 随机位置（避开中心）
+      let x, y;
+      do {
+        x = Math.random() * (canvas.width - 100) + 50;
+        y = Math.random() * (canvas.height - 100) + 50;
+      } while (Math.abs(x - canvas.width / 2) < 100 && Math.abs(y - canvas.height / 2) < 100);
+
+      enemy.addComponent('transform', new Transform(x, y));
+      enemy.addComponent('combat', new Combat());
+      enemy.addComponent('movement', new Movement());
+      enemy.addComponent('stats', new Stats(50, 50));
+      enemy.addComponent('sprite', new Sprite());
+
+      aiSystem.registerAI(enemy, aiType);
+      entities.push(enemy);
+
+      updateStats();
+    }
+
+    // 更新统计信息
+    function updateStats() {
+      const aiCount = aiSystem.getAICount();
+      const aggressiveCount = entities.filter(e => e.aiType === 'aggressive' && !e.isDead).length;
+      const defensiveCount = entities.filter(e => e.aiType === 'defensive' && !e.isDead).length;
+      const supportCount = entities.filter(e => e.aiType === 'support' && !e.isDead).length;
+      const aliveEnemies = entities.filter(e => e.type === 'enemy' && !e.isDead).length;
+      const deadEnemies = entities.filter(e => e.type === 'enemy' && e.isDead).length;
+
+      document.getElementById('entityCount').textContent = `实体: ${entities.length}`;
+      document.getElementById('aiCount').textContent = `AI单位: ${aiCount}`;
+      document.getElementById('aggressiveCount').textContent = aggressiveCount;
+      document.getElementById('defensiveCount').textContent = defensiveCount;
+      document.getElementById('supportCount').textContent = supportCount;
+      document.getElementById('aliveEnemies').textContent = aliveEnemies;
+      document.getElementById('deadEnemies').textContent = deadEnemies;
+
+      if (player) {
+        const stats = player.getComponent('stats');
+        document.getElementById('playerHp').textContent = `${Math.ceil(stats.hp)}/${stats.maxHp}`;
+      }
+    }
+
+    // 游戏循环
+    function gameLoop(currentTime) {
+      if (!isRunning) return;
+
+      const deltaTime = lastTime ? (currentTime - lastTime) / 1000 : 0;
+      lastTime = currentTime;
+
+      if (!isPaused) {
+        update(deltaTime, currentTime);
+      }
+
+      render();
+
+      // 计算FPS
+      frameCount++;
+      fpsTime += deltaTime;
+      if (fpsTime >= 1.0) {
+        fps = frameCount;
+        frameCount = 0;
+        fpsTime = 0;
+        document.getElementById('fpsDisplay').textContent = `FPS: ${fps}`;
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // 更新
+    function update(deltaTime, currentTime) {
+      // 更新AI系统
+      aiSystem.update(deltaTime, entities, combatSystem);
+
+      // 更新战斗系统（处理AI攻击）
+      const enemies = entities.filter(e => e.type === 'enemy' && !e.isDead);
+      combatSystem.updateArmyAI(enemies, [player], currentTime);
+
+      // 更新移动
+      for (const entity of entities) {
+        if (entity.isDead || entity.isDying) continue;
+
+        const transform = entity.getComponent('transform');
+        const movement = entity.getComponent('movement');
+
+        if (transform && movement) {
+          transform.position.x += movement.velocity.x * deltaTime;
+          transform.position.y += movement.velocity.y * deltaTime;
+
+          // 边界检查
+          transform.position.x = Math.max(20, Math.min(canvas.width - 20, transform.position.x));
+          transform.position.y = Math.max(20, Math.min(canvas.height - 20, transform.position.y));
+        }
+      }
+
+      // 移除死亡实体（延迟移除）
+      entities = entities.filter(e => !e.isDead || e.type === 'player');
+
+      updateStats();
+    }
+
+    // 渲染
+    function render() {
+      // 清空画布
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 绘制网格
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < canvas.width; x += 50) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y < canvas.height; y += 50) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+
+      // 绘制目标线
+      for (const entity of entities) {
+        if (entity.isDead) continue;
+
+        const combat = entity.getComponent('combat');
+        const transform = entity.getComponent('transform');
+
+        if (combat && combat.hasTarget() && transform) {
+          const target = combat.target;
+          const targetTransform = target.getComponent('transform');
+
+          if (targetTransform) {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(transform.position.x, transform.position.y);
+            ctx.lineTo(targetTransform.position.x, targetTransform.position.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+          }
+        }
+      }
+
+      // 绘制实体
+      for (const entity of entities) {
+        if (entity.isDead) continue;
+
+        const transform = entity.getComponent('transform');
+        const stats = entity.getComponent('stats');
+        const combat = entity.getComponent('combat');
+
+        if (!transform) continue;
+
+        // 选择颜色
+        let color = '#ffffff';
+        if (entity.type === 'player') {
+          color = '#00ff00';
+        } else if (entity.aiType === 'aggressive') {
+          color = '#ff0000';
+        } else if (entity.aiType === 'defensive') {
+          color = '#0000ff';
+        } else if (entity.aiType === 'support') {
+          color = '#ffff00';
+        }
+
+        // 绘制实体
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(transform.position.x, transform.position.y, 15, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 绘制攻击范围（如果有目标）
+        if (combat && combat.hasTarget()) {
+          ctx.strokeStyle = color;
+          ctx.globalAlpha = 0.2;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(transform.position.x, transform.position.y, combat.attackRange, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.globalAlpha = 1.0;
+        }
+
+        // 绘制生命值条
+        if (stats) {
+          const hpPercent = stats.hp / stats.maxHp;
+          const barWidth = 30;
+          const barHeight = 4;
+          const barX = transform.position.x - barWidth / 2;
+          const barY = transform.position.y - 25;
+
+          // 背景
+          ctx.fillStyle = '#333';
+          ctx.fillRect(barX, barY, barWidth, barHeight);
+
+          // 生命值
+          ctx.fillStyle = hpPercent > 0.5 ? '#00ff00' : hpPercent > 0.25 ? '#ffff00' : '#ff0000';
+          ctx.fillRect(barX, barY, barWidth * hpPercent, barHeight);
+        }
+
+        // 绘制AI类型标签
+        if (entity.aiType) {
+          ctx.fillStyle = '#ffffff';
+          ctx.font = '10px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText(entity.aiType[0].toUpperCase(), transform.position.x, transform.position.y + 30);
+        }
+      }
+    }
+
+    // 事件监听
+    document.getElementById('startBtn').addEventListener('click', () => {
+      if (!isRunning) {
+        isRunning = true;
+        isPaused = false;
+        lastTime = 0;
+        document.getElementById('startBtn').disabled = true;
+        document.getElementById('pauseBtn').disabled = false;
+        requestAnimationFrame(gameLoop);
+      }
+    });
+
+    document.getElementById('pauseBtn').addEventListener('click', () => {
+      isPaused = !isPaused;
+      document.getElementById('pauseBtn').textContent = isPaused ? '继续' : '暂停';
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      isRunning = false;
+      isPaused = false;
+      document.getElementById('startBtn').disabled = false;
+      document.getElementById('pauseBtn').disabled = true;
+      document.getElementById('pauseBtn').textContent = '暂停';
+      init();
+      render();
+    });
+
+    document.getElementById('addAggressiveBtn').addEventListener('click', () => {
+      addEnemy('aggressive');
+    });
+
+    document.getElementById('addDefensiveBtn').addEventListener('click', () => {
+      addEnemy('defensive');
+    });
+
+    document.getElementById('addSupportBtn').addEventListener('click', () => {
+      addEnemy('support');
+    });
+
+    document.getElementById('clearAIBtn').addEventListener('click', () => {
+      // 移除所有AI实体
+      entities = entities.filter(e => e.type === 'player');
+      aiSystem.clear();
+      updateStats();
+    });
+
+    // 初始化并渲染
+    init();
+    render();
+  </script>
+</body>
+</html>

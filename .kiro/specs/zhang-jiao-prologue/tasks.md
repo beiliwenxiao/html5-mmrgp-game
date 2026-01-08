@@ -160,7 +160,7 @@
 
 ### 阶段 6: UI 组件开发
 
-- [ ] 16. 创建装备面板 (EquipmentPanel)
+- [x] 16. 创建装备面板 (EquipmentPanel)
   - 创建 `src/prologue/ui/EquipmentPanel.js` 文件
   - 继承现有 UIElement 基类（复用 UI 框架）
   - 实现装备槽位显示
@@ -169,7 +169,7 @@
   - 复用现有 UISystem 管理面板生命周期
   - _需求: 4, 14, 18_
 
-- [ ] 17. 创建背包面板 (InventoryPanel)
+- [x] 17. 创建背包面板 (InventoryPanel)
   - 创建 `src/prologue/ui/InventoryPanel.js` 文件
   - 继承现有 UIElement 基类（复用 UI 框架）
   - 实现网格式物品显示
@@ -177,7 +177,7 @@
   - 实现物品使用/装备按钮
   - _需求: 3, 4_
 
-- [ ] 18. 创建商店面板 (ShopPanel)
+- [x] 18. 创建商店面板 (ShopPanel)
   - 创建 `src/prologue/ui/ShopPanel.js` 文件
   - 继承现有 UIElement 基类（复用 UI 框架）
   - 实现购买/出售标签页
@@ -185,7 +185,7 @@
   - 实现交易按钮和货币显示
   - _需求: 16_
 
-- [ ] 19. 创建强化面板 (EnhancementPanel)
+- [x] 19. 创建强化面板 (EnhancementPanel)
   - 创建 `src/prologue/ui/EnhancementPanel.js` 文件
   - 继承现有 UIElement 基类（复用 UI 框架）
   - 实现装备选择界面
@@ -193,7 +193,7 @@
   - 实现属性对比预览
   - _需求: 18_
 
-- [ ] 20. 创建职业选择面板 (ClassSelectionPanel)
+- [x] 20. 创建职业选择面板 (ClassSelectionPanel)
   - 创建 `src/prologue/ui/ClassSelectionPanel.js` 文件
   - 继承现有 UIElement 基类（复用 UI 框架）
   - 实现三个职业卡片显示

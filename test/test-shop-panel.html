@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>商店面板测试 - ShopPanel Test</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #ffffff;
+      overflow: hidden;
+    }
+    
+    #gameCanvas {
+      display: block;
+      background: #0f0f1e;
+      cursor: default;
+    }
+    
+    .controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 15px;
+      border-radius: 8px;
+      border: 1px solid #444;
+      max-width: 300px;
+    }
+    
+    .controls h3 {
+      margin-bottom: 10px;
+      color: #4CAF50;
+      font-size: 16px;
+    }
+    
+    .controls button {
+      width: 100%;
+      padding: 8px;
+      margin: 5px 0;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.3s;
+    }
+    
+    .controls button:hover {
+      background: #45a049;
+    }
+    
+    .controls button:active {
+      background: #3d8b40;
+    }
+    
+    .info {
+      margin-top: 10px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    
+    .info p {
+      margin: 3px 0;
+    }
+    
+    .status {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 10px 15px;
+      border-radius: 8px;
+      border: 1px solid #444;
+      font-size: 12px;
+    }
+    
+    .status.success {
+      border-color: #4CAF50;
+      color: #4CAF50;
+    }
+    
+    .status.error {
+      border-color: #f44336;
+      color: #f44336;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  
+  <div class="controls">
+    <h3>🏪 商店面板测试</h3>
+    <div style="background: rgba(100, 200, 100, 0.2); padding: 8px; margin-bottom: 10px; border-radius: 4px; font-size: 11px;">
+      <strong>✅ 运行方法:</strong><br>
+      1. 运行: <code>npm run dev</code><br>
+      2. 访问: <code>http://localhost:5173/test/test-shop-panel.html</code>
+    </div>
+    <button id="btnToggleShop">打开/关闭商店</button>
+    <button id="btnToggleInventory">打开/关闭背包</button>
+    <button id="btnAddCurrency">增加货币 (+100)</button>
+    <button id="btnAddItem">添加物品到背包</button>
+    <button id="btnResetShop">重置商店</button>
+    
+    <div class="info">
+      <p><strong>操作说明:</strong></p>
+      <p><strong>商店:</strong></p>
+      <p>• 点击标签页切换购买/出售模式</p>
+      <p>• 点击物品选择要交易的物品</p>
+      <p>• 使用 +/- 按钮调整数量</p>
+      <p>• 点击购买/出售按钮完成交易</p>
+      <p><strong>背包:</strong></p>
+      <p>• 拖拽物品可以移动位置</p>
+      <p>• 右键物品可以使用/装备</p>
+      <p>• 点击筛选按钮过滤物品类型</p>
+      <p>• 鼠标悬停查看物品详情</p>
+    </div>
+  </div>
+  
+  <div id="statusMessage" class="status" style="display: none;"></div>
+
+  <script type="module">
+    import { ShopPanel } from '../src/prologue/ui/ShopPanel.js';
+    import { ShopSystem } from '../src/prologue/systems/ShopSystem.js';
+    import { InventorySystem } from '../src/prologue/systems/InventorySystem.js';
+    import { InventoryPanel } from '../src/prologue/ui/InventoryPanel.js';
+
+    console.log('模块加载成功');
+    console.log('ShopPanel:', ShopPanel);
+    console.log('ShopSystem:', ShopSystem);
+    console.log('InventorySystem:', InventorySystem);
+
+    // Canvas 设置
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    // 创建系统实例
+    const shopSystem = new ShopSystem();
+    const inventorySystem = new InventorySystem(40);
+
+    // 创建模拟玩家
+    const player = {
+      name: '测试玩家',
+      currency: 500,
+      inventory: inventorySystem
+    };
+
+    // 注册测试商店
+    shopSystem.registerShop('test_shop', {
+      name: '张角杂货铺',
+      description: '黄巾军的补给商店',
+      items: [
+        {
+          id: 'sword_1',
+          name: '铁剑',
+          type: 'equipment',
+          price: 100,
+          stock: 5,
+          description: '普通的铁制长剑，适合初学者使用。',
+          attributes: { attack: 15, speed: 5 }
+        },
+        {
+          id: 'armor_1',
+          name: '布甲',
+          type: 'equipment',
+          price: 80,
+          stock: 10,
+          description: '简单的布制护甲，提供基础防护。',
+          attributes: { defense: 10, health: 20 }
+        },
+        {
+          id: 'potion_hp',
+          name: '生命药水',
+          type: 'consumable',
+          price: 30,
+          stock: 20,
+          description: '恢复50点生命值的药水。'
+        },
+        {
+          id: 'potion_mp',
+          name: '法力药水',
+          type: 'consumable',
+          price: 25,
+          stock: 15,
+          description: '恢复30点法力值的药水。'
+        },
+        {
+          id: 'material_1',
+          name: '铁矿石',
+          type: 'material',
+          price: 10,
+          stock: 50,
+          description: '用于锻造武器的基础材料。'
+        },
+        {
+          id: 'material_2',
+          name: '布料',
+          type: 'material',
+          price: 8,
+          stock: 40,
+          description: '用于制作护甲的基础材料。'
+        },
+        {
+          id: 'bow_1',
+          name: '木弓',
+          type: 'equipment',
+          price: 120,
+          stock: 3,
+          description: '简单的木制弓箭，适合远程攻击。',
+          attributes: { attack: 12, speed: 8 }
+        },
+        {
+          id: 'shield_1',
+          name: '木盾',
+          type: 'equipment',
+          price: 90,
+          stock: 8,
+          description: '木制盾牌，提供额外防护。',
+          attributes: { defense: 15 }
+        }
+      ],
+      priceModifier: 1.0
+    });
+
+    // 添加一些初始物品到背包
+    const addResult1 = inventorySystem.addItem({
+      id: 'old_sword',
+      name: '旧剑',
+      type: 'equipment',
+      price: 50,
+      description: '一把生锈的旧剑。',
+      attributes: { attack: 8 }
+    }, 1);
+    console.log('添加旧剑结果:', addResult1);
+
+    const addResult2 = inventorySystem.addItem({
+      id: 'old_armor',
+      name: '旧甲',
+      type: 'equipment',
+      price: 40,
+      description: '破损的旧护甲。',
+      attributes: { defense: 5 }
+    }, 1);
+    console.log('添加旧甲结果:', addResult2);
+    
+    console.log('背包物品列表:', inventorySystem.getAllItems());
+    console.log('背包已用槽位:', inventorySystem.getUsedSlots());
+
+    // 创建商店面板（右侧）
+    const shopPanel = new ShopPanel({
+      x: 680,
+      y: 50,
+      width: 700,
+      height: 550,
+      shopSystem: shopSystem,
+      inventorySystem: inventorySystem,
+      visible: false,
+      onBuy: (item, quantity, result) => {
+        showStatus(`购买成功: ${item.name} x${quantity}，花费 ${result.totalCost} 铜钱`, 'success');
+      },
+      onSell: (item, quantity, result) => {
+        showStatus(`出售成功: ${item.name} x${quantity}，获得 ${result.totalValue} 铜钱`, 'success');
+      },
+      onClose: () => {
+        showStatus('商店已关闭', 'success');
+      }
+    });
+
+    shopPanel.setPlayer(player);
+
+    // 创建背包面板（左侧）
+    const inventoryPanel = new InventoryPanel({
+      x: 50,
+      y: 50,
+      width: 600,
+      height: 500,
+      inventorySystem: inventorySystem,
+      visible: false,
+      onItemUse: (item) => {
+        showStatus(`使用物品: ${item.name}`, 'success');
+        console.log('使用物品:', item);
+      },
+      onItemEquip: (item) => {
+        showStatus(`装备物品: ${item.name}`, 'success');
+        console.log('装备物品:', item);
+      }
+    });
+
+    inventoryPanel.setPlayer(player);
+
+    // 状态消息显示
+    function showStatus(message, type = 'success') {
+      const statusEl = document.getElementById('statusMessage');
+      statusEl.textContent = message;
+      statusEl.className = `status ${type}`;
+      statusEl.style.display = 'block';
+      
+      setTimeout(() => {
+        statusEl.style.display = 'none';
+      }, 3000);
+    }
+
+    // 按钮事件
+    document.getElementById('btnToggleShop').addEventListener('click', () => {
+      console.log('按钮被点击');
+      console.log('当前visible状态:', shopPanel.visible);
+      
+      if (shopPanel.visible) {
+        console.log('关闭商店');
+        shopPanel.closeShop();
+      } else {
+        console.log('打开商店');
+        shopPanel.openShop('test_shop');
+        console.log('打开后visible状态:', shopPanel.visible);
+        showStatus('商店已打开', 'success');
+      }
+    });
+
+    document.getElementById('btnToggleInventory').addEventListener('click', () => {
+      inventoryPanel.toggle();
+      const status = inventoryPanel.visible ? '已打开' : '已关闭';
+      showStatus(`背包${status}`, 'success');
+    });
+
+    document.getElementById('btnAddCurrency').addEventListener('click', () => {
+      player.currency += 100;
+      showStatus(`货币增加 +100，当前: ${player.currency} 铜钱`, 'success');
+    });
+
+    document.getElementById('btnAddItem').addEventListener('click', () => {
+      const testItem = {
+        id: `test_item_${Date.now()}`,
+        name: '测试物品',
+        type: 'material',
+        price: 20,
+        description: '用于测试的物品。'
+      };
+      
+      const result = inventorySystem.addItem(testItem, 1);
+      if (result.success) {
+        showStatus('物品已添加到背包', 'success');
+      } else {
+        showStatus('背包已满，无法添加物品', 'error');
+      }
+    });
+
+    document.getElementById('btnResetShop').addEventListener('click', () => {
+      // 重置商店库存
+      const shop = shopSystem.getShop('test_shop');
+      if (shop) {
+        shop.items.forEach(item => {
+          if (item.id === 'sword_1') item.stock = 5;
+          if (item.id === 'armor_1') item.stock = 10;
+          if (item.id === 'potion_hp') item.stock = 20;
+          if (item.id === 'potion_mp') item.stock = 15;
+          if (item.id === 'material_1') item.stock = 50;
+          if (item.id === 'material_2') item.stock = 40;
+          if (item.id === 'bow_1') item.stock = 3;
+          if (item.id === 'shield_1') item.stock = 8;
+        });
+      }
+      
+      // 重置玩家货币
+      player.currency = 500;
+      
+      showStatus('商店已重置', 'success');
+    });
+
+    // 鼠标事件处理
+    let mouseX = 0;
+    let mouseY = 0;
+
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouseX = e.clientX - rect.left;
+      mouseY = e.clientY - rect.top;
+      
+      shopPanel.handleMouseMove(mouseX, mouseY);
+      inventoryPanel.handleMouseMove(mouseX, mouseY);
+    });
+
+    canvas.addEventListener('mousedown', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouseX = e.clientX - rect.left;
+      mouseY = e.clientY - rect.top;
+      
+      inventoryPanel.handleMouseDown(mouseX, mouseY, e.button);
+    });
+
+    canvas.addEventListener('mouseup', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouseX = e.clientX - rect.left;
+      mouseY = e.clientY - rect.top;
+      
+      inventoryPanel.handleMouseUp(mouseX, mouseY);
+    });
+
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouseX = e.clientX - rect.left;
+      mouseY = e.clientY - rect.top;
+      
+      shopPanel.handleMouseClick(mouseX, mouseY);
+    });
+
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      shopPanel.handleMouseWheel(e.deltaY > 0 ? 1 : -1);
+    });
+
+    // 渲染循环
+    let lastTime = 0;
+    
+    function gameLoop(currentTime) {
+      const deltaTime = currentTime - lastTime;
+      lastTime = currentTime;
+      
+      // 清空画布
+      ctx.fillStyle = '#0f0f1e';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // 绘制背景网格
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < canvas.width; x += 50) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y < canvas.height; y += 50) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+      
+      // 绘制标题
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 24px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText('商店面板测试 - ShopPanel Test', canvas.width / 2, 20);
+      
+      // 绘制玩家信息
+      ctx.fillStyle = '#ffd700';
+      ctx.font = '16px Arial, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(`货币: ${player.currency} 铜钱`, canvas.width - 20, 20);
+      
+      ctx.fillStyle = '#00ff00';
+      ctx.fillText(`背包: ${inventorySystem.getUsedSlots()}/${inventorySystem.maxSlots}`, canvas.width - 20, 45);
+      
+      // 更新和渲染背包面板（先渲染，在下层）
+      inventoryPanel.update(deltaTime);
+      inventoryPanel.render(ctx);
+      
+      // 更新和渲染商店面板（后渲染，在上层）
+      shopPanel.update(deltaTime);
+      shopPanel.render(ctx);
+      
+      requestAnimationFrame(gameLoop);
+    }
+    
+    requestAnimationFrame(gameLoop);
+    
+    console.log('商店面板测试已启动');
+    console.log('ShopPanel:', shopPanel);
+    console.log('ShopSystem:', shopSystem);
+    console.log('InventorySystem:', inventorySystem);
+  </script>
+</body>
+</html>
