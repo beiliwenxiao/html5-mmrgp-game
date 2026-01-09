@@ -201,13 +201,16 @@
   - 实现职业特性和技能树预览（复用 SkillTreePanel）
   - _需求: 19, 20_
 
-- [ ] 21. 创建对话框 (DialogueBox)
-  - 创建 `src/prologue/ui/DialogueBox.js` 文件
-  - 继承现有 UIElement 基类（复用 UI 框架）
-  - 实现打字机效果
-  - 实现角色头像显示
-  - 实现对话选项按钮
-  - 复用现有 AudioManager（对话音效）
+- [x] 21. 创建对话框 (DialogueBox)
+  - ✅ 创建 `src/prologue/ui/DialogueBox.js` 文件
+  - ✅ 继承现有 UIElement 基类（复用 UI 框架）
+  - ✅ 实现打字机效果
+  - ✅ 实现角色头像显示
+  - ✅ 实现对话选项按钮
+  - ✅ 复用现有 AudioManager（对话音效）
+  - ✅ 创建单元测试（10个测试全部通过）
+  - ✅ 创建测试页面 `test/test-dialogue-box.html`
+  - ✅ 创建实现文档 `docs/DIALOGUE_BOX_IMPLEMENTATION.md`
   - _需求: 6, 9, 35_
 
 - [ ] 22. 创建教程提示 (TutorialTooltip)

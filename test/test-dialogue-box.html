@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>对话框组件测试 - DialogueBox</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+      padding: 30px;
+      max-width: 1400px;
+      width: 100%;
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+
+    .subtitle {
+      color: #666;
+      text-align: center;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+
+    .canvas-container {
+      position: relative;
+      background: #2c3e50;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+
+    #gameCanvas {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .control-group {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 8px;
+      border: 2px solid #e9ecef;
+    }
+
+    .control-group h3 {
+      color: #495057;
+      font-size: 14px;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px 15px;
+      margin: 5px 0;
+      border: none;
+      border-radius: 5px;
+      background: #667eea;
+      color: white;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    button:hover {
+      background: #5568d3;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button.secondary {
+      background: #6c757d;
+    }
+
+    button.secondary:hover {
+      background: #5a6268;
+    }
+
+    .info {
+      background: #e7f3ff;
+      border-left: 4px solid #2196F3;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+
+    .info h3 {
+      color: #1976D2;
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+
+    .info ul {
+      margin-left: 20px;
+      color: #555;
+      line-height: 1.8;
+    }
+
+    .log {
+      background: #f8f9fa;
+      border: 2px solid #dee2e6;
+      border-radius: 8px;
+      padding: 15px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+    }
+
+    .log-entry {
+      padding: 5px;
+      border-bottom: 1px solid #e9ecef;
+      color: #495057;
+    }
+
+    .log-entry:last-child {
+      border-bottom: none;
+    }
+
+    .log-entry.info {
+      background: transparent;
+      border-left: none;
+      padding: 5px;
+      margin: 0;
+    }
+
+    .log-entry.success {
+      color: #28a745;
+    }
+
+    .log-entry.error {
+      color: #dc3545;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🗨️ 对话框组件测试</h1>
+    <p class="subtitle">DialogueBox Component Test - 张角黄巾起义序章</p>
+
+    <div class="info">
+      <h3>📋 功能说明</h3>
+      <ul>
+        <li><strong>打字机效果</strong>：对话文本逐字显示，点击可跳过</li>
+        <li><strong>角色头像</strong>：显示说话者的头像（当前为占位符）</li>
+        <li><strong>对话选项</strong>：支持多个选项，鼠标悬停高亮</li>
+        <li><strong>音效集成</strong>：打字机音效、悬停音效、选择音效</li>
+        <li><strong>继续提示</strong>：无选项时显示闪烁的继续提示</li>
+      </ul>
+    </div>
+
+    <div class="canvas-container">
+      <canvas id="gameCanvas" width="1200" height="700"></canvas>
+    </div>
+
+    <div class="controls">
+      <div class="control-group">
+        <h3>对话控制</h3>
+        <button onclick="startSimpleDialogue()">开始简单对话</button>
+        <button onclick="startChoiceDialogue()">开始选择对话</button>
+        <button onclick="startComplexDialogue()">开始复杂对话</button>
+        <button onclick="endDialogue()" class="secondary">结束对话</button>
+      </div>
+
+      <div class="control-group">
+        <h3>显示控制</h3>
+        <button onclick="toggleDialogueBox()">显示/隐藏对话框</button>
+        <button onclick="skipTypewriter()">跳过打字机效果</button>
+        <button onclick="continueDialogue()">继续对话</button>
+      </div>
+
+      <div class="control-group">
+        <h3>音效控制</h3>
+        <button onclick="toggleMute()">静音/取消静音</button>
+        <button onclick="testTypewriterSound()">测试打字机音效</button>
+        <button onclick="testChoiceSound()">测试选择音效</button>
+      </div>
+    </div>
+
+    <div class="log" id="logContainer">
+      <div class="log-entry info">等待操作...</div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { DialogueBox } from '../src/prologue/ui/DialogueBox.js';
+    import { DialogueSystem } from '../src/prologue/systems/DialogueSystem.js';
+    import { AudioManager } from '../src/core/AudioManager.js';
+
+    console.log('=== 测试页面加载 ===');
+    
+    // 获取Canvas和上下文
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // 初始化系统
+    const dialogueSystem = new DialogueSystem();
+    const audioManager = new AudioManager();
+
+    // 创建对话框
+    const dialogueBox = new DialogueBox({
+      x: 50,
+      y: 450,
+      width: 1100,
+      height: 230,
+      dialogueSystem: dialogueSystem,
+      audioManager: audioManager,
+      visible: false,
+      onChoiceSelect: (index, choice) => {
+        log(`选择了选项 ${index + 1}: ${choice.text}`, 'success');
+      },
+      onDialogueEnd: () => {
+        log('对话结束', 'info');
+      },
+      onContinue: () => {
+        log('继续对话', 'info');
+      }
+    });
+
+    // 注册测试对话
+    function registerTestDialogues() {
+      // 简单对话
+      dialogueSystem.registerDialogue('simple', {
+        title: '简单对话',
+        startNode: 'start',
+        nodes: {
+          start: {
+            speaker: '张角',
+            text: '你醒了。你在荒野中昏倒了，我们把你救了回来。',
+            portrait: 'zhangjiao',
+            nextNode: 'node2'
+          },
+          node2: {
+            speaker: '张角',
+            text: '这是一碗符水，喝下去会让你恢复体力。',
+            portrait: 'zhangjiao',
+            nextNode: 'node3'
+          },
+          node3: {
+            speaker: '张角',
+            text: '苍天已死，黄天当立。岁在甲子，天下大吉。',
+            portrait: 'zhangjiao',
+            nextNode: null
+          }
+        }
+      });
+
+      // 选择对话
+      dialogueSystem.registerDialogue('choice', {
+        title: '选择对话',
+        startNode: 'start',
+        nodes: {
+          start: {
+            speaker: '张角',
+            text: '你愿意加入我们，一起推翻腐朽的朝廷吗？',
+            portrait: 'zhangjiao',
+            choices: [
+              { text: '我愿意加入', nextNode: 'join' },
+              { text: '让我再想想', nextNode: 'think' },
+              { text: '我拒绝', nextNode: 'refuse' }
+            ]
+          },
+          join: {
+            speaker: '张角',
+            text: '很好！从今天起，你就是黄巾军的一员了。',
+            portrait: 'zhangjiao',
+            nextNode: null
+          },
+          think: {
+            speaker: '张角',
+            text: '没关系，慢慢考虑。但时间不多了。',
+            portrait: 'zhangjiao',
+            nextNode: null
+          },
+          refuse: {
+            speaker: '张角',
+            text: '可惜了...希望你不会后悔。',
+            portrait: 'zhangjiao',
+            nextNode: null
+          }
+        }
+      });
+
+      // 复杂对话
+      dialogueSystem.registerDialogue('complex', {
+        title: '复杂对话',
+        startNode: 'start',
+        nodes: {
+          start: {
+            speaker: '张角',
+            text: '官府不允许私人施粥，但加了符纸就是仙家符水，就合法了。这是我们能做的，帮助更多的灾民。',
+            portrait: 'zhangjiao',
+            nextNode: 'question'
+          },
+          question: {
+            speaker: '张角',
+            text: '你明白我的意思吗？',
+            portrait: 'zhangjiao',
+            choices: [
+              { text: '明白了，这是智慧', nextNode: 'understand' },
+              { text: '这不是欺骗吗？', nextNode: 'doubt' }
+            ]
+          },
+          understand: {
+            speaker: '张角',
+            text: '很好。在乱世中生存，需要的不仅是力量，还有智慧。',
+            portrait: 'zhangjiao',
+            nextNode: 'teach'
+          },
+          doubt: {
+            speaker: '张角',
+            text: '欺骗？不，这是在规则内寻找生存之道。朝廷的规则本就不公。',
+            portrait: 'zhangjiao',
+            nextNode: 'teach'
+          },
+          teach: {
+            speaker: '张角',
+            text: '我会教你更多的东西。跟我来吧。',
+            portrait: 'zhangjiao',
+            nextNode: null
+          }
+        }
+      });
+
+      log('对话数据已注册', 'success');
+    }
+
+    // 日志函数
+    function log(message, type = 'info') {
+      const logContainer = document.getElementById('logContainer');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      const timestamp = new Date().toLocaleTimeString();
+      entry.textContent = `[${timestamp}] ${message}`;
+      logContainer.appendChild(entry);
+      logContainer.scrollTop = logContainer.scrollHeight;
+    }
+
+    // 全局函数
+    window.startSimpleDialogue = function() {
+      dialogueSystem.startDialogue('simple');
+      dialogueBox.show();
+      log('开始简单对话', 'info');
+    };
+
+    window.startChoiceDialogue = function() {
+      dialogueSystem.startDialogue('choice');
+      dialogueBox.show();
+      log('开始选择对话', 'info');
+    };
+
+    window.startComplexDialogue = function() {
+      dialogueSystem.startDialogue('complex');
+      dialogueBox.show();
+      log('开始复杂对话', 'info');
+    };
+
+    window.endDialogue = function() {
+      dialogueSystem.endDialogue();
+      dialogueBox.hide();
+      log('强制结束对话', 'info');
+    };
+
+    window.toggleDialogueBox = function() {
+      if (dialogueBox.visible) {
+        dialogueBox.hide();
+        log('隐藏对话框', 'info');
+      } else {
+        dialogueBox.show();
+        log('显示对话框', 'info');
+      }
+    };
+
+    window.skipTypewriter = function() {
+      if (dialogueSystem.isTyping()) {
+        dialogueSystem.skipTypewriter();
+        log('跳过打字机效果', 'info');
+      } else {
+        log('当前没有打字机效果', 'error');
+      }
+    };
+
+    window.continueDialogue = function() {
+      if (dialogueSystem.isDialogueActive()) {
+        dialogueSystem.continue();
+        log('继续对话', 'info');
+      } else {
+        log('没有活动的对话', 'error');
+      }
+    };
+
+    window.toggleMute = function() {
+      audioManager.toggleMute();
+      log(`音效${audioManager.muted ? '已静音' : '已取消静音'}`, 'info');
+    };
+
+    window.testTypewriterSound = function() {
+      log('播放打字机音效（如果已加载）', 'info');
+      if (audioManager.hasSound('dialogue_type')) {
+        audioManager.playSound('dialogue_type', { volume: 0.3 });
+      } else {
+        log('打字机音效未加载', 'error');
+      }
+    };
+
+    window.testChoiceSound = function() {
+      log('播放选择音效（如果已加载）', 'info');
+      if (audioManager.hasSound('dialogue_select')) {
+        audioManager.playSound('dialogue_select', { volume: 0.7 });
+      } else {
+        log('选择音效未加载', 'error');
+      }
+    };
+
+    // 渲染循环
+    let lastTime = 0;
+    function gameLoop(currentTime) {
+      const deltaTime = currentTime - lastTime;
+      lastTime = currentTime;
+
+      // 清空画布
+      ctx.fillStyle = '#34495e';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 绘制背景文字
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.font = '48px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('张角黄巾起义序章', canvas.width / 2, canvas.height / 2 - 100);
+      ctx.font = '24px Arial, sans-serif';
+      ctx.fillText('对话框组件测试', canvas.width / 2, canvas.height / 2 - 40);
+
+      // 更新和渲染对话框
+      dialogueBox.update(deltaTime);
+      dialogueBox.render(ctx);
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // 鼠标事件处理
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const mouseX = (e.clientX - rect.left) * scaleX;
+      const mouseY = (e.clientY - rect.top) * scaleY;
+      
+      dialogueBox.handleMouseMove(mouseX, mouseY);
+    });
+
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const mouseX = (e.clientX - rect.left) * scaleX;
+      const mouseY = (e.clientY - rect.top) * scaleY;
+      
+      dialogueBox.handleMouseClick(mouseX, mouseY);
+    });
+
+    // 初始化
+    registerTestDialogues();
+    log('对话框组件测试页面已加载', 'success');
+    log('点击上方按钮开始测试', 'info');
+    
+    // 启动渲染循环
+    requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>
