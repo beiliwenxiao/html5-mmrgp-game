@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TutorialTooltip 测试页面</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    h1 {
+      color: white;
+      margin-bottom: 20px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+
+    #gameCanvas {
+      border: 3px solid #333;
+      background: #2c3e50;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      cursor: pointer;
+    }
+
+    .controls {
+      margin-top: 20px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    button {
+      padding: 12px 24px;
+      font-size: 16px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    .info {
+      margin-top: 20px;
+      padding: 20px;
+      background: rgba(255,255,255,0.95);
+      border-radius: 10px;
+      max-width: 800px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+
+    .info h2 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+
+    .info p {
+      color: #666;
+      line-height: 1.6;
+      margin-bottom: 10px;
+    }
+
+    .info ul {
+      color: #666;
+      margin-left: 20px;
+      line-height: 1.8;
+    }
+
+    .target-element {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.2);
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      border-radius: 5px;
+      pointer-events: none;
+    }
+
+    .status {
+      margin-top: 10px;
+      padding: 10px;
+      background: rgba(255, 215, 0, 0.2);
+      border-radius: 5px;
+      color: #333;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎓 TutorialTooltip 测试页面</h1>
+  
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  
+  <div class="controls">
+    <button id="btnMovementTutorial">移动教程</button>
+    <button id="btnPickupTutorial">拾取教程</button>
+    <button id="btnEquipmentTutorial">装备教程</button>
+    <button id="btnCombatTutorial">战斗教程</button>
+    <button id="btnMultiStepTutorial">多步骤教程</button>
+    <button id="btnReset">重置</button>
+  </div>
+
+  <div class="info">
+    <h2>📖 功能说明</h2>
+    <p><strong>TutorialTooltip</strong> 是一个教程提示组件，用于引导玩家学习游戏机制。</p>
+    
+    <h3>✨ 主要功能：</h3>
+    <ul>
+      <li><strong>目标元素高亮</strong>：自动高亮需要关注的UI元素</li>
+      <li><strong>箭头指示</strong>：箭头指向目标元素（支持上下左右四个方向）</li>
+      <li><strong>多步骤导航</strong>：支持上一步、下一步、跳过等操作</li>
+      <li><strong>脉冲动画</strong>：高亮区域带有呼吸效果</li>
+      <li><strong>暂停游戏</strong>：可选择是否在教程期间暂停游戏</li>
+    </ul>
+
+    <h3>🎮 操作说明：</h3>
+    <ul>
+      <li>点击上方按钮启动不同的教程</li>
+      <li>点击"下一步"按钮继续教程</li>
+      <li>点击"上一步"按钮返回上一步</li>
+      <li>点击"跳过"按钮跳过当前教程</li>
+      <li>最后一步会显示"完成"按钮</li>
+    </ul>
+
+    <div class="status" id="status">
+      状态：等待启动教程
+    </div>
+  </div>
+
+  <script type="module">
+    import { TutorialTooltip } from '../src/prologue/ui/TutorialTooltip.js';
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const statusDiv = document.getElementById('status');
+
+    // 模拟音频管理器
+    const mockAudioManager = {
+      hasSound: () => false,
+      playSound: () => {}
+    };
+
+    // 创建教程提示框
+    const tooltip = new TutorialTooltip({
+      audioManager: mockAudioManager
+    });
+
+    // 模拟目标元素
+    const targetElements = {
+      movement: { x: 100, y: 100, width: 100, height: 100 },
+      pickup: { x: 300, y: 150, width: 80, height: 80 },
+      equipment: { x: 600, y: 100, width: 120, height: 120 },
+      combat: { x: 400, y: 400, width: 150, height: 100 }
+    };
+
+    // 教程数据
+    const tutorials = {
+      movement: {
+        id: 'movement_tutorial',
+        title: '移动教程',
+        steps: [
+          {
+            text: '使用 WASD 或方向键移动你的角色。\n试着移动到高亮区域！',
+            targetElement: targetElements.movement,
+            arrowDirection: 'down'
+          }
+        ],
+        pauseGame: true
+      },
+      pickup: {
+        id: 'pickup_tutorial',
+        title: '拾取教程',
+        steps: [
+          {
+            text: '靠近物品时，按 E 键拾取。\n这个箱子里有好东西！',
+            targetElement: targetElements.pickup,
+            arrowDirection: 'left'
+          }
+        ],
+        pauseGame: true
+      },
+      equipment: {
+        id: 'equipment_tutorial',
+        title: '装备教程',
+        steps: [
+          {
+            text: '打开背包（按 I 键）查看你的物品。\n点击装备来穿戴它们。',
+            targetElement: targetElements.equipment,
+            arrowDirection: 'down'
+          }
+        ],
+        pauseGame: false
+      },
+      combat: {
+        id: 'combat_tutorial',
+        title: '战斗教程',
+        steps: [
+          {
+            text: '按空格键攻击敌人。\n注意敌人的攻击模式！',
+            targetElement: targetElements.combat,
+            arrowDirection: 'up'
+          }
+        ],
+        pauseGame: true
+      },
+      multiStep: {
+        id: 'multi_step_tutorial',
+        title: '完整游戏教程',
+        steps: [
+          {
+            text: '欢迎来到游戏！\n首先，让我们学习如何移动。',
+            targetElement: targetElements.movement,
+            arrowDirection: 'down'
+          },
+          {
+            text: '很好！现在学习如何拾取物品。\n靠近物品并按 E 键。',
+            targetElement: targetElements.pickup,
+            arrowDirection: 'left'
+          },
+          {
+            text: '接下来是装备系统。\n打开背包来管理你的装备。',
+            targetElement: targetElements.equipment,
+            arrowDirection: 'down'
+          },
+          {
+            text: '最后，学习战斗技巧。\n按空格键攻击敌人！',
+            targetElement: targetElements.combat,
+            arrowDirection: 'up'
+          },
+          {
+            text: '恭喜！你已经掌握了所有基础操作。\n现在可以开始你的冒险了！',
+            targetElement: null,
+            arrowDirection: 'down'
+          }
+        ],
+        pauseGame: true
+      }
+    };
+
+    // 设置回调
+    tooltip.onComplete = (tutorial) => {
+      console.log('教程完成:', tutorial.id);
+      updateStatus(`✅ 教程 "${tutorial.title}" 已完成！`);
+    };
+
+    tooltip.onSkip = () => {
+      console.log('教程跳过');
+      updateStatus('⏭️ 教程已跳过');
+    };
+
+    tooltip.onStepChange = (stepIndex, step) => {
+      console.log('步骤变化:', stepIndex, step);
+      updateStatus(`📍 当前步骤: ${stepIndex + 1}`);
+    };
+
+    // 更新状态显示
+    function updateStatus(message) {
+      statusDiv.textContent = `状态：${message}`;
+    }
+
+    // 渲染循环
+    let lastTime = 0;
+    function gameLoop(currentTime) {
+      const deltaTime = currentTime - lastTime;
+      lastTime = currentTime;
+
+      // 清空画布
+      ctx.fillStyle = '#2c3e50';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 绘制网格
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < canvas.width; x += 50) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y < canvas.height; y += 50) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+
+      // 绘制目标元素
+      Object.entries(targetElements).forEach(([key, element]) => {
+        ctx.fillStyle = 'rgba(100, 150, 200, 0.3)';
+        ctx.fillRect(element.x, element.y, element.width, element.height);
+        ctx.strokeStyle = 'rgba(100, 150, 200, 0.8)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(element.x, element.y, element.width, element.height);
+        
+        // 绘制标签
+        ctx.fillStyle = '#fff';
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(key, element.x + element.width / 2, element.y + element.height / 2);
+      });
+
+      // 更新和渲染教程提示框
+      tooltip.update(deltaTime);
+      tooltip.render(ctx);
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // 启动渲染循环
+    requestAnimationFrame(gameLoop);
+
+    // 鼠标事件处理
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      tooltip.handleMouseMove(mouseX, mouseY);
+    });
+
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      tooltip.handleMouseClick(mouseX, mouseY);
+    });
+
+    // 按钮事件
+    document.getElementById('btnMovementTutorial').addEventListener('click', () => {
+      tooltip.showTutorial(tutorials.movement);
+      updateStatus('🎮 移动教程已启动');
+    });
+
+    document.getElementById('btnPickupTutorial').addEventListener('click', () => {
+      tooltip.showTutorial(tutorials.pickup);
+      updateStatus('📦 拾取教程已启动');
+    });
+
+    document.getElementById('btnEquipmentTutorial').addEventListener('click', () => {
+      tooltip.showTutorial(tutorials.equipment);
+      updateStatus('⚔️ 装备教程已启动');
+    });
+
+    document.getElementById('btnCombatTutorial').addEventListener('click', () => {
+      tooltip.showTutorial(tutorials.combat);
+      updateStatus('⚔️ 战斗教程已启动');
+    });
+
+    document.getElementById('btnMultiStepTutorial').addEventListener('click', () => {
+      tooltip.showTutorial(tutorials.multiStep);
+      updateStatus('📚 多步骤教程已启动');
+    });
+
+    document.getElementById('btnReset').addEventListener('click', () => {
+      tooltip.hide();
+      updateStatus('🔄 已重置');
+    });
+
+    console.log('TutorialTooltip 测试页面已加载');
+    console.log('提示框实例:', tooltip);
+  </script>
+</body>
+</html>

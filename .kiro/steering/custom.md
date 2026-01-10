@@ -67,11 +67,12 @@ inclusion: always
 - 注意内存泄漏问题
 - 保持代码简洁可读
 
-## 回答问题要求
-- 用中文回答
-- 执行task时，当完成一个小任务后，继续往后执行，拥有所有权限。
-
 ## Kiro新版本函数有变化，使用以下方法
 - fsWrite: parameters required: ["path", "text"]
 - fsAppend: parameters required: ["path", "text"]
 
+## 用户约束
+- 用中文回答
+- 执行task时，当完成一个小任务后，继续往后执行，拥有所有权限。
+- 不要主动创建新的文档和总结。
+- 所有功能，优先使用和复用已有系统的功能。

@@ -370,12 +370,22 @@ export class DialogueSystem {
 
   /**
    * 更新对话系统（每帧调用）
-   * @param {number} deltaTime - 时间增量（毫秒）
+   * @param {number} deltaTime - 时间增量（秒）
    */
   update(deltaTime) {
     if (this.enableTypewriter) {
-      this.updateTypewriter(deltaTime);
+      // 转换为毫秒传递给 updateTypewriter
+      this.updateTypewriter(deltaTime * 1000);
     }
+  }
+
+  /**
+   * 渲染对话系统（每帧调用）
+   * @param {CanvasRenderingContext2D} ctx - Canvas渲染上下文
+   */
+  render(ctx) {
+    // 对话系统的渲染由 UI 组件（DialogueBox）负责
+    // 这个方法保留用于未来可能的扩展
   }
 
   /**

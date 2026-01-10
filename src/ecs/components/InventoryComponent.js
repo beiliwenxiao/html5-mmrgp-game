@@ -75,7 +75,7 @@ export class InventoryComponent extends Component {
   constructor(options = {}) {
     super('inventory');
     
-    this.maxSlots = options.maxSlots || 30; // 默认30个槽位
+    this.maxSlots = options.maxSlots || 24; // 默认24个槽位（6x4）
     this.slots = new Array(this.maxSlots).fill(null); // 槽位数组
     
     // 物品分类过滤器

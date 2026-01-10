@@ -17,18 +17,18 @@ export class InventoryPanel extends UIElement {
     super({
       x: options.x || 400,
       y: options.y || 50,
-      width: options.width || 400,
-      height: options.height || 500,
+      width: options.width || 370,  // 调整宽度: 20 + 6*(50+5) - 5 + 20 = 370
+      height: options.height || 350,  // 调整高度: 80 + 4*(50+5) - 5 + 20 = 315，留一些余量
       visible: options.visible || false,
       zIndex: options.zIndex || 100
     });
 
     this.title = '背包';
     this.entity = null;
-    this.slotSize = 40;
-    this.slotPadding = 4;
-    this.slotsPerRow = 8;
-    this.maxVisibleRows = 8;
+    this.slotSize = 50;
+    this.slotPadding = 5;
+    this.slotsPerRow = 6;  // 改为6列
+    this.maxVisibleRows = 4;  // 改为4行
     
     // 计算槽位布局
     this.slotStartX = 20;
@@ -48,6 +48,8 @@ export class InventoryPanel extends UIElement {
     this.selectedSlot = -1;
     this.draggedItem = null;
     this.dragOffset = { x: 0, y: 0 };
+    this.mouseX = 0;
+    this.mouseY = 0;
     
     // 右键菜单
     this.contextMenu = {
@@ -194,29 +196,13 @@ export class InventoryPanel extends UIElement {
     const inventoryComponent = this.entity.getComponent('inventory');
     if (!inventoryComponent) return;
 
-    // 获取筛选后的物品
-    const filteredItems = this.getFilteredItems(inventoryComponent);
+    const currentFilter = inventoryComponent.currentFilter;
     
-    // 渲染筛选后的物品
-    for (let i = 0; i < filteredItems.length; i++) {
-      const row = Math.floor(i / this.slotsPerRow);
-      const col = i % this.slotsPerRow;
-      
-      if (row >= this.maxVisibleRows) break;
-      
-      const slotX = this.x + this.slotStartX + col * (this.slotSize + this.slotPadding);
-      const slotY = this.y + this.slotStartY + row * (this.slotSize + this.slotPadding);
-      
-      const filteredItem = filteredItems[i];
-      this.renderFilteredSlot(ctx, filteredItem, slotX, slotY, i);
-    }
-    
-    // 如果是显示全部，还需要渲染空槽位
-    if (inventoryComponent.currentFilter === 'all') {
+    if (currentFilter === 'all') {
+      // 显示全部：渲染所有槽位（包括空槽位）
       const totalSlots = inventoryComponent.maxSlots;
-      const usedSlots = inventoryComponent.getUsedSlotCount();
       
-      for (let i = usedSlots; i < totalSlots; i++) {
+      for (let i = 0; i < totalSlots; i++) {
         const row = Math.floor(i / this.slotsPerRow);
         const col = i % this.slotsPerRow;
         
@@ -225,7 +211,31 @@ export class InventoryPanel extends UIElement {
         const slotX = this.x + this.slotStartX + col * (this.slotSize + this.slotPadding);
         const slotY = this.y + this.slotStartY + row * (this.slotSize + this.slotPadding);
         
-        this.renderEmptySlot(ctx, slotX, slotY, i);
+        const slot = inventoryComponent.getSlot(i);
+        
+        if (slot) {
+          // 渲染有物品的槽位
+          this.renderSlot(ctx, i, slotX, slotY, inventoryComponent);
+        } else {
+          // 渲染空槽位
+          this.renderEmptySlot(ctx, slotX, slotY, i);
+        }
+      }
+    } else {
+      // 分类显示：只显示符合条件的物品，紧密排列
+      const filteredItems = this.getFilteredItems(inventoryComponent);
+      
+      for (let i = 0; i < filteredItems.length; i++) {
+        const row = Math.floor(i / this.slotsPerRow);
+        const col = i % this.slotsPerRow;
+        
+        if (row >= this.maxVisibleRows) break;
+        
+        const slotX = this.x + this.slotStartX + col * (this.slotSize + this.slotPadding);
+        const slotY = this.y + this.slotStartY + row * (this.slotSize + this.slotPadding);
+        
+        const filteredItem = filteredItems[i];
+        this.renderFilteredSlot(ctx, filteredItem, slotX, slotY, i);
       }
     }
   }
@@ -378,13 +388,37 @@ export class InventoryPanel extends UIElement {
     const tooltipWidth = 280;
     const tooltipHeight = 180;
     
-    // 计算提示框位置（避免超出屏幕）
-    let tooltipX = this.x + this.width + 10;
-    let tooltipY = this.y + 100;
+    // 获取canvas尺寸
+    const canvas = document.getElementById('gameCanvas');
+    const canvasWidth = canvas ? canvas.width : 800;
+    const canvasHeight = canvas ? canvas.height : 600;
     
-    // 如果超出右边界，显示在左侧
-    if (tooltipX + tooltipWidth > 1200) { // 假设屏幕宽度1200
-      tooltipX = this.x - tooltipWidth - 10;
+    // 默认显示在鼠标右侧
+    let tooltipX = this.mouseX + 15;
+    let tooltipY = this.mouseY - 20;
+    
+    // 如果超出右边界，显示在鼠标左侧
+    if (tooltipX + tooltipWidth > canvasWidth) {
+      tooltipX = this.mouseX - tooltipWidth - 15;
+    }
+    
+    // 如果左侧也超出，显示在背包右侧
+    if (tooltipX < 0) {
+      tooltipX = this.x + this.width + 10;
+      // 如果背包右侧也超出，显示在背包左侧
+      if (tooltipX + tooltipWidth > canvasWidth) {
+        tooltipX = this.x - tooltipWidth - 10;
+      }
+    }
+    
+    // 如果超出下边界，向上调整
+    if (tooltipY + tooltipHeight > canvasHeight) {
+      tooltipY = canvasHeight - tooltipHeight - 10;
+    }
+    
+    // 如果超出上边界，向下调整
+    if (tooltipY < 0) {
+      tooltipY = 10;
     }
     
     // 提示框背景
@@ -586,6 +620,10 @@ export class InventoryPanel extends UIElement {
   handleMouseMove(x, y) {
     if (!this.visible) return;
 
+    // 保存鼠标位置
+    this.mouseX = x;
+    this.mouseY = y;
+
     this.hoveredSlot = -1;
 
     // 检查是否悬停在物品槽上
@@ -610,8 +648,14 @@ export class InventoryPanel extends UIElement {
   handleMouseClick(x, y, button = 'left') {
     if (!this.visible || !this.containsPoint(x, y)) return false;
 
-    // 隐藏右键菜单
-    this.contextMenu.visible = false;
+    // 检查右键菜单点击
+    if (this.contextMenu.visible) {
+      if (this.handleContextMenuClick(x, y)) {
+        return true;
+      }
+      // 点击菜单外部，隐藏菜单
+      this.contextMenu.visible = false;
+    }
 
     // 检查过滤器按钮点击
     for (const filterButton of this.filterButtons) {
@@ -640,6 +684,78 @@ export class InventoryPanel extends UIElement {
   }
 
   /**
+   * 处理右键菜单点击
+   * @param {number} x - 鼠标X坐标
+   * @param {number} y - 鼠标Y坐标
+   * @returns {boolean} 是否处理了点击
+   */
+  handleContextMenuClick(x, y) {
+    if (!this.contextMenu.visible) return false;
+    
+    const menuWidth = 100;
+    const menuHeight = this.contextMenu.options.length * 25;
+    
+    // 检查是否点击在菜单内
+    if (x < this.contextMenu.x || x > this.contextMenu.x + menuWidth ||
+        y < this.contextMenu.y || y > this.contextMenu.y + menuHeight) {
+      return false;
+    }
+    
+    // 计算点击的选项索引
+    const relativeY = y - this.contextMenu.y;
+    const optionIndex = Math.floor(relativeY / 25);
+    
+    if (optionIndex >= 0 && optionIndex < this.contextMenu.options.length) {
+      const option = this.contextMenu.options[optionIndex];
+      const slotIndex = this.contextMenu.slotIndex;
+      
+      console.log(`点击菜单选项: ${option.label}, 槽位: ${slotIndex}`);
+      
+      // 执行对应操作
+      switch (option.action) {
+        case 'use':
+          this.useItem(slotIndex);
+          break;
+          
+        case 'drop':
+          this.dropItem(slotIndex);
+          break;
+      }
+      
+      // 隐藏菜单
+      this.contextMenu.visible = false;
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
+   * 丢弃物品
+   * @param {number} slotIndex - 槽位索引
+   */
+  dropItem(slotIndex) {
+    if (!this.entity) return;
+    
+    const inventoryComponent = this.entity.getComponent('inventory');
+    if (!inventoryComponent) return;
+    
+    const slot = inventoryComponent.getSlot(slotIndex);
+    if (!slot || !slot.item) return;
+    
+    const item = slot.item;
+    console.log(`丢弃物品: ${item.name}`);
+    
+    // 从背包移除物品
+    inventoryComponent.removeItem(item.id, 1);
+    
+    // 触发丢弃回调
+    if (this.onItemDrop) {
+      this.onItemDrop(item);
+    }
+  }
+
+  /**
    * 获取指定位置的槽位索引
    * @param {number} x - X坐标
    * @param {number} y - Y坐标
@@ -665,17 +781,17 @@ export class InventoryPanel extends UIElement {
       
       const displayIndex = row * this.slotsPerRow + col;
       
-      // 根据当前筛选器获取实际槽位索引
       if (this.entity) {
         const inventoryComponent = this.entity.getComponent('inventory');
         if (inventoryComponent) {
-          const filteredItems = this.getFilteredItems(inventoryComponent);
+          const currentFilter = inventoryComponent.currentFilter;
           
-          if (inventoryComponent.currentFilter === 'all') {
-            // 显示全部时，直接返回显示索引
+          if (currentFilter === 'all') {
+            // 显示全部时，直接返回槽位索引
             return displayIndex < inventoryComponent.maxSlots ? displayIndex : -1;
           } else {
-            // 筛选模式时，返回筛选后物品的原始索引
+            // 分类模式时，返回筛选后物品的原始索引
+            const filteredItems = this.getFilteredItems(inventoryComponent);
             if (displayIndex < filteredItems.length) {
               return filteredItems[displayIndex].index;
             }
@@ -694,6 +810,108 @@ export class InventoryPanel extends UIElement {
   handleSlotLeftClick(slotIndex) {
     this.selectedSlot = slotIndex;
     console.log(`选中槽位: ${slotIndex}`);
+    
+    if (!this.entity) return;
+    
+    const inventoryComponent = this.entity.getComponent('inventory');
+    const equipmentComponent = this.entity.getComponent('equipment');
+    
+    if (!inventoryComponent) return;
+    
+    const slot = inventoryComponent.getSlot(slotIndex);
+    if (!slot || !slot.item) return;
+    
+    const item = slot.item;
+    
+    // 如果是装备，尝试装备
+    if (item.type === 'equipment' && equipmentComponent) {
+      const subType = item.subType; // 'weapon', 'armor', 'accessory' 等
+      
+      console.log(`尝试装备物品: ${item.name}, subType: ${subType}`);
+      
+      // 从背包移除物品
+      const removed = inventoryComponent.removeItem(item.id, 1);
+      console.log(`从背包移除了 ${removed} 个物品`);
+      
+      // 装备到对应槽位
+      const oldItem = equipmentComponent.equip(subType, item);
+      
+      // 如果有旧装备，放回背包
+      if (oldItem) {
+        inventoryComponent.addItem(oldItem);
+        console.log(`旧装备 ${oldItem.name} 已放回背包`);
+      }
+      
+      console.log(`成功装备物品: ${item.name} 到 ${subType} 槽位`);
+    }
+    // 如果是可使用的消耗品，直接使用
+    else if (item.type === 'consumable' && item.usable) {
+      this.useItem(slotIndex);
+    }
+  }
+
+  /**
+   * 使用物品
+   * @param {number} slotIndex - 槽位索引
+   */
+  useItem(slotIndex) {
+    if (!this.entity) return;
+    
+    const inventoryComponent = this.entity.getComponent('inventory');
+    const statsComponent = this.entity.getComponent('stats');
+    
+    if (!inventoryComponent || !statsComponent) return;
+    
+    const slot = inventoryComponent.getSlot(slotIndex);
+    if (!slot || !slot.item || !slot.item.usable) return;
+    
+    const item = slot.item;
+    console.log(`使用物品: ${item.name}`);
+    
+    let healAmount = 0;
+    let manaAmount = 0;
+    
+    // 应用物品效果
+    if (item.effect) {
+      switch (item.effect.type) {
+        case 'heal':
+          // 恢复生命值
+          healAmount = item.effect.value;
+          const oldHp = statsComponent.hp;
+          statsComponent.hp = Math.min(statsComponent.hp + healAmount, statsComponent.maxHp);
+          const actualHeal = statsComponent.hp - oldHp;
+          console.log(`恢复了 ${actualHeal} 点生命值，当前生命值: ${statsComponent.hp}/${statsComponent.maxHp}`);
+          healAmount = actualHeal; // 使用实际恢复量
+          break;
+          
+        case 'restore_mana':
+          // 恢复魔法值
+          manaAmount = item.effect.value;
+          const oldMp = statsComponent.mp;
+          statsComponent.mp = Math.min(statsComponent.mp + manaAmount, statsComponent.maxMp);
+          const actualMana = statsComponent.mp - oldMp;
+          console.log(`恢复了 ${actualMana} 点魔法值，当前魔法值: ${statsComponent.mp}/${statsComponent.maxMp}`);
+          manaAmount = actualMana; // 使用实际恢复量
+          break;
+          
+        case 'buff':
+          // 应用增益效果（需要状态效果系统支持）
+          console.log(`应用增益效果: ${item.effect.stat} +${item.effect.value * 100}%`);
+          break;
+          
+        default:
+          console.log(`未知的物品效果类型: ${item.effect.type}`);
+      }
+    }
+    
+    // 从背包移除物品
+    inventoryComponent.removeItem(item.id, 1);
+    console.log(`已使用物品: ${item.name}`);
+    
+    // 触发使用回调
+    if (this.onItemUse) {
+      this.onItemUse(item, healAmount, manaAmount);
+    }
   }
 
   /**

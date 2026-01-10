@@ -362,6 +362,25 @@ export class QuestSystem {
   }
 
   /**
+   * 更新任务系统（每帧调用）
+   * @param {number} deltaTime - 时间增量（秒）
+   */
+  update(deltaTime) {
+    // 任务系统目前不需要每帧更新
+    // 任务进度由外部调用 updateProgress 或 setProgress 更新
+    // 这个方法保留用于未来可能的扩展（如自动检测任务完成条件）
+  }
+
+  /**
+   * 渲染任务系统（每帧调用）
+   * @param {CanvasRenderingContext2D} ctx - Canvas渲染上下文
+   */
+  render(ctx) {
+    // 任务系统的渲染由 UI 组件（QuestTracker）负责
+    // 这个方法保留用于未来可能的扩展
+  }
+
+  /**
    * 设置回调函数
    * @param {string} event - 事件名称
    * @param {Function} callback - 回调函数

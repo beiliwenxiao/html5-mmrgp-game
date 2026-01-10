@@ -49,13 +49,34 @@ export class Particle {
     this.velocity.x *= this.friction;
     this.velocity.y *= this.friction;
 
+    // 火焰粒子特殊效果：随着上升，水平摆动增加（形成火舌）
+    if (this.color.startsWith('#ff')) {
+      const lifeRatio = this.life / this.maxLife;
+      const ageRatio = 1 - lifeRatio; // 0到1，0是刚生成，1是快消失
+      
+      // 随着粒子上升，增加水平摆动（形成顶部的尖锐火舌）
+      const swingMultiplier = ageRatio * 3; // 上升过程中摆动增加3倍
+      const time = performance.now() / 1000;
+      const swing = Math.sin(time * 8 + this.position.x * 0.1) * 15 * swingMultiplier;
+      
+      this.velocity.x += swing * deltaTime;
+    }
+
     // 更新位置
     this.position.x += this.velocity.x * deltaTime;
     this.position.y += this.velocity.y * deltaTime;
 
-    // 更新透明度（随生命周期衰减）
+    // 更新透明度（使用非线性衰减，让火焰更清晰）
     const lifeRatio = this.life / this.maxLife;
-    this.alpha = this.initialAlpha * lifeRatio;
+    
+    // 火焰效果：前80%生命周期保持明亮，最后20%快速消失
+    if (lifeRatio > 0.2) {
+      this.alpha = this.initialAlpha;
+    } else {
+      // 最后20%生命周期快速衰减
+      const fadeRatio = lifeRatio / 0.2;
+      this.alpha = this.initialAlpha * fadeRatio;
+    }
   }
 
   /**
@@ -73,10 +94,32 @@ export class Particle {
 
     ctx.save();
     ctx.globalAlpha = this.alpha;
-    ctx.fillStyle = this.color;
-    ctx.beginPath();
-    ctx.arc(screenX, screenY, this.size, 0, Math.PI * 2);
-    ctx.fill();
+    
+    // 为火焰粒子添加发光效果
+    if (this.color.startsWith('#ff')) {
+      // 外层发光
+      const glowGradient = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, this.size * 1.5);
+      glowGradient.addColorStop(0, this.color);
+      glowGradient.addColorStop(0.5, this.color + '80'); // 50%透明
+      glowGradient.addColorStop(1, this.color + '00'); // 完全透明
+      ctx.fillStyle = glowGradient;
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, this.size * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // 核心
+      ctx.fillStyle = this.color;
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, this.size * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // 非火焰粒子（如烟雾）使用普通渲染
+      ctx.fillStyle = this.color;
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, this.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
     ctx.restore();
   }
 

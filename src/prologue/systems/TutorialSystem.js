@@ -103,13 +103,8 @@ export class TutorialSystem {
     this.currentStepIndex = 0;
     this.pauseGame = tutorial.pauseGame;
 
-    // 显示第一步
+    // 显示第一步（showStep内部会调用onShowCallback）
     this.showStep(0, context);
-
-    // 触发显示回调
-    if (this.onShowCallback) {
-      this.onShowCallback(tutorial, context);
-    }
 
     return true;
   }
@@ -346,6 +341,15 @@ export class TutorialSystem {
   }
 
   /**
+   * 渲染教程系统（每帧调用）
+   * @param {CanvasRenderingContext2D} ctx - Canvas渲染上下文
+   */
+  render(ctx) {
+    // 教程系统的渲染由 UI 组件（TutorialTooltip）负责
+    // 这个方法保留用于未来可能的扩展
+  }
+
+  /**
    * 检查自动触发的教程
    * @param {Object} gameState - 游戏状态
    */
@@ -408,6 +412,14 @@ export class TutorialSystem {
     if (this.currentTutorial && (!tutorialId || this.currentTutorial.id === tutorialId)) {
       this.hideTutorial();
     }
+  }
+
+  /**
+   * 重置整个教程系统
+   */
+  reset() {
+    this.completedTutorials.clear();
+    this.hideTutorial();
   }
 
   /**
@@ -486,6 +498,21 @@ export class TutorialSystem {
     if (progressData.enabled !== undefined) {
       this.enabled = progressData.enabled;
     }
+  }
+
+  /**
+   * 清理资源（场景退出时调用）
+   */
+  cleanup() {
+    // 隐藏当前教程
+    if (this.currentTutorial) {
+      this.hideTutorial();
+    }
+    
+    // 清除所有回调
+    this.onShowCallback = null;
+    this.onHideCallback = null;
+    this.onCompleteCallback = null;
   }
 
   /**

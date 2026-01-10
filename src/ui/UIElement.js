@@ -53,6 +53,13 @@ export class UIElement {
   }
 
   /**
+   * 切换UI元素显示状态
+   */
+  toggle() {
+    this.visible = !this.visible;
+  }
+
+  /**
    * 设置位置
    * @param {number} x - X坐标
    * @param {number} y - Y坐标

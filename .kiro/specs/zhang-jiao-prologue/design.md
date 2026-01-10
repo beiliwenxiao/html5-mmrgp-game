@@ -609,10 +609,51 @@ class TutorialSystem {
     this.tutorials = new Map()
     this.completedTutorials = new Set()
     this.currentTutorial = null
+    this.progressiveTips = []  // 渐进式提示队列
+    this.currentTipIndex = 0
   }
   
   registerTutorial(id, tutorial) {
     this.tutorials.set(id, tutorial)
+  }
+  
+  // 注册渐进式教程提示序列
+  registerProgressiveTips(tips) {
+    this.progressiveTips = tips
+    this.currentTipIndex = 0
+  }
+  
+  // 显示当前提示
+  showCurrentTip() {
+    if (this.currentTipIndex < this.progressiveTips.length) {
+      const tip = this.progressiveTips[this.currentTipIndex]
+      this.showTip(tip)
+    }
+  }
+  
+  // 显示单个提示
+  showTip(tip) {
+    // 创建对话框样式的提示UI
+    // 包含文字和半透明背景
+    this.currentTutorial = tip
+    tip.show()
+  }
+  
+  // 完成当前提示,显示下一个
+  completeCurrentTip() {
+    if (this.currentTipIndex < this.progressiveTips.length) {
+      const tip = this.progressiveTips[this.currentTipIndex]
+      this.completedTutorials.add(tip.id)
+      this.currentTipIndex++
+      
+      // 自动显示下一条提示
+      if (this.currentTipIndex < this.progressiveTips.length) {
+        this.showCurrentTip()
+      } else {
+        // 所有提示完成
+        this.currentTutorial = null
+      }
+    }
   }
   
   showTutorial(id) {
@@ -652,6 +693,17 @@ interface Tutorial {
   completionCondition: () => boolean
   pauseGame: boolean
 }
+
+// 渐进式提示接口
+interface ProgressiveTip {
+  id: string
+  text: string
+  triggerKey?: string  // 触发按键 (如 'C', 'B', 'V')
+  triggerAction?: string  // 触发动作 (如 'pickup', 'equip')
+  show: () => void
+  hide: () => void
+}
+```
 ```
 
 ### 对话系统 (DialogueSystem)

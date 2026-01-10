@@ -3,22 +3,360 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HTML5 MMRPG Game</title>
-    <link rel="stylesheet" href="styles/main.css">
+    <title>张角黄巾起义序章 - 第一幕</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            overflow: hidden;
+        }
+        
+        #game-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+        
+        #gameCanvas {
+            border: 2px solid #4CAF50;
+            background-color: #2a2a2a;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        
+        #ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        
+        #tutorial-panel {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px 40px;
+            border-radius: 15px;
+            border: 3px solid #4CAF50;
+            pointer-events: auto;
+            max-width: 600px;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(76, 175, 80, 0.5);
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+        
+        #tutorial-panel h3 {
+            color: #4CAF50;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+        
+        #tutorial-panel p {
+            font-size: 18px;
+            line-height: 1.6;
+            color: #ffffff;
+        }
+        
+        #tutorial-panel .key {
+            display: inline-block;
+            background: #4CAF50;
+            color: #000;
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 18px;
+            margin: 0 3px;
+        }
+        
+        #debug-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            pointer-events: none;
+        }
+        
+        #debug-panel div {
+            margin: 2px 0;
+        }
+        
+        #controls-hint {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        #loading-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 1000;
+        }
+        
+        #loading-screen h1 {
+            color: #4CAF50;
+            margin-bottom: 20px;
+        }
+        
+        .progress-bar {
+            width: 300px;
+            height: 20px;
+            background: #333;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            width: 0%;
+            transition: width 0.3s;
+        }
+    </style>
 </head>
 <body>
     <div id="game-container">
-        <canvas id="game-canvas"></canvas>
-        <div id="loading-screen">
-            <div class="loading-content">
-                <h1>Loading...</h1>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progress-fill"></div>
-                </div>
-                <p id="loading-text">Initializing game...</p>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        
+        <div id="ui-overlay">
+            <div id="tutorial-panel" class="hidden">
+                <h3 id="tutorial-title">教程</h3>
+                <p id="tutorial-text">教程内容</p>
+            </div>
+            
+            <div id="debug-panel">
+                <div>FPS: <span id="fps">60</span></div>
+                <div>位置: <span id="position">0, 0</span></div>
+                <div>生命值: <span id="hp">100/100</span></div>
+                <div>阶段: <span id="phase">-</span></div>
+                <div>敌人: <span id="enemies">0</span></div>
+            </div>
+            
+            <div id="controls-hint">
+                WASD/方向键: 移动 | 鼠标点击: 移动 | E: 拾取 | C: 属性 | B: 背包 | V: 装备 | 空格: 攻击
             </div>
         </div>
+        
+        <div id="loading-screen">
+            <h1>张角黄巾起义序章</h1>
+            <h2>第一幕：绝望的开始</h2>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+            <p id="loading-text">加载中...</p>
+        </div>
     </div>
-    <script type="module" src="src/main.js"></script>
+    
+    <script type="module">
+        import { Act1SceneECS } from './src/prologue/scenes/Act1SceneECS.js';
+        
+        // 游戏状态
+        let scene = null;
+        let lastTime = performance.now();
+        let fps = 60;
+        let frameCount = 0;
+        let fpsTime = 0;
+        
+        // 获取元素
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const loadingScreen = document.getElementById('loading-screen');
+        const progressFill = document.getElementById('progress-fill');
+        const loadingText = document.getElementById('loading-text');
+        const tutorialPanel = document.getElementById('tutorial-panel');
+        const tutorialTitle = document.getElementById('tutorial-title');
+        const tutorialText = document.getElementById('tutorial-text');
+        
+        // 调试面板元素
+        const fpsElement = document.getElementById('fps');
+        const positionElement = document.getElementById('position');
+        const hpElement = document.getElementById('hp');
+        const phaseElement = document.getElementById('phase');
+        const enemiesElement = document.getElementById('enemies');
+        
+        // 初始化游戏
+        async function initGame() {
+            try {
+                // 模拟加载过程
+                updateLoading(0, '初始化 ECS 系统...');
+                await sleep(500);
+                
+                updateLoading(25, '加载核心系统...');
+                await sleep(500);
+                
+                updateLoading(50, '创建场景...');
+                scene = new Act1SceneECS();
+                await sleep(500);
+                
+                updateLoading(75, '初始化玩家实体...');
+                
+                // 设置教程回调（必须在scene.enter()之前设置）
+                scene.tutorialSystem.onShow((data) => {
+                    // 处理两种回调格式：
+                    // 1. showTutorial 调用时传入 tutorial 对象
+                    // 2. showStep 调用时传入 stepData 对象
+                    if (data.step && data.step.text) {
+                        // stepData 格式
+                        showTutorial(data.tutorialTitle, data.step.text);
+                    } else if (data.title) {
+                        // tutorial 对象格式（首次显示）
+                        showTutorial(data.title, data.steps[0]?.text || '');
+                    }
+                });
+                
+                scene.tutorialSystem.onHide(() => {
+                    hideTutorial();
+                });
+                
+                // 进入场景（会触发第一个教程）
+                scene.enter();
+                await sleep(500);
+                
+                updateLoading(100, '完成！');
+                await sleep(500);
+                
+                // 隐藏加载屏幕
+                loadingScreen.style.display = 'none';
+                
+                // 开始游戏循环
+                gameLoop();
+                
+                console.log('游戏初始化完成');
+            } catch (error) {
+                console.error('游戏初始化失败:', error);
+                loadingText.textContent = '加载失败: ' + error.message;
+            }
+        }
+        
+        // 更新加载进度
+        function updateLoading(progress, text) {
+            progressFill.style.width = progress + '%';
+            loadingText.textContent = text;
+        }
+        
+        // 延迟函数
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+        
+        // 显示教程
+        function showTutorial(title, text) {
+            tutorialTitle.textContent = title;
+            // 使用innerHTML支持HTML标签
+            tutorialText.innerHTML = text;
+            tutorialPanel.classList.remove('hidden');
+        }
+        
+        // 隐藏教程
+        function hideTutorial() {
+            tutorialPanel.classList.add('hidden');
+        }
+        
+        // 游戏循环
+        function gameLoop() {
+            const currentTime = performance.now();
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+            
+            // 计算 FPS
+            frameCount++;
+            fpsTime += deltaTime;
+            if (fpsTime >= 1.0) {
+                fps = frameCount;
+                frameCount = 0;
+                fpsTime = 0;
+            }
+            
+            // 清空画布
+            ctx.fillStyle = '#2a2a2a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 更新和渲染场景
+            if (scene && scene.isActive) {
+                scene.update(deltaTime);
+                scene.render(ctx);
+                
+                // 更新调试信息
+                updateDebugInfo();
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // 更新调试信息
+        function updateDebugInfo() {
+            if (!scene || !scene.playerEntity) return;
+            
+            fpsElement.textContent = fps;
+            
+            const transform = scene.playerEntity.getComponent('transform');
+            if (transform) {
+                positionElement.textContent = 
+                    `${Math.floor(transform.position.x)}, ${Math.floor(transform.position.y)}`;
+            }
+            
+            const stats = scene.playerEntity.getComponent('stats');
+            if (stats) {
+                hpElement.textContent = `${Math.floor(stats.hp)}/${stats.maxHp}`;
+            }
+            
+            phaseElement.textContent = scene.tutorialPhase;
+            
+            const aliveEnemies = scene.enemyEntities.filter(enemy => {
+                const stats = enemy.getComponent('stats');
+                return stats && stats.hp > 0;
+            });
+            enemiesElement.textContent = aliveEnemies.length;
+        }
+        
+        // 启动游戏
+        initGame();
+    </script>
 </body>
 </html>

@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Act1Scene 测试 - 教程专用简化实现</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #4CAF50;
+        }
+        
+        .notice {
+            max-width: 800px;
+            margin: 10px auto;
+            padding: 10px;
+            background-color: #2a4a2a;
+            border-left: 4px solid #4CAF50;
+            font-size: 14px;
+        }
+        
+        #gameCanvas {
+            display: block;
+            margin: 20px auto;
+            border: 2px solid #4CAF50;
+            background-color: #2a2a2a;
+        }
+        
+        .controls {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #2a2a2a;
+            border-radius: 8px;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        .control-group label {
+            display: inline-block;
+            width: 150px;
+            color: #aaaaaa;
+        }
+        
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        button:disabled {
+            background-color: #666666;
+            cursor: not-allowed;
+        }
+        
+        .info {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 15px;
+            background-color: #2a2a2a;
+            border-radius: 8px;
+            border-left: 4px solid #4CAF50;
+        }
+        
+        .info h3 {
+            margin-top: 0;
+            color: #4CAF50;
+        }
+        
+        .status {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .status-item {
+            padding: 10px;
+            background-color: #1a1a1a;
+            border-radius: 4px;
+        }
+        
+        .status-label {
+            color: #888888;
+            font-size: 12px;
+        }
+        
+        .status-value {
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        .instructions {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 15px;
+            background-color: #2a2a2a;
+            border-radius: 8px;
+        }
+        
+        .instructions h3 {
+            color: #4CAF50;
+        }
+        
+        .instructions ul {
+            line-height: 1.8;
+        }
+        
+        .instructions code {
+            background-color: #1a1a1a;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <h1>Act1Scene 测试 - 第一幕：绝望的开始</h1>
+    
+    <div class="notice">
+        <strong>⚠️ 注意：</strong>本场景采用教程专用的简化实现，不使用完整的 ECS 架构和核心系统。
+        测试页面直接处理输入、移动、战斗和装备逻辑。主游戏场景将使用 src/systems/ 下的核心系统。
+    </div>
+    
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    
+    <div class="controls">
+        <h3>测试控制</h3>
+        
+        <div class="control-group">
+            <button id="btnStartScene">开始场景</button>
+            <button id="btnResetScene">重置场景</button>
+        </div>
+        
+        <div class="control-group">
+            <label>教程阶段:</label>
+            <button id="btnMovement">移动教程</button>
+            <button id="btnPickup">拾取教程</button>
+            <button id="btnEquipment">装备教程</button>
+            <button id="btnCombat">战斗教程</button>
+        </div>
+        
+        <div class="control-group">
+            <label>战斗波次:</label>
+            <button id="btnWave0">野狗</button>
+            <button id="btnWave1">官府士兵</button>
+            <button id="btnWave2">土匪</button>
+            <button id="btnWave3">饥民围困</button>
+        </div>
+        
+        <div class="control-group">
+            <label>场景控制:</label>
+            <button id="btnTriggerDeath">触发死亡</button>
+            <button id="btnStartTransition">开始过渡</button>
+        </div>
+    </div>
+    
+    <div class="info">
+        <h3>场景状态</h3>
+        <div class="status">
+            <div class="status-item">
+                <div class="status-label">当前阶段</div>
+                <div class="status-value" id="statusPhase">-</div>
+            </div>
+            <div class="status-item">
+                <div class="status-label">战斗波次</div>
+                <div class="status-value" id="statusWave">-</div>
+            </div>
+            <div class="status-item">
+                <div class="status-label">移动距离</div>
+                <div class="status-value" id="statusDistance">0</div>
+            </div>
+            <div class="status-item">
+                <div class="status-label">敌人数量</div>
+                <div class="status-value" id="statusEnemies">0</div>
+            </div>
+            <div class="status-item">
+                <div class="status-label">拾取物品</div>
+                <div class="status-value" id="statusItems">0/0</div>
+            </div>
+            <div class="status-item">
+                <div class="status-label">过渡状态</div>
+                <div class="status-value" id="statusTransition">无</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="instructions">
+        <h3>测试说明</h3>
+        <ul>
+            <li>点击"开始场景"初始化第一幕场景</li>
+            <li>使用 <code>WASD</code> 或方向键移动角色（移动教程）</li>
+            <li>靠近物品按 <code>E</code> 键拾取（拾取教程）</li>
+            <li>按 <code>I</code> 键打开背包装备物品（装备教程）</li>
+            <li>按 <code>空格</code> 键攻击敌人（战斗教程）</li>
+            <li>场景包含三波战斗：野狗 → 官府士兵 → 土匪 → 饥民围困</li>
+            <li>玩家死亡后会显示黑屏和文本，然后过渡到第二幕</li>
+            <li>使用测试按钮可以快速跳转到不同阶段</li>
+        </ul>
+    </div>
+    
+    <script type="module">
+        import { Act1Scene } from '../src/prologue/scenes/Act1Scene.js';
+        
+        // 获取canvas和上下文
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 创建场景实例
+        let scene = null;
+        let lastTime = performance.now();
+        
+        // 初始化场景
+        function initScene() {
+            scene = new Act1Scene();
+            scene.enter({
+                player: createMockPlayer()
+            });
+            
+            // 设置教程系统回调
+            scene.tutorialSystem.onShow((stepData) => {
+                console.log('教程显示:', stepData);
+                updateStatus();
+            });
+            
+            scene.tutorialSystem.onHide((tutorial) => {
+                console.log('教程隐藏:', tutorial);
+                updateStatus();
+            });
+            
+            scene.tutorialSystem.onComplete((tutorialId) => {
+                console.log('教程完成:', tutorialId);
+                updateStatus();
+            });
+            
+            console.log('Act1Scene initialized');
+        }
+        
+        // 创建模拟玩家
+        function createMockPlayer() {
+            // 创建持久化的组件对象
+            const components = {
+                transform: {
+                    position: { x: 400, y: 300 },
+                    setPosition: function(x, y) {
+                        this.position.x = x;
+                        this.position.y = y;
+                    }
+                },
+                stats: {
+                    hp: 100,
+                    maxHp: 100,
+                    heal: function(amount) {
+                        this.hp = Math.min(this.maxHp, this.hp + amount);
+                    },
+                    takeDamage: function(amount) {
+                        this.hp = Math.max(0, this.hp - amount);
+                    }
+                },
+                equipment: {
+                    weapon: null
+                },
+                sprite: {
+                    playAnimation: function(anim) {
+                        console.log(`Playing animation: ${anim}`);
+                    }
+                }
+            };
+            
+            return {
+                name: '测试玩家',
+                getComponent: (name) => {
+                    return components[name] || null;
+                }
+            };
+        }
+        
+        // 游戏循环
+        function gameLoop() {
+            const currentTime = performance.now();
+            const deltaTime = (currentTime - lastTime) / 1000; // 转换为秒
+            lastTime = currentTime;
+            
+            // 清空画布
+            ctx.fillStyle = '#2a2a2a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 处理玩家输入
+            handlePlayerMovement(deltaTime);
+            handlePickup();
+            handleEquipment();
+            handleCombat();
+            
+            // 更新和渲染场景
+            if (scene && scene.isActive) {
+                scene.update(deltaTime);
+                scene.render(ctx);
+                
+                // 渲染攻击特效
+                renderAttackEffect(ctx);
+                
+                // 绘制调试信息
+                drawDebugInfo(ctx);
+            }
+            
+            // 更新状态显示
+            updateStatus();
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // 更新状态显示
+        function updateStatus() {
+            if (!scene) return;
+            
+            document.getElementById('statusPhase').textContent = scene.tutorialPhase || '-';
+            document.getElementById('statusWave').textContent = scene.combatWave + 1;
+            document.getElementById('statusDistance').textContent = Math.floor(scene.playerMovedDistance);
+            document.getElementById('statusEnemies').textContent = 
+                scene.currentEnemies.filter(e => !e.isDead).length + '/' + scene.currentEnemies.length;
+            
+            const pickedCount = scene.pickupItems.filter(i => i.picked).length;
+            document.getElementById('statusItems').textContent = 
+                pickedCount + '/' + scene.pickupItems.length;
+            
+            document.getElementById('statusTransition').textContent = 
+                scene.isTransitioning ? scene.transitionPhase : '无';
+            
+            // 显示当前教程信息
+            const currentTutorial = scene.tutorialSystem.getCurrentTutorial();
+            if (currentTutorial) {
+                const stepIndex = scene.tutorialSystem.getCurrentStepIndex();
+                const step = currentTutorial.steps[stepIndex];
+                console.log(`当前教程: ${currentTutorial.title} - 步骤 ${stepIndex + 1}/${currentTutorial.steps.length}`);
+                console.log(`教程内容: ${step.text}`);
+            }
+        }
+        
+        // 在画布上绘制调试信息
+        function drawDebugInfo(ctx) {
+            if (!scene || !scene.player) return;
+            
+            const transform = scene.player.getComponent('transform');
+            if (!transform) return;
+            
+            ctx.save();
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '12px monospace';
+            ctx.textAlign = 'left';
+            
+            const x = 10;
+            let y = 20;
+            const lineHeight = 16;
+            
+            ctx.fillText(`玩家位置: (${Math.floor(transform.position.x)}, ${Math.floor(transform.position.y)})`, x, y);
+            y += lineHeight;
+            
+            const stats = scene.player.getComponent('stats');
+            if (stats) {
+                ctx.fillText(`生命值: ${Math.floor(stats.hp)}/${stats.maxHp}`, x, y);
+                y += lineHeight;
+            }
+            
+            const equipment = scene.player.getComponent('equipment');
+            if (equipment && equipment.weapon) {
+                ctx.fillText(`武器: ${equipment.weapon.name}`, x, y);
+                y += lineHeight;
+            }
+            
+            ctx.fillText(`教程阶段: ${scene.tutorialPhase}`, x, y);
+            y += lineHeight;
+            
+            ctx.fillText(`移动距离: ${Math.floor(scene.playerMovedDistance)}px`, x, y);
+            y += lineHeight;
+            
+            ctx.fillText(`背包状态: ${isInventoryOpen ? '打开' : '关闭'}`, x, y);
+            y += lineHeight;
+            
+            const aliveEnemies = scene.currentEnemies.filter(e => !e.isDead).length;
+            if (aliveEnemies > 0) {
+                ctx.fillText(`存活敌人: ${aliveEnemies}`, x, y);
+                y += lineHeight;
+            }
+            
+            // 绘制攻击范围圈
+            if (scene.tutorialPhase === 'combat' && aliveEnemies > 0) {
+                ctx.strokeStyle = 'rgba(255, 0, 0, 0.3)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.arc(transform.position.x, transform.position.y, 100, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+            
+            ctx.restore();
+        }
+        
+        // 按钮事件
+        document.getElementById('btnStartScene').addEventListener('click', () => {
+            initScene();
+        });
+        
+        document.getElementById('btnResetScene').addEventListener('click', () => {
+            if (scene) {
+                scene.exit();
+            }
+            initScene();
+        });
+        
+        document.getElementById('btnMovement').addEventListener('click', () => {
+            if (scene) {
+                // 如果有教程正在显示,先完成它
+                if (scene.tutorialSystem.currentTutorial) {
+                    scene.tutorialSystem.completeTutorial();
+                }
+                scene.startMovementTutorial();
+            }
+        });
+        
+        document.getElementById('btnPickup').addEventListener('click', () => {
+            if (scene) {
+                // 如果有教程正在显示,先完成它
+                if (scene.tutorialSystem.currentTutorial) {
+                    scene.tutorialSystem.completeTutorial();
+                }
+                scene.startPickupTutorial();
+            }
+        });
+        
+        document.getElementById('btnEquipment').addEventListener('click', () => {
+            if (scene) {
+                // 如果有教程正在显示,先完成它
+                if (scene.tutorialSystem.currentTutorial) {
+                    scene.tutorialSystem.completeTutorial();
+                }
+                scene.startEquipmentTutorial();
+            }
+        });
+        
+        document.getElementById('btnCombat').addEventListener('click', () => {
+            if (scene) {
+                // 如果有教程正在显示,先完成它
+                if (scene.tutorialSystem.currentTutorial) {
+                    scene.tutorialSystem.completeTutorial();
+                }
+                scene.startCombatTutorial();
+            }
+        });
+        
+        document.getElementById('btnWave0').addEventListener('click', () => {
+            if (scene) {
+                scene.spawnCombatWave(0);
+            }
+        });
+        
+        document.getElementById('btnWave1').addEventListener('click', () => {
+            if (scene) {
+                scene.spawnCombatWave(1);
+            }
+        });
+        
+        document.getElementById('btnWave2').addEventListener('click', () => {
+            if (scene) {
+                scene.spawnCombatWave(2);
+            }
+        });
+        
+        document.getElementById('btnWave3').addEventListener('click', () => {
+            if (scene) {
+                scene.spawnCombatWave(3);
+            }
+        });
+        
+        document.getElementById('btnTriggerDeath').addEventListener('click', () => {
+            if (scene) {
+                scene.triggerPlayerDeath();
+            }
+        });
+        
+        document.getElementById('btnStartTransition').addEventListener('click', () => {
+            if (scene) {
+                scene.startTransition();
+            }
+        });
+        
+        // 键盘输入状态
+        const keys = {
+            w: false,
+            a: false,
+            s: false,
+            d: false,
+            ArrowUp: false,
+            ArrowLeft: false,
+            ArrowDown: false,
+            ArrowRight: false,
+            e: false,
+            i: false,
+            ' ': false
+        };
+        
+        // 鼠标状态
+        let mouseTarget = null; // 鼠标点击的目标位置
+        let isInventoryOpen = false; // 背包是否打开
+        
+        // 鼠标点击事件
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            // 设置移动目标
+            mouseTarget = { x, y };
+            console.log(`鼠标点击移动到: (${Math.floor(x)}, ${Math.floor(y)})`);
+        });
+        
+        // 键盘按下事件
+        document.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            
+            // I 键打开/关闭背包（特殊处理）
+            if (key === 'i') {
+                isInventoryOpen = !isInventoryOpen;
+                console.log(`背包${isInventoryOpen ? '打开' : '关闭'}`);
+                e.preventDefault();
+                return;
+            }
+            
+            // 其他按键状态记录
+            if (keys.hasOwnProperty(key) || keys.hasOwnProperty(e.key)) {
+                keys[key] = true;
+                keys[e.key] = true;
+                e.preventDefault();
+            }
+        });
+        
+        // 键盘释放事件
+        document.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            if (keys.hasOwnProperty(key) || keys.hasOwnProperty(e.key)) {
+                keys[key] = false;
+                keys[e.key] = false;
+                e.preventDefault();
+            }
+        });
+        
+        // 处理玩家移动
+        function handlePlayerMovement(deltaTime) {
+            if (!scene || !scene.player) return;
+            
+            const transform = scene.player.getComponent('transform');
+            if (!transform) return;
+            
+            const moveSpeed = 200; // 像素/秒
+            let dx = 0;
+            let dy = 0;
+            
+            // 优先处理鼠标点击移动
+            if (mouseTarget) {
+                const distX = mouseTarget.x - transform.position.x;
+                const distY = mouseTarget.y - transform.position.y;
+                const distance = Math.sqrt(distX * distX + distY * distY);
+                
+                // 如果距离目标很近，停止移动
+                if (distance < 5) {
+                    mouseTarget = null;
+                } else {
+                    // 归一化方向
+                    dx = distX / distance;
+                    dy = distY / distance;
+                }
+            }
+            // 否则使用键盘输入
+            else {
+                // WASD 或方向键移动
+                if (keys.w || keys.ArrowUp) dy -= 1;
+                if (keys.s || keys.ArrowDown) dy += 1;
+                if (keys.a || keys.ArrowLeft) dx -= 1;
+                if (keys.d || keys.ArrowRight) dx += 1;
+                
+                // 归一化对角线移动
+                if (dx !== 0 && dy !== 0) {
+                    dx *= 0.707; // 1/sqrt(2)
+                    dy *= 0.707;
+                }
+            }
+            
+            // 更新位置
+            if (dx !== 0 || dy !== 0) {
+                const oldX = transform.position.x;
+                const oldY = transform.position.y;
+                
+                transform.position.x += dx * moveSpeed * deltaTime;
+                transform.position.y += dy * moveSpeed * deltaTime;
+                
+                // 限制在画布范围内
+                transform.position.x = Math.max(20, Math.min(canvas.width - 20, transform.position.x));
+                transform.position.y = Math.max(20, Math.min(canvas.height - 20, transform.position.y));
+                
+                // 计算移动距离
+                const distance = Math.sqrt(
+                    Math.pow(transform.position.x - oldX, 2) + 
+                    Math.pow(transform.position.y - oldY, 2)
+                );
+                scene.playerMovedDistance += distance;
+            }
+        }
+        
+        // 处理拾取物品
+        let lastPickupTime = 0;
+        function handlePickup() {
+            if (!scene || !scene.player) return;
+            
+            // 检查是否按下 E 键
+            if (!keys.e) return;
+            
+            // 防止连续拾取（0.3秒冷却）
+            const currentTime = performance.now();
+            if (currentTime - lastPickupTime < 300) return;
+            
+            const transform = scene.player.getComponent('transform');
+            if (!transform) return;
+            
+            const playerX = transform.position.x;
+            const playerY = transform.position.y;
+            
+            // 检查附近的物品
+            for (const item of scene.pickupItems) {
+                if (item.picked) continue;
+                
+                const dx = item.x - playerX;
+                const dy = item.y - playerY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // 如果在拾取范围内（50像素）
+                if (distance <= 50) {
+                    scene.pickupItem(item);
+                    lastPickupTime = currentTime;
+                    console.log(`拾取了物品: ${item.name}`);
+                    break; // 一次只拾取一个物品
+                }
+            }
+        }
+        
+        // 处理装备
+        function handleEquipment() {
+            if (!scene || !scene.player) return;
+            
+            // 如果背包打开且有拾取的物品，自动装备第一个武器
+            if (isInventoryOpen) {
+                const equipment = scene.player.getComponent('equipment');
+                if (!equipment) return;
+                
+                // 查找已拾取的武器
+                const weapon = scene.pickupItems.find(item => 
+                    item.picked && item.type === 'weapon' && !equipment.weapon
+                );
+                
+                if (weapon) {
+                    equipment.weapon = weapon;
+                    console.log(`装备了武器: ${weapon.name}`);
+                    
+                    // 完成装备教程
+                    if (scene.tutorialPhase === 'equipment' && !scene.tutorialsCompleted.equipment) {
+                        scene.completeTutorial('equipment');
+                    }
+                }
+            }
+        }
+        
+        // 处理战斗
+        let lastAttackTime = 0;
+        let attackEffect = null; // 攻击特效 { x, y, alpha, time }
+        
+        function handleCombat() {
+            if (!scene || !scene.player) return;
+            
+            // 检查是否按下空格键
+            if (!keys[' ']) return;
+            
+            // 攻击冷却（0.5秒）
+            const currentTime = performance.now();
+            if (currentTime - lastAttackTime < 500) return;
+            
+            const transform = scene.player.getComponent('transform');
+            const equipment = scene.player.getComponent('equipment');
+            if (!transform) return;
+            
+            const playerX = transform.position.x;
+            const playerY = transform.position.y;
+            
+            // 基础攻击力
+            let attackPower = 10;
+            if (equipment && equipment.weapon) {
+                attackPower += 5; // 武器加成
+                console.log(`使用武器: ${equipment.weapon.name}`);
+            }
+            
+            // 查找最近的敌人
+            let nearestEnemy = null;
+            let nearestDistance = Infinity;
+            
+            for (const enemy of scene.currentEnemies) {
+                if (enemy.isDead) continue;
+                
+                const dx = enemy.x - playerX;
+                const dy = enemy.y - playerY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < nearestDistance) {
+                    nearestDistance = distance;
+                    nearestEnemy = enemy;
+                }
+            }
+            
+            // 如果有敌人在攻击范围内（100像素）
+            if (nearestEnemy && nearestDistance <= 100) {
+                nearestEnemy.hp -= attackPower;
+                lastAttackTime = currentTime;
+                
+                // 创建攻击特效
+                attackEffect = {
+                    x: nearestEnemy.x,
+                    y: nearestEnemy.y,
+                    alpha: 1.0,
+                    time: currentTime,
+                    damage: attackPower
+                };
+                
+                console.log(`⚔️ 攻击 ${nearestEnemy.name}，造成 ${attackPower} 点伤害，剩余 ${Math.max(0, nearestEnemy.hp)} HP`);
+                
+                // 检查敌人是否死亡
+                if (nearestEnemy.hp <= 0) {
+                    nearestEnemy.isDead = true;
+                    console.log(`💀 ${nearestEnemy.name} 被击败！`);
+                }
+            } else {
+                if (scene.currentEnemies.length === 0) {
+                    console.log('⚠️ 没有敌人，请点击"开始战斗教程"或"生成波次"按钮');
+                } else {
+                    console.log(`⚠️ 没有敌人在攻击范围内（最近距离: ${Math.floor(nearestDistance)}px，需要 ≤100px）`);
+                }
+            }
+        }
+        
+        // 渲染攻击特效
+        function renderAttackEffect(ctx) {
+            if (!attackEffect) return;
+            
+            const currentTime = performance.now();
+            const elapsed = currentTime - attackEffect.time;
+            
+            // 特效持续 500ms
+            if (elapsed > 500) {
+                attackEffect = null;
+                return;
+            }
+            
+            // 淡出效果
+            attackEffect.alpha = 1.0 - (elapsed / 500);
+            
+            ctx.save();
+            ctx.globalAlpha = attackEffect.alpha;
+            
+            // 绘制攻击圆圈
+            ctx.strokeStyle = '#ff0000';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(attackEffect.x, attackEffect.y, 30 + elapsed / 10, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // 绘制伤害数字
+            ctx.fillStyle = '#ff0000';
+            ctx.font = 'bold 20px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(`-${attackEffect.damage}`, attackEffect.x, attackEffect.y - 40 - elapsed / 10);
+            
+            ctx.restore();
+        }
+        
+        // 启动游戏循环
+        gameLoop();
+        
+        // 自动初始化场景
+        initScene();
+    </script>
+</body>
+</html>

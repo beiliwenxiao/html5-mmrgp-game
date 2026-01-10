@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>初始化调试测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a2e;
+            color: #ffffff;
+        }
+        #debug-info {
+            background: #2a2a4e;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .error {
+            color: #ff6b6b;
+            background: #3a1a1a;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success {
+            color: #51cf66;
+            background: #1a3a1a;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .step {
+            margin: 10px 0;
+            padding: 10px;
+            background: #1e1e3e;
+            border-left: 3px solid #4a9eff;
+        }
+        button {
+            background: #4a9eff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #5aa9ff;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 游戏初始化调试</h1>
+    
+    <div id="debug-info">
+        <h2>调试信息</h2>
+        <div id="steps"></div>
+    </div>
+    
+    <button onclick="testInit()">测试初始化</button>
+    <button onclick="clearLog()">清空日志</button>
+    
+    <script type="module">
+        import { GameEngine } from '../src/core/GameEngine.js';
+        
+        const stepsDiv = document.getElementById('steps');
+        
+        function addStep(message, type = 'info') {
+            const step = document.createElement('div');
+            step.className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'step';
+            step.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            stepsDiv.appendChild(step);
+            stepsDiv.scrollTop = stepsDiv.scrollHeight;
+        }
+        
+        window.clearLog = function() {
+            stepsDiv.innerHTML = '';
+        };
+        
+        window.testInit = async function() {
+            clearLog();
+            addStep('开始初始化测试...');
+            
+            try {
+                // 步骤1: 检查Canvas
+                addStep('步骤1: 检查Canvas元素');
+                const canvas = document.createElement('canvas');
+                canvas.id = 'test-canvas';
+                canvas.width = 1280;
+                canvas.height = 720;
+                document.body.appendChild(canvas);
+                addStep('✓ Canvas创建成功', 'success');
+                
+                // 步骤2: 创建GameEngine
+                addStep('步骤2: 创建GameEngine实例');
+                const gameEngine = new GameEngine(canvas);
+                addStep('✓ GameEngine实例创建成功', 'success');
+                
+                // 步骤3: 初始化Canvas
+                addStep('步骤3: 初始化Canvas');
+                gameEngine.initCanvas();
+                addStep('✓ Canvas初始化成功', 'success');
+                
+                // 步骤4: 初始化子系统
+                addStep('步骤4: 初始化子系统');
+                await gameEngine.initSystems();
+                addStep('✓ 子系统初始化成功', 'success');
+                
+                // 步骤5: 检查场景
+                addStep('步骤5: 检查场景管理器');
+                if (gameEngine.sceneManager) {
+                    addStep(`✓ SceneManager已创建`, 'success');
+                    addStep(`  当前场景: ${gameEngine.sceneManager.currentScene?.name || '无'}`);
+                } else {
+                    addStep('✗ SceneManager未创建', 'error');
+                }
+                
+                // 步骤6: 完整初始化
+                addStep('步骤6: 执行完整初始化');
+                await gameEngine.init();
+                addStep('✓ 完整初始化成功', 'success');
+                
+                addStep('========================================');
+                addStep('✓ 所有测试通过！', 'success');
+                
+            } catch (error) {
+                addStep(`✗ 初始化失败: ${error.message || error}`, 'error');
+                addStep(`错误堆栈: ${error.stack}`, 'error');
+                console.error('详细错误:', error);
+            }
+        };
+        
+        // 自动运行测试
+        setTimeout(() => testInit(), 500);
+    </script>
+</body>
+</html>

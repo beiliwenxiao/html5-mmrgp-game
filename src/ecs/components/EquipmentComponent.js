@@ -52,6 +52,8 @@ export class EquipmentComponent extends Component {
    * @returns {Object|null} 被替换的装备，如果没有则返回null
    */
   equip(slotType, equipment) {
+    console.log(`尝试装备到槽位 ${slotType}:`, equipment);
+    
     if (!this.slots.hasOwnProperty(slotType)) {
       console.warn(`Invalid equipment slot: ${slotType}`);
       return null;
@@ -59,7 +61,7 @@ export class EquipmentComponent extends Component {
 
     // 检查装备类型是否匹配槽位
     if (!this.isValidEquipmentForSlot(equipment, slotType)) {
-      console.warn(`Equipment ${equipment.id} cannot be equipped in slot ${slotType}`);
+      console.warn(`Equipment ${equipment.id} (subType: ${equipment.subType}) cannot be equipped in slot ${slotType}`);
       return null;
     }
 
@@ -71,6 +73,8 @@ export class EquipmentComponent extends Component {
     
     // 重新计算属性加成
     this.recalculateBonusStats();
+    
+    console.log(`成功装备到槽位 ${slotType}，属性加成:`, this.bonusStats);
     
     return oldEquipment;
   }
@@ -119,7 +123,7 @@ export class EquipmentComponent extends Component {
    * @returns {boolean}
    */
   isValidEquipmentForSlot(equipment, slotType) {
-    if (!equipment || !equipment.type) return false;
+    if (!equipment || !equipment.subType) return false;
     
     const validTypes = {
       weapon: ['weapon'],
@@ -132,7 +136,7 @@ export class EquipmentComponent extends Component {
       accessory3: ['accessory']
     };
     
-    return validTypes[slotType] && validTypes[slotType].includes(equipment.type);
+    return validTypes[slotType] && validTypes[slotType].includes(equipment.subType);
   }
 
   /**

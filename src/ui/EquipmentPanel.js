@@ -28,22 +28,28 @@ export class EquipmentPanel extends UIElement {
     this.slotSize = 48; // 装备槽大小
     this.slotPadding = 8; // 装备槽间距
     
-    // 装备槽位布局
+    // 装备槽位布局 - 相对于面板的位置，居中对齐
+    // 面板宽度 180px，槽位 48px，三列布局
+    const centerX = this.width / 2; // 90
+    const slotWithPadding = this.slotSize + this.slotPadding; // 56
+    
     this.slotLayout = {
-      helmet: { x: 126, y: 50 },
-      weapon: { x: 70, y: 106 },
-      armor: { x: 126, y: 106 },
-      gloves: { x: 182, y: 106 },
-      boots: { x: 126, y: 162 },
-      accessory1: { x: 70, y: 218 },
-      accessory2: { x: 126, y: 218 },
-      accessory3: { x: 182, y: 218 }
+      helmet:     { x: centerX - this.slotSize / 2, y: 50 },  // 顶部居中
+      weapon:     { x: centerX - slotWithPadding - this.slotSize / 2, y: 106 },  // 左
+      armor:      { x: centerX - this.slotSize / 2, y: 106 },  // 中
+      gloves:     { x: centerX + this.slotPadding + this.slotSize / 2, y: 106 },  // 右
+      boots:      { x: centerX - this.slotSize / 2, y: 162 },  // 底部居中
+      accessory1: { x: centerX - slotWithPadding - this.slotSize / 2, y: 218 },  // 左
+      accessory2: { x: centerX - this.slotSize / 2, y: 218 },  // 中
+      accessory3: { x: centerX + this.slotPadding + this.slotSize / 2, y: 218 }   // 右
     };
 
     // 鼠标交互
     this.hoveredSlot = null;
     this.selectedSlot = null;
     this.draggedItem = null;
+    this.mouseX = 0;
+    this.mouseY = 0;
     
     // 事件回调
     this.onEquipmentChange = options.onEquipmentChange || null;
@@ -230,8 +236,39 @@ export class EquipmentPanel extends UIElement {
   renderTooltip(ctx, equipment) {
     const tooltipWidth = 250;
     const tooltipHeight = 150;
-    const tooltipX = this.x + this.width + 10;
-    const tooltipY = this.y + 50;
+    
+    // 获取canvas尺寸
+    const canvas = document.getElementById('gameCanvas');
+    const canvasWidth = canvas ? canvas.width : 800;
+    const canvasHeight = canvas ? canvas.height : 600;
+    
+    // 默认显示在鼠标右侧
+    let tooltipX = this.mouseX + 15;
+    let tooltipY = this.mouseY - 20;
+    
+    // 如果超出右边界，显示在鼠标左侧
+    if (tooltipX + tooltipWidth > canvasWidth) {
+      tooltipX = this.mouseX - tooltipWidth - 15;
+    }
+    
+    // 如果左侧也超出，显示在装备面板右侧
+    if (tooltipX < 0) {
+      tooltipX = this.x + this.width + 10;
+      // 如果装备面板右侧也超出，显示在装备面板左侧
+      if (tooltipX + tooltipWidth > canvasWidth) {
+        tooltipX = this.x - tooltipWidth - 10;
+      }
+    }
+    
+    // 如果超出下边界，向上调整
+    if (tooltipY + tooltipHeight > canvasHeight) {
+      tooltipY = canvasHeight - tooltipHeight - 10;
+    }
+    
+    // 如果超出上边界，向下调整
+    if (tooltipY < 0) {
+      tooltipY = 10;
+    }
 
     // 提示框背景
     ctx.fillStyle = 'rgba(0, 0, 0, 0.95)';
@@ -368,6 +405,10 @@ export class EquipmentPanel extends UIElement {
   handleMouseMove(x, y) {
     if (!this.visible) return;
 
+    // 保存鼠标位置
+    this.mouseX = x;
+    this.mouseY = y;
+
     this.hoveredSlot = null;
 
     // 检查是否悬停在装备槽上
@@ -402,6 +443,36 @@ export class EquipmentPanel extends UIElement {
       if (x >= slotX && x <= slotX + this.slotSize &&
           y >= slotY && y <= slotY + this.slotSize) {
         this.selectedSlot = slotType;
+        
+        // 尝试卸下装备
+        if (this.entity) {
+          const equipmentComponent = this.entity.getComponent('equipment');
+          const inventoryComponent = this.entity.getComponent('inventory');
+          
+          if (equipmentComponent && inventoryComponent) {
+            const equipment = equipmentComponent.getEquipment(slotType);
+            
+            if (equipment) {
+              console.log(`尝试卸下装备: ${equipment.name} 从 ${slotType} 槽位`);
+              
+              // 卸下装备
+              const unequippedItem = equipmentComponent.unequip(slotType);
+              
+              if (unequippedItem) {
+                // 放回背包
+                const added = inventoryComponent.addItem(unequippedItem);
+                
+                if (added > 0) {
+                  console.log(`成功卸下装备: ${unequippedItem.name}，已放回背包`);
+                } else {
+                  console.warn(`背包已满，无法卸下装备: ${unequippedItem.name}`);
+                  // 如果背包满了，重新装备
+                  equipmentComponent.equip(slotType, unequippedItem);
+                }
+              }
+            }
+          }
+        }
         
         if (this.onSlotClick) {
           this.onSlotClick(slotType);

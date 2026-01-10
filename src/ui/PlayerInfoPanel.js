@@ -18,6 +18,7 @@ export class PlayerInfoPanel extends UIElement {
       y: options.y || 10,
       width: options.width || 280,
       height: options.height || 320,
+      visible: options.visible !== undefined ? options.visible : true,
       zIndex: options.zIndex || 100
     });
     

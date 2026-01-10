@@ -141,14 +141,14 @@ export class GameEngine {
         this.sceneManager.registerScene('Character', new CharacterScene());
         this.sceneManager.registerScene('Game', new GameScene(this));
         
-        // 初始化网络管理器
-        this.networkManager = new NetworkManager({
-            useMockData: true,
-            mockDelay: 100,
-            debugMode: true
-        });
-        await this.networkManager.connect();
-        console.log('GameEngine: NetworkManager initialized');
+        // 初始化网络管理器（暂时跳过，因为需要真实服务器或完整的 Mock 实现）
+        // this.networkManager = new NetworkManager({
+        //     useMockData: true,
+        //     mockDelay: 100,
+        //     debugMode: true
+        // });
+        // await this.networkManager.connect();
+        console.log('GameEngine: NetworkManager skipped (no server available)');
         
         // 加载初始资源（如果有）
         // 当前没有资源需要加载，后续任务会添加

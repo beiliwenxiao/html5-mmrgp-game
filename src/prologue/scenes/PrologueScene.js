@@ -71,7 +71,7 @@ export class PrologueScene extends Scene {
         
         // 更新教程系统
         if (this.tutorialSystem) {
-            this.tutorialSystem.update(deltaTime);
+            this.tutorialSystem.update(deltaTime, {});
         }
         
         // 更新对话系统
