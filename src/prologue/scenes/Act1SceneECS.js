@@ -96,7 +96,18 @@ export class Act1SceneECS extends PrologueScene {
       y: 250,
       lit: false,
       emitters: [], // 多个火焰发射器
-      emitterSmoke: null
+      emitterSmoke: null,
+      fireImage: null, // 火焰图片
+      imageLoaded: false,
+      // 帧动画配置（图片：658x712px，4列3行，共12帧）
+      frameWidth: 658 / 4,     // 每帧宽度：164.5px
+      frameHeight: 712 / 3,    // 每帧高度：237.33px
+      frameCols: 4,            // 列数
+      frameRows: 3,            // 行数
+      frameCount: 12,          // 总帧数
+      currentFrame: 0,         // 当前帧
+      frameTime: 0,            // 帧计时器
+      frameDuration: 0.16      // 每帧持续时间（秒），6.25 FPS
     };
     
     // 战斗状态
@@ -218,10 +229,30 @@ export class Act1SceneECS extends PrologueScene {
     // 注册教程
     this.registerTutorials();
     
+    // 加载火焰gif图片
+    this.loadFireImage();
+    
     // 显示角色创建
     this.showCharacterCreation();
     
     console.log('Act1SceneECS: 进入第一幕 - 绝望的开始（完整 ECS 版本）');
+  }
+
+  /**
+   * 加载火焰图片
+   */
+  loadFireImage() {
+    this.campfire.fireImage = new Image();
+    this.campfire.fireImage.onload = () => {
+      this.campfire.imageLoaded = true;
+      console.log('Act1SceneECS: 火焰图片加载成功');
+    };
+    this.campfire.fireImage.onerror = () => {
+      console.warn('Act1SceneECS: 火焰图片加载失败，将使用粒子效果');
+      this.campfire.imageLoaded = false;
+    };
+    // 使用本地火焰图片
+    this.campfire.fireImage.src = 'images/fire.webp';
   }
 
   /**
@@ -799,32 +830,45 @@ export class Act1SceneECS extends PrologueScene {
     // 更新粒子系统
     this.particleSystem.update(deltaTime);
     
-    // 更新火焰发射器（底部稳定，顶部形成摆动的火舌）
+    // 更新火焰帧动画
+    if (this.campfire.lit && this.campfire.imageLoaded) {
+      this.campfire.frameTime += deltaTime;
+      if (this.campfire.frameTime >= this.campfire.frameDuration) {
+        this.campfire.frameTime = 0;
+        this.campfire.currentFrame = (this.campfire.currentFrame + 1) % this.campfire.frameCount;
+      }
+    }
+    
+    // 更新火焰粒子效果
     if (this.campfire.lit) {
       const time = performance.now() / 1000;
       
-      // 更新所有火焰发射器
+      // 更新所有火焰发射器（只有1个发射点，7个发射器）
       this.campfire.emitters.forEach((emitter, index) => {
         if (emitter) {
-          // 底部只有很小的随机摆动
-          const randomFlicker = (Math.random() - 0.5) * 3;
-          emitter.particleConfig.velocity.x = randomFlicker;
+          // 前两个发射器（大火焰粒子）使用更大的摆动幅度
+          let swayAmount;
+          if (index < 2) {
+            // 大火焰粒子：随机摆动幅度5px
+            swayAmount = (Math.random() - 0.5) * 10;  // ±5px
+          } else {
+            // 其他粒子：原有的摆动
+            swayAmount = Math.sin(time * 2 + index * 0.5) * 4 + (Math.random() - 0.5) * 2;
+          }
           
-          // 火焰的垂直速度变化 - 保持向上的跳动
-          const baseVelocityY = emitter.particleConfig.velocity.y;
-          const verticalFlicker = Math.sin(time * 5 + index) * 10 + (Math.random() - 0.5) * 12;
-          emitter.particleConfig.velocity.y = baseVelocityY + verticalFlicker;
+          // 更新发射器位置（基于原始位置摆动）
+          const baseX = this.campfire.x;
+          const baseY = this.campfire.y + 2;  // 向上移动8像素
+          
+          emitter.position.x = baseX + swayAmount;
+          emitter.position.y = baseY;
+          
+          // 添加轻微的水平随机速度
+          emitter.particleConfig.velocity.x = (Math.random() - 0.5) * 10;
           
           this.particleSystem.updateEmitter(emitter, deltaTime);
         }
       });
-      
-      // 更新烟雾
-      if (this.campfire.emitterSmoke) {
-        const smokeWave = Math.sin(time * 1.5) * 15 + (Math.random() - 0.5) * 12;
-        this.campfire.emitterSmoke.particleConfig.velocity.x = smokeWave;
-        this.particleSystem.updateEmitter(this.campfire.emitterSmoke, deltaTime);
-      }
     }
     
     // 检查 C 键打开/关闭人物信息面板
@@ -1127,23 +1171,48 @@ export class Act1SceneECS extends PrologueScene {
     
     const playerX = transform.position.x;
     const playerY = transform.position.y;
+    const playerRadius = 20; // 玩家半径
     
-    // 计算玩家与火堆中心的距离
-    const dx = this.campfire.x - playerX;
-    const dy = this.campfire.y - playerY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
+    // 火堆的碰撞区域（矩形，只包含上部3/4）
+    // 下部1/4可以让玩家靠近
+    const campfireLeft = this.campfire.x - 25;
+    const campfireRight = this.campfire.x + 25;
+    const campfireTop = this.campfire.y - 15;
+    const campfireBottom = this.campfire.y + 15;
+    const collisionBottom = campfireBottom - (campfireBottom - campfireTop) * 0.3; // 只碰撞上部0.6
     
-    // 火堆的碰撞半径（比视觉效果稍小）
-    const collisionRadius = 30;
+    // 检查玩家是否与火堆碰撞（AABB碰撞检测）
+    const playerLeft = playerX - playerRadius;
+    const playerRight = playerX + playerRadius;
+    const playerTop = playerY - playerRadius;
+    const playerBottom = playerY + playerRadius;
     
-    // 如果玩家进入火堆的碰撞范围
-    if (distance < collisionRadius) {
-      // 计算推开的方向（从火堆中心指向玩家）
-      const angle = Math.atan2(dy, dx);
+    // 检测碰撞（只检测火堆的上部3/4）
+    if (playerRight > campfireLeft && 
+        playerLeft < campfireRight && 
+        playerBottom > campfireTop && 
+        playerTop < collisionBottom) {
       
-      // 将玩家推到碰撞半径边缘
-      transform.position.x = this.campfire.x - Math.cos(angle) * collisionRadius;
-      transform.position.y = this.campfire.y - Math.sin(angle) * collisionRadius;
+      // 发生碰撞，计算推开方向
+      const dx = playerX - this.campfire.x;
+      const dy = playerY - this.campfire.y;
+      
+      // 计算重叠量
+      const overlapX = dx > 0 
+        ? (campfireRight - playerLeft) 
+        : (campfireLeft - playerRight);
+      const overlapY = dy > 0 
+        ? (collisionBottom - playerTop) 
+        : (campfireTop - playerBottom);
+      
+      // 沿重叠较小的方向推开
+      if (Math.abs(overlapX) < Math.abs(overlapY)) {
+        // 水平推开
+        transform.position.x += overlapX;
+      } else {
+        // 垂直推开
+        transform.position.y += overlapY;
+      }
     }
   }
 
@@ -1156,107 +1225,133 @@ export class Act1SceneECS extends PrologueScene {
     console.log('Act1SceneECS: 点燃火堆');
     this.campfire.lit = true;
     
-    // 创建火焰粒子发射器 - 减少密度，增加变化，形成火舌效果
-    // 火堆中心和周围的木材位置
-    const firePoints = [
-      { x: this.campfire.x, y: this.campfire.y },           // 中心
-      { x: this.campfire.x - 12, y: this.campfire.y + 8 },  // 左侧木材
-      { x: this.campfire.x + 12, y: this.campfire.y + 8 },  // 右侧木材
-      { x: this.campfire.x - 6, y: this.campfire.y - 3 },   // 左上木材
-      { x: this.campfire.x + 6, y: this.campfire.y - 3 }    // 右上木材
-    ];
-    
-    // 为每个火点创建发射器
+    // 创建简洁的火焰粒子效果
     this.campfire.emitters = [];
     
-    firePoints.forEach((point, index) => {
-      // 亮黄色核心（最内层，小而亮）
-      this.campfire.emitters.push(this.particleSystem.createEmitter({
-        position: { x: point.x, y: point.y },
-        rate: 6, // 减少发射速率
-        duration: Infinity,
-        particleConfig: {
-          position: { x: point.x, y: point.y },
-          velocity: { x: 0, y: -80 }, // 更快的上升
-          life: 0.5, // 更短的生命
-          size: 6,
-          color: '#ffffcc', // 非常亮的黄白色
-          alpha: 1.0,
-          gravity: -50,
-          friction: 0.88
-        }
-      }));
-      
-      // 橙黄色火焰（中层，中等大小）
-      this.campfire.emitters.push(this.particleSystem.createEmitter({
-        position: { x: point.x, y: point.y },
-        rate: 5,
-        duration: Infinity,
-        particleConfig: {
-          position: { x: point.x, y: point.y },
-          velocity: { x: 0, y: -70 },
-          life: 0.7,
-          size: 10,
-          color: '#ffbb33', // 亮橙黄色
-          alpha: 0.95,
-          gravity: -45,
-          friction: 0.86
-        }
-      }));
-      
-      // 橙红色火焰（外层，大）
-      this.campfire.emitters.push(this.particleSystem.createEmitter({
-        position: { x: point.x, y: point.y },
-        rate: 4,
-        duration: Infinity,
-        particleConfig: {
-          position: { x: point.x, y: point.y },
-          velocity: { x: 0, y: -60 },
-          life: 0.9,
-          size: 14,
-          color: '#ff7722', // 橙红色
-          alpha: 0.85,
-          gravity: -40,
-          friction: 0.84
-        }
-      }));
-      
-      // 深红色火焰边缘（最外层，最大）
-      this.campfire.emitters.push(this.particleSystem.createEmitter({
-        position: { x: point.x, y: point.y },
-        rate: 3,
-        duration: Infinity,
-        particleConfig: {
-          position: { x: point.x, y: point.y },
-          velocity: { x: 0, y: -50 },
-          life: 1.1,
-          size: 18,
-          color: '#dd3311', // 深红色
-          alpha: 0.7,
-          gravity: -35,
-          friction: 0.82
-        }
-      }));
-    });
+    // 火堆底部的1个发射点（中心位置）
+    const fireBaseY = this.campfire.y + 2;  // 向上移动8像素
+    const firePoint = { x: this.campfire.x, y: fireBaseY };
     
-    // 烟雾效果（从火堆上方发射）
-    this.campfire.emitterSmoke = this.particleSystem.createEmitter({
-      position: { x: this.campfire.x, y: this.campfire.y - 40 },
-      rate: 5,
+    // 大火焰粒子（7-10像素，向上移动10-15像素，较少）
+    this.campfire.emitters.push(this.particleSystem.createEmitter({
+      position: { x: firePoint.x, y: firePoint.y },
+      rate: 6,
       duration: Infinity,
       particleConfig: {
-        position: { x: this.campfire.x, y: this.campfire.y - 40 },
-        velocity: { x: 0, y: -30 },
-        life: 2.5,
-        size: 16,
-        color: '#444444', // 深灰色烟雾
-        alpha: 0.15,
-        gravity: -10,
-        friction: 0.98
+        position: { x: firePoint.x, y: firePoint.y },
+        velocity: { x: 0, y: -50 },  // 速度50，生命周期0.25秒，移动12.5像素
+        life: 250,
+        size: 8.5,
+        color: '#ffaa22',
+        alpha: 0.85,
+        gravity: 0,
+        friction: 0.95
       }
-    });
+    }));
     
-    console.log('Act1SceneECS: 火焰粒子发射器已创建（火舌效果）');
+    // 中火焰粒子（5-7像素，向上移动5-10像素）
+    this.campfire.emitters.push(this.particleSystem.createEmitter({
+      position: { x: firePoint.x, y: firePoint.y },
+      rate: 8,
+      duration: Infinity,
+      particleConfig: {
+        position: { x: firePoint.x, y: firePoint.y },
+        velocity: { x: 0, y: -35 },  // 速度35，生命周期0.2秒，移动7像素
+        life: 200,
+        size: 6,
+        color: '#ff8833',
+        alpha: 0.8,
+        gravity: 0,
+        friction: 0.95
+      }
+    }));
+    
+    // 白色亮点（4-5像素，向上移动40-50像素，少量）
+    this.campfire.emitters.push(this.particleSystem.createEmitter({
+      position: { x: firePoint.x, y: firePoint.y },
+      rate: 4,
+      duration: Infinity,
+      particleConfig: {
+        position: { x: firePoint.x, y: firePoint.y },
+        velocity: { x: 0, y: -120 },
+        life: 400,
+        size: 4.5,
+        color: '#ffffee',
+        alpha: 1.0,
+        gravity: 0,
+        friction: 0.95
+      }
+    }));
+    
+    // 亮黄色火星（3-4像素，向上移动30-40像素）
+    this.campfire.emitters.push(this.particleSystem.createEmitter({
+      position: { x: firePoint.x, y: firePoint.y },
+      rate: 10,
+      duration: Infinity,
+      particleConfig: {
+        position: { x: firePoint.x, y: firePoint.y },
+        velocity: { x: 0, y: -100 },
+        life: 350,
+        size: 3.5,
+        color: '#ffee44',
+        alpha: 0.9,
+        gravity: 0,
+        friction: 0.95
+      }
+    }));
+    
+    // 橙色火星（2-3像素，向上移动20-30像素）
+    this.campfire.emitters.push(this.particleSystem.createEmitter({
+      position: { x: firePoint.x, y: firePoint.y },
+      rate: 8,
+      duration: Infinity,
+      particleConfig: {
+        position: { x: firePoint.x, y: firePoint.y },
+        velocity: { x: 0, y: -80 },
+        life: 300,
+        size: 2.5,
+        color: '#ff9933',
+        alpha: 0.85,
+        gravity: 0,
+        friction: 0.95
+      }
+    }));
+    
+    // 红色火星（2像素，向上移动10-20像素）
+    this.campfire.emitters.push(this.particleSystem.createEmitter({
+      position: { x: firePoint.x, y: firePoint.y },
+      rate: 6,
+      duration: Infinity,
+      particleConfig: {
+        position: { x: firePoint.x, y: firePoint.y },
+        velocity: { x: 0, y: -60 },
+        life: 250,
+        size: 2,
+        color: '#ff5522',
+        alpha: 0.8,
+        gravity: 0,
+        friction: 0.95
+      }
+    }));
+    
+    // 小火星（2像素，向上移动5-10像素，较多）
+    this.campfire.emitters.push(this.particleSystem.createEmitter({
+      position: { x: firePoint.x, y: firePoint.y },
+      rate: 12,
+      duration: Infinity,
+      particleConfig: {
+        position: { x: firePoint.x, y: firePoint.y },
+        velocity: { x: 0, y: -40 },
+        life: 200,
+        size: 2,
+        color: '#ff6633',
+        alpha: 0.7,
+        gravity: 0,
+        friction: 0.95
+      }
+    }));
+    
+    console.log('Act1SceneECS: 火焰粒子效果已创建（1个发射点，7种粒子）');
   }
 
   /**
@@ -1369,16 +1464,62 @@ export class Act1SceneECS extends PrologueScene {
    * 渲染场景
    */
   render(ctx) {
-    // 不调用 super.render(ctx)，因为我们使用不同的实体管理方式
+    // 清空Canvas
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     
-    // 使用渲染系统渲染所有实体
-    this.renderSystem.render(this.entities);
+    // 保存上下文状态
+    ctx.save();
+    
+    // 应用相机变换
+    const viewBounds = this.camera.getViewBounds();
+    ctx.translate(-viewBounds.left, -viewBounds.top);
     
     // 渲染可拾取物品
     this.renderPickupItems(ctx);
     
-    // 渲染火堆
-    this.renderCampfire(ctx);
+    // 创建渲染队列，包含所有需要渲染的对象
+    const renderQueue = [];
+    
+    // 添加实体到渲染队列
+    for (const entity of this.entities) {
+      const transform = entity.getComponent('transform');
+      if (transform) {
+        renderQueue.push({
+          type: 'entity',
+          y: transform.position.y,
+          entity: entity
+        });
+      }
+    }
+    
+    // 添加火堆到渲染队列（使用火堆的 Y 坐标）
+    renderQueue.push({
+      type: 'campfire_bottom',
+      y: this.campfire.y,
+      render: () => this.renderCampfireBottom(ctx)
+    });
+    
+    renderQueue.push({
+      type: 'campfire_top',
+      y: this.campfire.y - 1, // 稍微靠前一点，确保在同一Y坐标的实体之后渲染
+      render: () => this.renderCampfireTop(ctx)
+    });
+    
+    // 按 Y 坐标排序（从小到大，Y 小的在后面渲染，会遮挡前面的）
+    renderQueue.sort((a, b) => a.y - b.y);
+    
+    // 按顺序渲染
+    for (const item of renderQueue) {
+      if (item.type === 'entity') {
+        this.renderEntity(ctx, item.entity);
+      } else if (item.render) {
+        item.render();
+      }
+    }
+    
+    // 恢复上下文状态
+    ctx.restore();
     
     // 渲染粒子系统
     this.particleSystem.render(ctx, this.camera);
@@ -1426,85 +1567,235 @@ export class Act1SceneECS extends PrologueScene {
   }
 
   /**
+   * 渲染单个实体
+   */
+  renderEntity(ctx, entity) {
+    const transform = entity.getComponent('transform');
+    const sprite = entity.getComponent('sprite');
+    const stats = entity.getComponent('stats');
+    
+    if (!transform) return;
+    
+    const x = transform.position.x;
+    const y = transform.position.y;
+    
+    // 渲染精灵
+    if (sprite && sprite.visible) {
+      ctx.fillStyle = sprite.color || '#00ff00';
+      ctx.beginPath();
+      ctx.arc(x, y, sprite.radius || 20, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // 绘制边框
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    
+    // 渲染生命值条
+    if (stats && stats.maxHp > 0) {
+      const barWidth = 40;
+      const barHeight = 4;
+      const barX = x - barWidth / 2;
+      const barY = y - 30;
+      
+      // 背景
+      ctx.fillStyle = '#333333';
+      ctx.fillRect(barX, barY, barWidth, barHeight);
+      
+      // 生命值
+      const hpRatio = stats.hp / stats.maxHp;
+      ctx.fillStyle = hpRatio > 0.5 ? '#00ff00' : hpRatio > 0.2 ? '#ffaa00' : '#ff0000';
+      ctx.fillRect(barX, barY, barWidth * hpRatio, barHeight);
+      
+      // 边框
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(barX, barY, barWidth, barHeight);
+    }
+  }
+
+  /**
    * 渲染可拾取物品
    */
   renderPickupItems(ctx) {
-    ctx.save();
-    
     for (const item of this.pickupItems) {
       if (item.picked) continue;
       
-      // 转换为屏幕坐标
-      const screenPos = this.camera.worldToScreen(item.x, item.y);
+      // 直接使用世界坐标（已经应用了相机变换）
+      const x = item.x;
+      const y = item.y;
       
       // 绘制物品图标
       ctx.fillStyle = '#ffaa00';
       ctx.beginPath();
-      ctx.arc(screenPos.x, screenPos.y, 10, 0, Math.PI * 2);
+      ctx.arc(x, y, 10, 0, Math.PI * 2);
       ctx.fill();
       
       // 绘制物品名称
       ctx.fillStyle = '#ffffff';
       ctx.font = '12px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText(item.name, screenPos.x, screenPos.y - 15);
+      ctx.fillText(item.name, x, y - 15);
     }
-    
-    ctx.restore();
   }
 
   /**
-   * 渲染火堆
+   * 渲染火堆下半部分（木材下半部分和底部发光）
    */
-  renderCampfire(ctx) {
-    ctx.save();
-    
-    // 转换为屏幕坐标
-    const screenPos = this.camera.worldToScreen(this.campfire.x, this.campfire.y);
+  renderCampfireBottom(ctx) {
+    // 直接使用世界坐标（已经应用了相机变换）
+    const x = this.campfire.x;
+    const y = this.campfire.y;
     
     if (!this.campfire.lit) {
-      // 渲染熄灭的火堆 - 木材堆
+      // 渲染熄灭的火堆 - 木材堆（下半部分）
       // 绘制底部的灰烬圆圈
       ctx.fillStyle = '#3a3a3a';
       ctx.beginPath();
-      ctx.arc(screenPos.x, screenPos.y, 25, 0, Math.PI * 2);
+      ctx.arc(x, y, 25, 0, Math.PI * 2);
       ctx.fill();
       
-      // 绘制木材（5根木棍交叉堆放）
+      // 绘制木材下半部分（使用裁剪）
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x - 30, y, 60, 30); // 只渲染中心线以下的部分
+      ctx.clip();
+      
       ctx.strokeStyle = '#5a4a3a';
       ctx.lineWidth = 6;
       ctx.lineCap = 'round';
       
       // 木材1 - 左下到右上
       ctx.beginPath();
-      ctx.moveTo(screenPos.x - 20, screenPos.y + 10);
-      ctx.lineTo(screenPos.x + 20, screenPos.y - 10);
+      ctx.moveTo(x - 20, y + 10);
+      ctx.lineTo(x + 20, y - 10);
       ctx.stroke();
       
       // 木材2 - 右下到左上
       ctx.beginPath();
-      ctx.moveTo(screenPos.x + 20, screenPos.y + 10);
-      ctx.lineTo(screenPos.x - 20, screenPos.y - 10);
+      ctx.moveTo(x + 20, y + 10);
+      ctx.lineTo(x - 20, y - 10);
       ctx.stroke();
       
       // 木材3 - 水平
       ctx.beginPath();
-      ctx.moveTo(screenPos.x - 18, screenPos.y);
-      ctx.lineTo(screenPos.x + 18, screenPos.y);
+      ctx.moveTo(x - 18, y);
+      ctx.lineTo(x + 18, y);
       ctx.stroke();
       
       // 木材4 - 左侧斜
       ctx.strokeStyle = '#4a3a2a';
       ctx.beginPath();
-      ctx.moveTo(screenPos.x - 15, screenPos.y + 8);
-      ctx.lineTo(screenPos.x - 5, screenPos.y - 12);
+      ctx.moveTo(x - 15, y + 8);
+      ctx.lineTo(x - 5, y - 12);
       ctx.stroke();
       
       // 木材5 - 右侧斜
       ctx.beginPath();
-      ctx.moveTo(screenPos.x + 15, screenPos.y + 8);
-      ctx.lineTo(screenPos.x + 5, screenPos.y - 12);
+      ctx.moveTo(x + 15, y + 8);
+      ctx.lineTo(x + 5, y - 12);
       ctx.stroke();
+      
+      ctx.restore();
+    } else {
+      // 渲染点燃的火堆 - 下半部分
+      // 绘制燃烧的木材底座下半部分（使用裁剪）
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x - 30, y, 60, 30); // 只渲染中心线以下的部分
+      ctx.clip();
+      
+      ctx.strokeStyle = '#3a2a1a';
+      ctx.lineWidth = 8;
+      ctx.lineCap = 'round';
+      
+      // 木材轮廓（简化，因为火焰会覆盖大部分）
+      ctx.beginPath();
+      ctx.moveTo(x - 20, y + 10);
+      ctx.lineTo(x + 20, y - 10);
+      ctx.stroke();
+      
+      ctx.beginPath();
+      ctx.moveTo(x + 20, y + 10);
+      ctx.lineTo(x - 20, y - 10);
+      ctx.stroke();
+      
+      ctx.restore();
+      
+      // 绘制火堆底部的发光效果（大范围）
+      const gradient = ctx.createRadialGradient(x, y, 0, x, y, 60);
+      gradient.addColorStop(0, 'rgba(255, 200, 0, 0.4)');
+      gradient.addColorStop(0.5, 'rgba(255, 100, 0, 0.2)');
+      gradient.addColorStop(1, 'rgba(255, 50, 0, 0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(x, y, 60, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // 绘制火堆中心的亮光
+      const centerGlow = ctx.createRadialGradient(x, y, 0, x, y, 20);
+      centerGlow.addColorStop(0, 'rgba(255, 255, 200, 0.6)');
+      centerGlow.addColorStop(0.5, 'rgba(255, 150, 0, 0.3)');
+      centerGlow.addColorStop(1, 'rgba(255, 100, 0, 0)');
+      ctx.fillStyle = centerGlow;
+      ctx.beginPath();
+      ctx.arc(x, y, 20, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  /**
+   * 渲染火堆上半部分（木材上半部分和火焰图片）
+   */
+  renderCampfireTop(ctx) {
+    // 直接使用世界坐标（已经应用了相机变换）
+    const x = this.campfire.x;
+    const y = this.campfire.y;
+    
+    if (!this.campfire.lit) {
+      // 渲染熄灭的火堆 - 木材上半部分
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x - 30, y - 30, 60, 30); // 只渲染中心线以上的部分
+      ctx.clip();
+      
+      ctx.strokeStyle = '#5a4a3a';
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'round';
+      
+      // 木材1 - 左下到右上
+      ctx.beginPath();
+      ctx.moveTo(x - 20, y + 10);
+      ctx.lineTo(x + 20, y - 10);
+      ctx.stroke();
+      
+      // 木材2 - 右下到左上
+      ctx.beginPath();
+      ctx.moveTo(x + 20, y + 10);
+      ctx.lineTo(x - 20, y - 10);
+      ctx.stroke();
+      
+      // 木材3 - 水平
+      ctx.beginPath();
+      ctx.moveTo(x - 18, y);
+      ctx.lineTo(x + 18, y);
+      ctx.stroke();
+      
+      // 木材4 - 左侧斜
+      ctx.strokeStyle = '#4a3a2a';
+      ctx.beginPath();
+      ctx.moveTo(x - 15, y + 8);
+      ctx.lineTo(x - 5, y - 12);
+      ctx.stroke();
+      
+      // 木材5 - 右侧斜
+      ctx.beginPath();
+      ctx.moveTo(x + 15, y + 8);
+      ctx.lineTo(x + 5, y - 12);
+      ctx.stroke();
+      
+      ctx.restore();
       
       // 绘制提示文字
       ctx.fillStyle = '#ffffff';
@@ -1512,49 +1803,68 @@ export class Act1SceneECS extends PrologueScene {
       ctx.textAlign = 'center';
       ctx.shadowColor = '#000000';
       ctx.shadowBlur = 4;
-      ctx.fillText('熄灭的火堆', screenPos.x, screenPos.y - 40);
-      ctx.fillText('按 E 点燃', screenPos.x, screenPos.y - 25);
+      ctx.fillText('熄灭的火堆', x, y - 40);
+      ctx.fillText('按 E 点燃', x, y - 25);
       ctx.shadowBlur = 0;
-    } else {
-      // 渲染点燃的火堆
-      // 绘制燃烧的木材底座（深棕色）
-      ctx.strokeStyle = '#3a2a1a';
-      ctx.lineWidth = 8;
-      ctx.lineCap = 'round';
       
-      // 木材轮廓（简化，因为火焰会覆盖大部分）
-      ctx.beginPath();
-      ctx.moveTo(screenPos.x - 20, screenPos.y + 10);
-      ctx.lineTo(screenPos.x + 20, screenPos.y - 10);
-      ctx.stroke();
-      
-      ctx.beginPath();
-      ctx.moveTo(screenPos.x + 20, screenPos.y + 10);
-      ctx.lineTo(screenPos.x - 20, screenPos.y - 10);
-      ctx.stroke();
-      
-      // 绘制火堆底部的发光效果（大范围）
-      const gradient = ctx.createRadialGradient(screenPos.x, screenPos.y, 0, screenPos.x, screenPos.y, 60);
-      gradient.addColorStop(0, 'rgba(255, 200, 0, 0.4)');
-      gradient.addColorStop(0.5, 'rgba(255, 100, 0, 0.2)');
-      gradient.addColorStop(1, 'rgba(255, 50, 0, 0)');
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(screenPos.x, screenPos.y, 60, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // 绘制火堆中心的亮光
-      const centerGlow = ctx.createRadialGradient(screenPos.x, screenPos.y, 0, screenPos.x, screenPos.y, 20);
-      centerGlow.addColorStop(0, 'rgba(255, 255, 200, 0.6)');
-      centerGlow.addColorStop(0.5, 'rgba(255, 150, 0, 0.3)');
-      centerGlow.addColorStop(1, 'rgba(255, 100, 0, 0)');
-      ctx.fillStyle = centerGlow;
-      ctx.beginPath();
-      ctx.arc(screenPos.x, screenPos.y, 20, 0, Math.PI * 2);
-      ctx.fill();
+      return;
     }
     
+    // 渲染点燃的火堆 - 上半部分
+    // 绘制燃烧的木材上半部分（使用裁剪）
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x - 30, y - 30, 60, 30); // 只渲染中心线以上的部分
+    ctx.clip();
+    
+    ctx.strokeStyle = '#3a2a1a';
+    ctx.lineWidth = 8;
+    ctx.lineCap = 'round';
+    
+    // 木材轮廓（简化，因为火焰会覆盖大部分）
+    ctx.beginPath();
+    ctx.moveTo(x - 20, y + 10);
+    ctx.lineTo(x + 20, y - 10);
+    ctx.stroke();
+    
+    ctx.beginPath();
+    ctx.moveTo(x + 20, y + 10);
+    ctx.lineTo(x - 20, y - 10);
+    ctx.stroke();
+    
     ctx.restore();
+    
+    // 绘制火焰帧动画（如果已加载）
+    if (this.campfire.imageLoaded && this.campfire.fireImage) {
+      // 计算当前帧在精灵图中的位置（4列3行布局）
+      const col = this.campfire.currentFrame % this.campfire.frameCols;
+      const row = Math.floor(this.campfire.currentFrame / this.campfire.frameCols);
+      const frameX = col * this.campfire.frameWidth;
+      const frameY = row * this.campfire.frameHeight;
+      
+      // 计算图片绘制位置和大小（缩小为50%）
+      const fireWidth = 40;  // 原来80，现在40
+      const fireHeight = 60; // 原来120，现在60
+      const fireX = x - fireWidth / 2;
+      const fireY = y - fireHeight + 10; // 向上偏移，让火焰从木材上方升起
+      
+      // 绘制当前帧
+      ctx.globalAlpha = 0.9;
+      ctx.drawImage(
+        this.campfire.fireImage,
+        frameX, frameY, this.campfire.frameWidth, this.campfire.frameHeight, // 源矩形
+        fireX, fireY, fireWidth, fireHeight // 目标矩形
+      );
+      ctx.globalAlpha = 1.0;
+    }
+  }
+
+  /**
+   * 渲染火堆（保留用于兼容，实际使用 renderCampfireBottom 和 renderCampfireTop）
+   */
+  renderCampfire(ctx) {
+    this.renderCampfireBottom(ctx);
+    this.renderCampfireTop(ctx);
   }
 
   /**
