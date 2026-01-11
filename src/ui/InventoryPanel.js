@@ -64,6 +64,7 @@ export class InventoryPanel extends UIElement {
     this.onItemUse = options.onItemUse || null;
     this.onItemDrop = options.onItemDrop || null;
     this.onFilterChange = options.onFilterChange || null;
+    this.canUseItem = options.canUseItem || null; // 检查物品是否可以使用的回调
   }
 
   /**
@@ -866,6 +867,13 @@ export class InventoryPanel extends UIElement {
     if (!slot || !slot.item || !slot.item.usable) return;
     
     const item = slot.item;
+    
+    // 检查物品是否可以使用
+    if (this.canUseItem && !this.canUseItem(item)) {
+      console.log(`物品 ${item.name} 暂时无法使用`);
+      return;
+    }
+    
     console.log(`使用物品: ${item.name}`);
     
     let healAmount = 0;

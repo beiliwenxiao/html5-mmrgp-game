@@ -90,6 +90,9 @@ export class Act1SceneECS extends PrologueScene {
     // 可拾取物品（简化为实体）
     this.pickupItems = [];
     
+    // 装备物品（第二批出现）
+    this.equipmentItems = [];
+    
     // 火堆
     this.campfire = {
       x: 350,
@@ -309,226 +312,244 @@ export class Act1SceneECS extends PrologueScene {
     // 手动显示第一个渐进式提示
     this.tutorialSystem.showTutorial('progressive_tip_1');
     
-    // 开始移动教程
-    this.startMovementTutorial();
+    // 不立即开始移动教程，等待按任意键
   }
 
   /**
-   * 注册教程
+   * 渐进式提示配置
+   * 通过配置数组定义提示流程，每个提示包含：
+   * - id: 提示唯一标识
+   * - title: 提示标题
+   * - description: 提示描述
+   * - text: 提示文本内容
+   * - position: 提示位置
+   * - priority: 优先级
+   * - triggerCondition: 触发条件函数
+   */
+  getProgressiveTipsConfig() {
+    return [
+      // 1. 醒来（不显示火堆）
+      {
+        id: 'progressive_tip_1',
+        title: '提示',
+        description: '你从黑暗中醒来',
+        text: '你从黑暗中醒来,饥寒交迫。按任意键继续',
+        position: 'center',
+        priority: 100,
+        triggerCondition: () => {
+          return this.tutorialPhase === 'character_creation' && !this.tutorialsCompleted.progressive_tip_1;
+        }
+      },
+      // 2. 移动（火堆出现）
+      {
+        id: 'progressive_tip_2',
+        title: '提示',
+        description: '四处走走看看',
+        text: '四处走走。按<span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span>移动',
+        position: 'center',
+        priority: 99,
+        triggerCondition: () => {
+          return this.tutorialsCompleted.progressive_tip_1 && !this.tutorialsCompleted.progressive_tip_2;
+        }
+      },
+      // 3. 发现火堆
+      {
+        id: 'progressive_tip_3',
+        title: '提示',
+        description: '发现火堆',
+        text: '你发现一个熄灭的火堆。靠近并按<span class="key">E</span>键点燃火堆',
+        position: 'center',
+        priority: 98,
+        triggerCondition: () => {
+          return this.tutorialsCompleted.progressive_tip_2 && !this.campfire.lit && !this.tutorialsCompleted.progressive_tip_3;
+        }
+      },
+      // 4. 发现物品（点燃火堆后，只有残羹）
+      {
+        id: 'progressive_tip_4',
+        title: '提示',
+        description: '发现物品',
+        text: '点燃了篝火，你发现了一些物品。靠近物品，按<span class="key">E</span>键拾取',
+        position: 'center',
+        priority: 97,
+        triggerCondition: () => {
+          return this.campfire.lit && this.pickupItems && this.pickupItems.length > 0 && !this.tutorialsCompleted.progressive_tip_4;
+        }
+      },
+      // 5. 查看背包（拾取1个物品后）
+      {
+        id: 'progressive_tip_5',
+        title: '提示',
+        description: '查看背包',
+        text: '物品到了背包里，查看一下背包，按<span class="key">B</span>键查看背包',
+        position: 'center',
+        priority: 96,
+        triggerCondition: () => {
+          return this.tutorialPhase === 'view_inventory' && !this.tutorialsCompleted.progressive_tip_5;
+        }
+      },
+      // 6. 使用消耗品
+      {
+        id: 'progressive_tip_6',
+        title: '提示',
+        description: '使用消耗品',
+        text: '点击残羹使用，恢复生命值',
+        position: 'center',
+        priority: 95,
+        triggerCondition: () => {
+          return this.tutorialPhase === 'consumable' && !this.tutorialsCompleted.progressive_tip_6;
+        }
+      },
+      // 7. 查看属性（使用残羹后）
+      {
+        id: 'progressive_tip_7',
+        title: '提示',
+        description: '恢复了一点',
+        text: '你发现自己舒服了一些。按 <span class="key">C</span> 查看属性',
+        position: 'center',
+        priority: 94,
+        triggerCondition: () => {
+          return this.tutorialsCompleted.progressive_tip_6 && !this.tutorialsCompleted.progressive_tip_7;
+        }
+      },
+      // 8. 又发现物品（查看属性后，2个装备）
+      {
+        id: 'progressive_tip_8',
+        title: '提示',
+        description: '又发现了物品',
+        text: '查看周围，你又发现了一些物品。靠近物品，按<span class="key">E</span>键拾取',
+        position: 'center',
+        priority: 93,
+        triggerCondition: () => {
+          return this.tutorialPhase === 'pickup_equipment' && !this.tutorialsCompleted.progressive_tip_8;
+        }
+      },
+      // 9. 装备物品
+      {
+        id: 'progressive_tip_9',
+        title: '提示',
+        description: '装备物品',
+        text: '点击物品装备',
+        position: 'center',
+        priority: 92,
+        triggerCondition: () => {
+          return this.inventoryPanel?.visible && !this.tutorialsCompleted.progressive_tip_9;
+        }
+      },
+      // 10. 查看装备（装备2件物品后）
+      {
+        id: 'progressive_tip_10',
+        title: '提示',
+        description: '查看装备',
+        text: '按<span class="key">V</span>键查看装备',
+        position: 'center',
+        priority: 91,
+        triggerCondition: () => {
+          const equipment = this.playerEntity?.getComponent('equipment');
+          // 必须装备两件物品（武器和护甲）
+          const equippedCount = equipment && equipment.slots ? 
+            Object.keys(equipment.slots).filter(slot => equipment.slots[slot]).length : 0;
+          return equippedCount >= 2 && !this.tutorialsCompleted.progressive_tip_10;
+        }
+      }
+    ];
+  }
+
+  /**
+   * 基础教程配置
+   */
+  getBasicTutorialsConfig() {
+    return [
+      {
+        id: 'movement',
+        title: '移动教程',
+        description: '学习如何移动角色',
+        steps: [
+          { text: '使用<span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span>或方向键移动角色，或点击鼠标移动', position: 'top' }
+        ],
+        priority: 10,
+        triggerCondition: () => {
+          return this.tutorialPhase === 'movement' && !this.tutorialsCompleted.movement;
+        },
+        completionCondition: () => {
+          return this.playerMovedDistance >= 100;
+        }
+      },
+      {
+        id: 'pickup',
+        title: '拾取教程',
+        description: '学习如何拾取物品',
+        steps: [
+          { text: '靠近物品并按<span class="key">E</span>键拾取', position: 'top' }
+        ],
+        priority: 9,
+        triggerCondition: () => {
+          return this.tutorialPhase === 'pickup' && !this.tutorialsCompleted.pickup;
+        }
+      },
+      {
+        id: 'equipment',
+        title: '装备教程',
+        description: '学习如何装备物品',
+        steps: [
+          { text: '打开背包（按B键）', position: 'top' },
+          { text: '点击物品查看详情', position: 'center' },
+          { text: '点击"装备"按钮装备物品', position: 'center' }
+        ],
+        priority: 8,
+        triggerCondition: () => {
+          return this.tutorialPhase === 'equipment' && !this.tutorialsCompleted.equipment;
+        }
+      },
+      {
+        id: 'combat',
+        title: '战斗教程',
+        description: '学习如何战斗',
+        steps: [
+          { text: '按空格键攻击敌人', position: 'top' },
+          { text: '注意生命值，低于30%时要小心', position: 'top' }
+        ],
+        priority: 7,
+        triggerCondition: () => {
+          return this.tutorialPhase === 'combat' && !this.tutorialsCompleted.combat;
+        }
+      }
+    ];
+  }
+
+  /**
+   * 注册教程（基于配置）
    */
   registerTutorials() {
-    // 渐进式提示 1: 按C查看属性
-    this.tutorialSystem.registerTutorial('progressive_tip_1', {
-      title: '提示',
-      description: '你从黑暗中醒来',
-      steps: [
-        { text: '你从黑暗中醒来,饥寒交迫。按 <span class="key">C</span> 查看属性', position: 'center' }
-      ],
-      triggerCondition: (gameState) => {
-        return this.tutorialPhase === 'character_creation' && !this.tutorialsCompleted.progressive_tip_1;
-      },
-      pauseGame: false,
-      canSkip: false,
-      priority: 100,
-      autoTrigger: true
-    });
+    // 注册渐进式提示
+    const progressiveTips = this.getProgressiveTipsConfig();
+    for (const tip of progressiveTips) {
+      this.tutorialSystem.registerTutorial(tip.id, {
+        title: tip.title,
+        description: tip.description,
+        steps: [{ text: tip.text, position: tip.position }],
+        triggerCondition: tip.triggerCondition,
+        pauseGame: false,
+        canSkip: false,
+        priority: tip.priority,
+        autoTrigger: true
+      });
+    }
 
-    // 渐进式提示 2: 按C关闭属性
-    this.tutorialSystem.registerTutorial('progressive_tip_2', {
-      title: '提示',
-      description: '发现自己受伤了',
-      steps: [
-        { text: '你发现自己受伤了，很虚弱。按 <span class="key">C</span> 关闭属性', position: 'center' }
-      ],
-      triggerCondition: (gameState) => {
-        return this.tutorialsCompleted.progressive_tip_1 && this.playerInfoPanel?.visible && !this.tutorialsCompleted.progressive_tip_2;
-      },
-      pauseGame: false,
-      canSkip: false,
-      priority: 99,
-      autoTrigger: true
-    });
-
-    // 渐进式提示 3: 按WASD移动
-    this.tutorialSystem.registerTutorial('progressive_tip_3', {
-      title: '提示',
-      description: '四处走走看看',
-      steps: [
-        { text: '你四处走了走，看了看。按<span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span>移动', position: 'center' }
-      ],
-      triggerCondition: (gameState) => {
-        return this.tutorialsCompleted.progressive_tip_2 && !this.tutorialsCompleted.progressive_tip_3;
-      },
-      pauseGame: false,
-      canSkip: false,
-      priority: 98,
-      autoTrigger: true
-    });
-
-    // 渐进式提示 3.5: 点燃火堆
-    this.tutorialSystem.registerTutorial('progressive_tip_3_5', {
-      title: '提示',
-      description: '发现火堆',
-      steps: [
-        { text: '你发现一个熄灭的火堆。靠近并按<span class="key">E</span>键点燃火堆', position: 'center' }
-      ],
-      triggerCondition: (gameState) => {
-        return this.tutorialsCompleted.progressive_tip_3 && !this.campfire.lit && !this.tutorialsCompleted.progressive_tip_3_5;
-      },
-      pauseGame: false,
-      canSkip: false,
-      priority: 97.5,
-      autoTrigger: true
-    });
-
-    // 渐进式提示 4: 按E键拾取
-    this.tutorialSystem.registerTutorial('progressive_tip_4', {
-      title: '提示',
-      description: '发现物品',
-      steps: [
-        { text: '你发现一些物品。按<span class="key">E</span>键拾取', position: 'center' }
-      ],
-      triggerCondition: (gameState) => {
-        return this.pickupItems && this.pickupItems.length > 0 && !this.tutorialsCompleted.progressive_tip_4;
-      },
-      pauseGame: false,
-      canSkip: false,
-      priority: 97,
-      autoTrigger: true
-    });
-
-    // 渐进式提示 5: 按B键查看背包
-    this.tutorialSystem.registerTutorial('progressive_tip_5', {
-      title: '提示',
-      description: '查看背包',
-      steps: [
-        { text: '按<span class="key">B</span>键查看背包', position: 'center' }
-      ],
-      triggerCondition: (gameState) => {
-        const inventory = this.playerEntity?.getComponent('inventory');
-        // 修改触发条件：拾取完3个物品
-        return inventory && inventory.items && inventory.items.length >= 3 && !this.tutorialsCompleted.progressive_tip_5;
-      },
-      pauseGame: false,
-      canSkip: false,
-      priority: 96,
-      autoTrigger: true
-    });
-
-    // 渐进式提示 6: 点击物品装备
-    this.tutorialSystem.registerTutorial('progressive_tip_6', {
-      title: '提示',
-      description: '装备物品',
-      steps: [
-        { text: '点击物品装备或使用', position: 'center' }
-      ],
-      triggerCondition: (gameState) => {
-        return this.inventoryPanel?.visible && !this.tutorialsCompleted.progressive_tip_6;
-      },
-      pauseGame: false,
-      canSkip: false,
-      priority: 95,
-      autoTrigger: true
-    });
-
-    // 渐进式提示 7: 按V键查看装备
-    this.tutorialSystem.registerTutorial('progressive_tip_7', {
-      title: '提示',
-      description: '查看装备',
-      steps: [
-        { text: '按<span class="key">V</span>键查看装备', position: 'center' }
-      ],
-      triggerCondition: (gameState) => {
-        const equipment = this.playerEntity?.getComponent('equipment');
-        return equipment && equipment.slots && Object.keys(equipment.slots).some(slot => equipment.slots[slot]) && !this.tutorialsCompleted.progressive_tip_7;
-      },
-      pauseGame: false,
-      canSkip: false,
-      priority: 94,
-      autoTrigger: true
-    });
-
-    // 渐进式提示 8: 使用消耗品
-    this.tutorialSystem.registerTutorial('progressive_tip_8', {
-      title: '提示',
-      description: '使用消耗品',
-      steps: [
-        { text: '你感到很虚弱。点击残羹使用，恢复生命值', position: 'center' }
-      ],
-      triggerCondition: (gameState) => {
-        return this.tutorialPhase === 'consumable' && !this.tutorialsCompleted.progressive_tip_8;
-      },
-      pauseGame: false,
-      canSkip: false,
-      priority: 93,
-      autoTrigger: true
-    });
-
-    // 移动教程
-    this.tutorialSystem.registerTutorial('movement', {
-      title: '移动教程',
-      description: '学习如何移动角色',
-      steps: [
-        { text: '使用WASD或方向键移动角色，或点击鼠标移动', position: 'top' }
-      ],
-      triggerCondition: (gameState) => {
-        return this.tutorialPhase === 'movement' && !this.tutorialsCompleted.movement;
-      },
-      completionCondition: (gameState) => {
-        return this.playerMovedDistance >= 100;
-      },
-      pauseGame: false,
-      canSkip: false,
-      priority: 10
-    });
-
-    // 拾取教程
-    this.tutorialSystem.registerTutorial('pickup', {
-      title: '拾取教程',
-      description: '学习如何拾取物品',
-      steps: [
-        { text: '靠近物品并按<span class="key">E</span>键拾取', position: 'top' }
-      ],
-      triggerCondition: (gameState) => {
-        return this.tutorialPhase === 'pickup' && !this.tutorialsCompleted.pickup;
-      },
-      pauseGame: false,
-      canSkip: false,
-      priority: 9
-    });
-
-    // 装备教程
-    this.tutorialSystem.registerTutorial('equipment', {
-      title: '装备教程',
-      description: '学习如何装备物品',
-      steps: [
-        { text: '打开背包（按B键）', position: 'top' },
-        { text: '点击物品查看详情', position: 'center' },
-        { text: '点击"装备"按钮装备物品', position: 'center' }
-      ],
-      triggerCondition: (gameState) => {
-        return this.tutorialPhase === 'equipment' && !this.tutorialsCompleted.equipment;
-      },
-      pauseGame: false,
-      canSkip: false,
-      priority: 8
-    });
-
-    // 战斗教程
-    this.tutorialSystem.registerTutorial('combat', {
-      title: '战斗教程',
-      description: '学习如何战斗',
-      steps: [
-        { text: '按空格键攻击敌人', position: 'top' },
-        { text: '注意生命值，低于30%时要小心', position: 'top' }
-      ],
-      triggerCondition: (gameState) => {
-        return this.tutorialPhase === 'combat' && !this.tutorialsCompleted.combat;
-      },
-      pauseGame: false,
-      canSkip: false,
-      priority: 7
-    });
+    // 注册基础教程
+    const basicTutorials = this.getBasicTutorialsConfig();
+    for (const tutorial of basicTutorials) {
+      this.tutorialSystem.registerTutorial(tutorial.id, {
+        title: tutorial.title,
+        description: tutorial.description,
+        steps: tutorial.steps,
+        triggerCondition: tutorial.triggerCondition,
+        completionCondition: tutorial.completionCondition,
+        pauseGame: false,
+        canSkip: false,
+        priority: tutorial.priority
+      });
+    }
   }
 
   /**
@@ -557,9 +578,42 @@ export class Act1SceneECS extends PrologueScene {
   }
 
   /**
-   * 生成可拾取物品
+   * 生成可拾取物品（第一批：只有残羹）
    */
   spawnPickupItems() {
+    const items = [
+      { 
+        id: 'leftover_food', 
+        name: '残羹', 
+        type: 'consumable', 
+        x: 250, 
+        y: 300, 
+        heal: 20,
+        description: '剩余的食物，可以恢复少量生命值',
+        rarity: 0,
+        maxStack: 10,
+        usable: true,
+        effect: {
+          type: 'heal',
+          value: 20
+        }
+      }
+    ];
+    
+    for (const item of items) {
+      this.pickupItems.push({
+        ...item,
+        picked: false
+      });
+    }
+    
+    console.log('Act1SceneECS: 生成第一批拾取物品（残羹）', this.pickupItems);
+  }
+
+  /**
+   * 生成装备物品（第二批：武器和护甲）
+   */
+  spawnEquipmentItems() {
     const items = [
       { 
         id: 'ragged_clothes', 
@@ -588,39 +642,23 @@ export class Act1SceneECS extends PrologueScene {
         description: '简陋的木棍，可以用来防身',
         rarity: 0,
         maxStack: 1
-      },
-      { 
-        id: 'leftover_food', 
-        name: '残羹', 
-        type: 'consumable', 
-        x: 250, 
-        y: 300, 
-        heal: 20,
-        description: '剩余的食物，可以恢复少量生命值',
-        rarity: 0,
-        maxStack: 10,
-        usable: true,
-        effect: {
-          type: 'heal',
-          value: 20
-        }
       }
     ];
     
     for (const item of items) {
-      this.pickupItems.push({
+      this.equipmentItems.push({
         ...item,
         picked: false
       });
     }
     
-    console.log('Act1SceneECS: 生成拾取物品', this.pickupItems);
+    console.log('Act1SceneECS: 生成第二批拾取物品（装备）', this.equipmentItems);
   }
 
   /**
-   * 拾取物品
+   * 拾取物品（支持两个数组）
    */
-  pickupItem(item) {
+  pickupItem(item, fromEquipmentItems = false) {
     if (item.picked) return;
     
     console.log(`Act1SceneECS: 拾取物品 - ${item.name}`);
@@ -647,15 +685,10 @@ export class Act1SceneECS extends PrologueScene {
       if (item.attack) itemData.stats.attack = item.attack;
       if (item.defense) itemData.stats.defense = item.defense;
       if (item.heal) itemData.heal = item.heal;
+      if (item.stats) itemData.stats = { ...itemData.stats, ...item.stats };
       
       inventory.addItem(itemData);
       console.log('Act1SceneECS: 物品已添加到背包', itemData);
-      
-      // 完成渐进式提示4: 按E键拾取
-      if (!this.tutorialsCompleted.progressive_tip_4) {
-        this.completeTutorial('progressive_tip_4');
-        console.log('Act1SceneECS: 完成渐进式提示4 - 按E键拾取');
-      }
     }
   }
 
@@ -927,8 +960,20 @@ export class Act1SceneECS extends PrologueScene {
    * 更新教程阶段
    */
   updateTutorialPhase(deltaTime) {
-    // 移动教程
-    if (this.tutorialPhase === 'movement') {
+    // 阶段1: 按任意键继续
+    if (this.tutorialPhase === 'character_creation') {
+      // 检测任意键按下
+      if (this.inputManager.isAnyKeyPressed()) {
+        if (!this.tutorialsCompleted.progressive_tip_1) {
+          this.completeTutorial('progressive_tip_1');
+          console.log('Act1SceneECS: 完成tip_1，进入移动阶段');
+          // 进入移动阶段，tip_2会自动触发
+          this.startMovementTutorial();
+        }
+      }
+    }
+    // 阶段2: 移动教程
+    else if (this.tutorialPhase === 'movement') {
       const transform = this.playerEntity.getComponent('transform');
       if (transform && this.lastPlayerPosition) {
         const dx = transform.position.x - this.lastPlayerPosition.x;
@@ -937,79 +982,62 @@ export class Act1SceneECS extends PrologueScene {
         this.playerMovedDistance += distance;
         this.lastPlayerPosition = { x: transform.position.x, y: transform.position.y };
         
-        // 完成渐进式提示3: 按WASD移动
-        if (this.playerMovedDistance >= 10 && !this.tutorialsCompleted.progressive_tip_3) {
-          this.completeTutorial('progressive_tip_3');
-          console.log('Act1SceneECS: 完成渐进式提示3 - 按WASD移动');
+        // 完成tip_2: 移动
+        if (this.playerMovedDistance >= 10 && !this.tutorialsCompleted.progressive_tip_2) {
+          this.completeTutorial('progressive_tip_2');
+          console.log('Act1SceneECS: 完成tip_2 - 移动');
         }
       }
       
       if (this.playerMovedDistance >= 100 && !this.tutorialsCompleted.movement) {
         this.completeTutorial('movement');
-        // 不直接进入拾取教程，等待点燃火堆
         this.tutorialPhase = 'campfire';
         console.log('Act1SceneECS: 等待点燃火堆');
       }
     }
-    // 火堆阶段
+    // 阶段3: 火堆阶段
     else if (this.tutorialPhase === 'campfire') {
-      // 等待玩家点燃火堆
       if (this.campfire.lit && !this.tutorialsCompleted.campfire) {
         this.tutorialsCompleted.campfire = true;
         console.log('Act1SceneECS: 火堆已点燃');
         
-        // 完成渐进式提示3.5: 点燃火堆
-        if (!this.tutorialsCompleted.progressive_tip_3_5) {
-          this.completeTutorial('progressive_tip_3_5');
-          console.log('Act1SceneECS: 完成渐进式提示3.5 - 点燃火堆');
+        // 完成tip_3: 点燃火堆
+        if (!this.tutorialsCompleted.progressive_tip_3) {
+          this.completeTutorial('progressive_tip_3');
+          console.log('Act1SceneECS: 完成tip_3 - 点燃火堆');
         }
         
-        // 进入拾取教程
+        // 生成第一批物品（残羹）
         this.startPickupTutorial();
       }
     }
-    // 拾取教程
+    // 阶段4: 拾取教程（第一批：残羹）
     else if (this.tutorialPhase === 'pickup') {
       const pickedCount = this.pickupItems.filter(item => item.picked).length;
-      if (pickedCount > 0 && !this.tutorialsCompleted.pickup) {
+      if (pickedCount >= 1 && !this.tutorialsCompleted.pickup) {
         this.completeTutorial('pickup');
-        this.startEquipmentTutorial();
+        
+        // 完成tip_4: 拾取物品
+        if (!this.tutorialsCompleted.progressive_tip_4) {
+          this.completeTutorial('progressive_tip_4');
+          console.log('Act1SceneECS: 完成tip_4 - 拾取物品');
+        }
+        
+        // tip_5会自动触发，不在这里手动完成
+        // 进入背包查看阶段
+        this.tutorialPhase = 'view_inventory';
+        console.log('Act1SceneECS: 进入背包查看阶段');
       }
     }
-    // 装备教程
-    else if (this.tutorialPhase === 'equipment') {
-      const equipment = this.playerEntity.getComponent('equipment');
-      const inventory = this.playerEntity.getComponent('inventory');
-      
-      // 检查是否装备了武器
-      if (equipment && equipment.weapon && !this.tutorialsCompleted.equipment) {
-        this.completeTutorial('equipment');
-        
-        // 完成渐进式提示6: 点击物品装备
-        if (!this.tutorialsCompleted.progressive_tip_6) {
-          this.completeTutorial('progressive_tip_6');
-          console.log('Act1SceneECS: 完成渐进式提示6 - 点击物品装备');
-        }
-        
-        // 检查背包中是否还有残羹
-        let hasConsumable = false;
-        if (inventory) {
-          const items = inventory.getAllItems();
-          hasConsumable = items.some(({ slot }) => 
-            slot.item.type === 'consumable' && slot.item.id === 'leftover_food'
-          );
-        }
-        
-        // 如果有残羹，进入消耗品使用阶段；否则直接进入战斗
-        if (hasConsumable) {
-          this.tutorialPhase = 'consumable';
-          console.log('Act1SceneECS: 进入消耗品使用阶段');
-        } else {
-          this.startCombatTutorial();
-        }
+    // 阶段4.5: 背包查看阶段
+    else if (this.tutorialPhase === 'view_inventory') {
+      // 等待玩家打开背包后进入消耗品使用阶段
+      if (this.tutorialsCompleted.progressive_tip_5) {
+        this.tutorialPhase = 'consumable';
+        console.log('Act1SceneECS: 进入消耗品使用阶段');
       }
     }
-    // 消耗品使用阶段
+    // 阶段5: 消耗品使用阶段
     else if (this.tutorialPhase === 'consumable') {
       const inventory = this.playerEntity.getComponent('inventory');
       
@@ -1022,17 +1050,78 @@ export class Act1SceneECS extends PrologueScene {
         );
       }
       
-      // 如果残羹用完了，进入战斗教程
+      // 如果残羹用完了，进入查看属性阶段
       if (!hasConsumable && !this.tutorialsCompleted.consumable) {
         this.tutorialsCompleted.consumable = true;
         console.log('Act1SceneECS: 完成消耗品使用阶段');
         
-        // 完成渐进式提示8: 使用消耗品
-        if (!this.tutorialsCompleted.progressive_tip_8) {
-          this.completeTutorial('progressive_tip_8');
-          console.log('Act1SceneECS: 完成渐进式提示8 - 使用消耗品');
+        // 完成tip_6: 使用消耗品
+        if (!this.tutorialsCompleted.progressive_tip_6) {
+          this.completeTutorial('progressive_tip_6');
+          console.log('Act1SceneECS: 完成tip_6 - 使用消耗品');
         }
         
+        // 进入查看属性阶段
+        this.tutorialPhase = 'view_stats';
+        console.log('Act1SceneECS: 进入查看属性阶段');
+      }
+    }
+    // 阶段6: 查看属性阶段
+    else if (this.tutorialPhase === 'view_stats') {
+      // 等待玩家查看属性后生成装备物品
+      if (this.tutorialsCompleted.progressive_tip_7) {
+        // 生成第二批物品（装备）
+        if (this.equipmentItems.length === 0) {
+          this.spawnEquipmentItems();
+          console.log('Act1SceneECS: 生成第二批物品（装备）');
+        }
+        
+        // tip_8会自动触发，不在这里手动完成
+        // 进入装备拾取阶段
+        this.tutorialPhase = 'pickup_equipment';
+        console.log('Act1SceneECS: 进入装备拾取阶段');
+      }
+    }
+    // 阶段6.5: 装备拾取阶段
+    else if (this.tutorialPhase === 'pickup_equipment') {
+      // 等待玩家拾取装备后进入装备教程
+      const pickedCount = this.equipmentItems.filter(item => item.picked).length;
+      if (pickedCount >= 2) {
+        // 完成tip_8: 发现装备
+        if (!this.tutorialsCompleted.progressive_tip_8) {
+          this.completeTutorial('progressive_tip_8');
+          console.log('Act1SceneECS: 完成tip_8 - 拾取装备');
+        }
+        
+        // 进入装备教程
+        this.tutorialPhase = 'equipment';
+        console.log('Act1SceneECS: 进入装备教程');
+      }
+    }
+    // 阶段7: 装备教程
+    else if (this.tutorialPhase === 'equipment') {
+      const equipment = this.playerEntity.getComponent('equipment');
+      
+      // 检查是否装备了2件物品（武器和护甲）
+      const equippedCount = equipment && equipment.slots ? 
+        Object.keys(equipment.slots).filter(slot => equipment.slots[slot]).length : 0;
+      
+      if (equippedCount >= 2 && !this.tutorialsCompleted.equipment) {
+        this.completeTutorial('equipment');
+        
+        // 完成tip_9: 装备物品
+        if (!this.tutorialsCompleted.progressive_tip_9) {
+          this.completeTutorial('progressive_tip_9');
+          console.log('Act1SceneECS: 完成tip_9 - 装备物品');
+        }
+        
+        // 完成tip_10: 查看装备
+        if (!this.tutorialsCompleted.progressive_tip_10) {
+          this.completeTutorial('progressive_tip_10');
+          console.log('Act1SceneECS: 完成tip_10 - 查看装备');
+        }
+        
+        // 进入战斗教程
         this.startCombatTutorial();
       }
     }
@@ -1051,16 +1140,10 @@ export class Act1SceneECS extends PrologueScene {
         this.lastPlayerInfoToggleTime = now;
         console.log('Act1SceneECS: 切换人物信息面板显示', this.playerInfoPanel.visible);
         
-        // 完成渐进式提示1: 按C查看属性（打开面板）
-        if (!this.tutorialsCompleted.progressive_tip_1 && this.playerInfoPanel.visible) {
-          this.completeTutorial('progressive_tip_1');
-          console.log('Act1SceneECS: 完成渐进式提示1 - 按C查看属性');
-        }
-        
-        // 完成渐进式提示2: 按C关闭属性（关闭面板）
-        if (!this.tutorialsCompleted.progressive_tip_2 && wasVisible && !this.playerInfoPanel.visible) {
-          this.completeTutorial('progressive_tip_2');
-          console.log('Act1SceneECS: 完成渐进式提示2 - 按C关闭属性');
+        // 完成tip_7: 查看属性（在view_stats阶段打开面板）
+        if (this.tutorialPhase === 'view_stats' && !this.tutorialsCompleted.progressive_tip_7 && this.playerInfoPanel.visible) {
+          this.completeTutorial('progressive_tip_7');
+          console.log('Act1SceneECS: 完成tip_7 - 查看属性');
         }
       }
     }
@@ -1078,10 +1161,10 @@ export class Act1SceneECS extends PrologueScene {
         this.lastInventoryToggleTime = now;
         console.log('Act1SceneECS: 切换背包显示', this.inventoryPanel.visible);
         
-        // 完成渐进式提示5: 按B键查看背包
-        if (!this.tutorialsCompleted.progressive_tip_5) {
+        // 完成tip_5: 按B键查看背包（在view_inventory阶段打开背包）
+        if (this.tutorialPhase === 'view_inventory' && !this.tutorialsCompleted.progressive_tip_5 && this.inventoryPanel.visible) {
           this.completeTutorial('progressive_tip_5');
-          console.log('Act1SceneECS: 完成渐进式提示5 - 按B键查看背包');
+          console.log('Act1SceneECS: 完成tip_5 - 按B键查看背包');
         }
       }
     }
@@ -1098,18 +1181,12 @@ export class Act1SceneECS extends PrologueScene {
         this.equipmentPanel.toggle();
         this.lastEquipmentToggleTime = now;
         console.log('Act1SceneECS: 切换装备面板显示', this.equipmentPanel.visible);
-        
-        // 完成渐进式提示7: 按V键查看装备
-        if (!this.tutorialsCompleted.progressive_tip_7) {
-          this.completeTutorial('progressive_tip_7');
-          console.log('Act1SceneECS: 完成渐进式提示7 - 按V键查看装备');
-        }
       }
     }
   }
 
   /**
-   * 检查拾取
+   * 检查拾取（支持两个数组）
    */
   checkPickup() {
     // 使用 isKeyDown 而不是 isKeyPressed，因为 isKeyPressed 在帧开始时已被清除
@@ -1126,6 +1203,7 @@ export class Act1SceneECS extends PrologueScene {
     const now = Date.now();
     if (this.lastPickupTime && now - this.lastPickupTime < 300) return;
     
+    // 检查第一批物品（残羹）
     for (const item of this.pickupItems) {
       if (item.picked) continue;
       
@@ -1134,9 +1212,24 @@ export class Act1SceneECS extends PrologueScene {
       const distance = Math.sqrt(dx * dx + dy * dy);
       
       if (distance <= 50) {
-        this.pickupItem(item);
+        this.pickupItem(item, false);
         this.lastPickupTime = now;
-        break;
+        return;
+      }
+    }
+    
+    // 检查第二批物品（装备）
+    for (const item of this.equipmentItems) {
+      if (item.picked) continue;
+      
+      const dx = item.x - playerX;
+      const dy = item.y - playerY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance <= 50) {
+        this.pickupItem(item, true);
+        this.lastPickupTime = now;
+        return;
       }
     }
   }
@@ -1507,18 +1600,20 @@ export class Act1SceneECS extends PrologueScene {
       }
     }
     
-    // 添加火堆到渲染队列（使用火堆的 Y 坐标）
-    renderQueue.push({
-      type: 'campfire_bottom',
-      y: this.campfire.y,
-      render: () => this.renderCampfireBottom(ctx)
-    });
-    
-    renderQueue.push({
-      type: 'campfire_top',
-      y: this.campfire.y - 1, // 稍微靠前一点，确保在同一Y坐标的实体之后渲染
-      render: () => this.renderCampfireTop(ctx)
-    });
+    // 添加火堆到渲染队列（只在完成tip_2后显示）
+    if (this.tutorialsCompleted.progressive_tip_2) {
+      renderQueue.push({
+        type: 'campfire_bottom',
+        y: this.campfire.y,
+        render: () => this.renderCampfireBottom(ctx)
+      });
+      
+      renderQueue.push({
+        type: 'campfire_top',
+        y: this.campfire.y - 1, // 稍微靠前一点，确保在同一Y坐标的实体之后渲染
+        render: () => this.renderCampfireTop(ctx)
+      });
+    }
     
     // 按 Y 坐标排序（从小到大，Y 小的在后面渲染，会遮挡前面的）
     renderQueue.sort((a, b) => a.y - b.y);
@@ -1630,10 +1725,32 @@ export class Act1SceneECS extends PrologueScene {
   }
 
   /**
-   * 渲染可拾取物品
+   * 渲染可拾取物品（支持两个数组）
    */
   renderPickupItems(ctx) {
+    // 渲染第一批物品（残羹）
     for (const item of this.pickupItems) {
+      if (item.picked) continue;
+      
+      // 直接使用世界坐标（已经应用了相机变换）
+      const x = item.x;
+      const y = item.y;
+      
+      // 绘制物品图标
+      ctx.fillStyle = '#ffaa00';
+      ctx.beginPath();
+      ctx.arc(x, y, 10, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // 绘制物品名称
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '12px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(item.name, x, y - 15);
+    }
+    
+    // 渲染第二批物品（装备）
+    for (const item of this.equipmentItems) {
       if (item.picked) continue;
       
       // 直接使用世界坐标（已经应用了相机变换）
@@ -1664,12 +1781,6 @@ export class Act1SceneECS extends PrologueScene {
     
     if (!this.campfire.lit) {
       // 渲染熄灭的火堆 - 木材堆（下半部分）
-      // 绘制底部的灰烬圆圈
-      ctx.fillStyle = '#3a3a3a';
-      ctx.beginPath();
-      ctx.arc(x, y, 25, 0, Math.PI * 2);
-      ctx.fill();
-      
       // 绘制木材下半部分（使用裁剪）
       ctx.save();
       ctx.beginPath();

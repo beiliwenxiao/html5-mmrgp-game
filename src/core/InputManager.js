@@ -228,6 +228,14 @@ export class InputManager {
     }
 
     /**
+     * 检查是否有任意键在本帧按下
+     * @returns {boolean}
+     */
+    isAnyKeyPressed() {
+        return this.keysPressed.size > 0;
+    }
+
+    /**
      * 检查键是否在本帧释放
      * @param {string} key - 键名
      * @returns {boolean}
