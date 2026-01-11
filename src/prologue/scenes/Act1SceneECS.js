@@ -906,6 +906,11 @@ export class Act1SceneECS extends PrologueScene {
     // 检查点燃火堆
     this.checkCampfire();
     
+    // 调试：检查E键状态
+    if (this.inputManager.isKeyDown('e') || this.inputManager.isKeyDown('E')) {
+      console.log('Act1SceneECS: E键被检测到');
+    }
+    
     // 检查波次完成
     this.checkWaveCompletion();
     
@@ -1108,7 +1113,8 @@ export class Act1SceneECS extends PrologueScene {
    */
   checkPickup() {
     // 使用 isKeyDown 而不是 isKeyPressed，因为 isKeyPressed 在帧开始时已被清除
-    if (!this.inputManager.isKeyDown('e') && !this.inputManager.isKeyDown('E')) return;
+    const ePressed = this.inputManager.isKeyDown('e') || this.inputManager.isKeyDown('E');
+    if (!ePressed) return;
     
     const transform = this.playerEntity.getComponent('transform');
     if (!transform) return;
@@ -1143,7 +1149,10 @@ export class Act1SceneECS extends PrologueScene {
     if (this.campfire.lit) return;
     
     // 使用 isKeyDown 检测 E 键
-    if (!this.inputManager.isKeyDown('e') && !this.inputManager.isKeyDown('E')) return;
+    const ePressed = this.inputManager.isKeyDown('e') || this.inputManager.isKeyDown('E');
+    if (!ePressed) return;
+    
+    console.log('Act1SceneECS: E键被按下，检查火堆距离');
     
     const transform = this.playerEntity.getComponent('transform');
     if (!transform) return;
@@ -1173,13 +1182,18 @@ export class Act1SceneECS extends PrologueScene {
     const playerY = transform.position.y;
     const playerRadius = 20; // 玩家半径
     
-    // 火堆的碰撞区域（矩形，只包含上部3/4）
-    // 下部1/4可以让玩家靠近
-    const campfireLeft = this.campfire.x - 25;
-    const campfireRight = this.campfire.x + 25;
+    // 火堆的碰撞区域
+    // 宽度：中间8/10（左右各1/10可以靠近）
+    // 高度：上部3/4（下部1/4可以靠近）
+    const fullWidth = 50;
+    const fullHeight = 30;
+    const collisionWidth = fullWidth * 0.8; // 中间8/10宽度 = 40
+    const collisionHeight = fullHeight * 0.75; // 上部3/4高度 = 22.5
+    
+    const campfireLeft = this.campfire.x - collisionWidth / 2;
+    const campfireRight = this.campfire.x + collisionWidth / 2;
     const campfireTop = this.campfire.y - 15;
-    const campfireBottom = this.campfire.y + 15;
-    const collisionBottom = campfireBottom - (campfireBottom - campfireTop) * 0.3; // 只碰撞上部0.6
+    const campfireBottom = this.campfire.y - 15 + collisionHeight;
     
     // 检查玩家是否与火堆碰撞（AABB碰撞检测）
     const playerLeft = playerX - playerRadius;
@@ -1187,11 +1201,11 @@ export class Act1SceneECS extends PrologueScene {
     const playerTop = playerY - playerRadius;
     const playerBottom = playerY + playerRadius;
     
-    // 检测碰撞（只检测火堆的上部3/4）
+    // 检测碰撞
     if (playerRight > campfireLeft && 
         playerLeft < campfireRight && 
         playerBottom > campfireTop && 
-        playerTop < collisionBottom) {
+        playerTop < campfireBottom) {
       
       // 发生碰撞，计算推开方向
       const dx = playerX - this.campfire.x;
@@ -1202,7 +1216,7 @@ export class Act1SceneECS extends PrologueScene {
         ? (campfireRight - playerLeft) 
         : (campfireLeft - playerRight);
       const overlapY = dy > 0 
-        ? (collisionBottom - playerTop) 
+        ? (campfireBottom - playerTop) 
         : (campfireTop - playerBottom);
       
       // 沿重叠较小的方向推开
