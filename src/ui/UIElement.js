@@ -89,4 +89,31 @@ export class UIElement {
     return x >= this.x && x <= this.x + this.width &&
            y >= this.y && y <= this.y + this.height;
   }
+
+  /**
+   * 检查点是否在元素内部
+   * 这是 containsPoint 的别名方法，用于与 UIClickHandler 接口保持一致
+   * @param {number} x - X坐标
+   * @param {number} y - Y坐标
+   * @returns {boolean}
+   */
+  isPointInside(x, y) {
+    return this.containsPoint(x, y);
+  }
+
+  /**
+   * 处理鼠标点击事件
+   * 默认实现：如果点击在元素范围内，就认为已处理
+   * 子类可以重写此方法以实现更复杂的点击处理逻辑
+   * 
+   * @param {number} x - 点击 X 坐标
+   * @param {number} y - 点击 Y 坐标
+   * @param {string} button - 鼠标按钮（'left' 或 'right'）
+   * @returns {boolean} 是否处理了该点击（true 表示阻止事件传播）
+   */
+  handleMouseClick(x, y, button = 'left') {
+    // 默认实现：如果点击在元素范围内，就认为已处理
+    // 这样可以阻止点击穿透到游戏世界层
+    return this.isPointInside(x, y);
+  }
 }

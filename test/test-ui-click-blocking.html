@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UI 点击阻止测试页面</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .content {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        .canvas-section {
+            flex: 1;
+            min-width: 600px;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 500px;
+            background: #2c3e50;
+            border-radius: 8px;
+            cursor: crosshair;
+        }
+
+        .info-section {
+            flex: 1;
+            min-width: 300px;
+            padding: 20px;
+        }
+
+        .info-box {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .info-box h3 {
+            color: #667eea;
+            font-size: 16px;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+
+        .info-box p, .info-box ul {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #555;
+        }
+
+        .info-box ul {
+            list-style-position: inside;
+            padding-left: 10px;
+        }
+
+        .info-box li {
+            margin-bottom: 5px;
+        }
+
+        .status {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        .status-label {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .status-value {
+            color: #667eea;
+            font-family: 'Courier New', monospace;
+        }
+
+        .status-value.blocked {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+
+        .status-value.allowed {
+            color: #27ae60;
+            font-weight: bold;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #7f8c8d;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(149, 165, 166, 0.4);
+        }
+
+        .legend {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            font-size: 12px;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            margin-right: 8px;
+            border: 2px solid #333;
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                flex-direction: column;
+            }
+            
+            .canvas-section, .info-section {
+                min-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎮 UI 点击阻止功能测试</h1>
+            <p>测试 UI 元素点击是否正确阻止角色移动</p>
+        </div>
+
+        <div class="content">
+            <div class="canvas-section">
+                <canvas id="gameCanvas" width="800" height="600"></canvas>
+            </div>
+
+            <div class="info-section">
+                <div class="info-box">
+                    <h3>📋 测试说明</h3>
+                    <ul>
+                        <li>点击 <strong>UI 面板内部</strong>：角色不应移动</li>
+                        <li>点击 <strong>UI 面板外部</strong>：角色应移动到点击位置</li>
+                        <li>重叠 UI 面板：高 z-index 优先处理</li>
+                        <li>隐藏的 UI 面板：不参与点击检测</li>
+                    </ul>
+                </div>
+
+                <div class="info-box">
+                    <h3>📊 实时状态</h3>
+                    <div class="status">
+                        <span class="status-label">鼠标位置:</span>
+                        <span class="status-value" id="mousePos">-</span>
+                    </div>
+                    <div class="status">
+                        <span class="status-label">角色位置:</span>
+                        <span class="status-value" id="playerPos">-</span>
+                    </div>
+                    <div class="status">
+                        <span class="status-label">点击状态:</span>
+                        <span class="status-value" id="clickStatus">未点击</span>
+                    </div>
+                    <div class="status">
+                        <span class="status-label">UI 处理:</span>
+                        <span class="status-value" id="uiHandled">-</span>
+                    </div>
+                    <div class="status">
+                        <span class="status-label">移动允许:</span>
+                        <span class="status-value" id="moveAllowed">-</span>
+                    </div>
+                </div>
+
+                <div class="info-box">
+                    <h3>🎨 UI 元素图例</h3>
+                    <div class="legend">
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: rgba(52, 152, 219, 0.7);"></div>
+                            <span>背包面板 (z:100)</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: rgba(46, 204, 113, 0.7);"></div>
+                            <span>装备面板 (z:90)</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: rgba(155, 89, 182, 0.7);"></div>
+                            <span>信息面板 (z:80)</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: rgba(241, 196, 15, 0.7);"></div>
+                            <span>提示框 (z:110)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-box">
+                    <h3>🎛️ 控制面板</h3>
+                    <div class="controls">
+                        <button class="btn btn-primary" id="toggleInventory">切换背包</button>
+                        <button class="btn btn-primary" id="toggleEquipment">切换装备</button>
+                    </div>
+                    <div class="controls">
+                        <button class="btn btn-primary" id="toggleInfo">切换信息</button>
+                        <button class="btn btn-primary" id="toggleTooltip">切换提示</button>
+                    </div>
+                    <div class="controls">
+                        <button class="btn btn-secondary" id="resetPlayer">重置角色</button>
+                        <button class="btn btn-secondary" id="clearLog">清除日志</button>
+                    </div>
+                </div>
+
+                <div class="info-box">
+                    <h3>📝 操作日志</h3>
+                    <div id="logContainer" style="max-height: 150px; overflow-y: auto; font-size: 12px; font-family: 'Courier New', monospace; background: #fff; padding: 10px; border-radius: 4px;">
+                        <div style="color: #27ae60;">✓ 系统初始化完成</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // 导入核心类
+        import UIClickHandler from '../src/core/UIClickHandler.js';
+        import { InputManager } from '../src/core/InputManager.js';
+        import { UIElement } from '../src/ui/UIElement.js';
+
+        // 获取 Canvas 和上下文
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 创建核心系统
+        const inputManager = new InputManager(canvas);
+        const uiClickHandler = new UIClickHandler();
+
+        // 简单的 UI 面板类（用于测试）
+        class TestPanel extends UIElement {
+            constructor(options) {
+                super(options);
+                this.title = options.title || 'Panel';
+                this.color = options.color || 'rgba(52, 152, 219, 0.7)';
+            }
+
+            render(ctx) {
+                if (!this.visible) return;
+
+                // 绘制面板背景
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+
+                // 绘制边框
+                ctx.strokeStyle = '#2c3e50';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(this.x, this.y, this.width, this.height);
+
+                // 绘制标题
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 16px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.title, this.x + this.width / 2, this.y + 20);
+
+                // 绘制 z-index 信息
+                ctx.font = '12px Arial';
+                ctx.fillText(`z-index: ${this.zIndex}`, this.x + this.width / 2, this.y + 40);
+            }
+
+            handleMouseClick(x, y, button) {
+                if (this.isPointInside(x, y)) {
+                    addLog(`✓ ${this.title} 处理了点击 (${button})`, '#27ae60');
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        // 创建测试 UI 元素
+        const inventoryPanel = new TestPanel({
+            x: 50,
+            y: 50,
+            width: 200,
+            height: 150,
+            title: '背包面板',
+            color: 'rgba(52, 152, 219, 0.7)',
+            zIndex: 100,
+            visible: true
+        });
+
+        const equipmentPanel = new TestPanel({
+            x: 150,
+            y: 120,
+            width: 180,
+            height: 140,
+            title: '装备面板',
+            color: 'rgba(46, 204, 113, 0.7)',
+            zIndex: 90,
+            visible: true
+        });
+
+        const infoPanel = new TestPanel({
+            x: 400,
+            y: 80,
+            width: 220,
+            height: 180,
+            title: '信息面板',
+            color: 'rgba(155, 89, 182, 0.7)',
+            zIndex: 80,
+            visible: true
+        });
+
+        const tooltipPanel = new TestPanel({
+            x: 100,
+            y: 250,
+            width: 150,
+            height: 80,
+            title: '提示框',
+            color: 'rgba(241, 196, 15, 0.7)',
+            zIndex: 110,
+            visible: false
+        });
+
+        // 注册 UI 元素
+        uiClickHandler.registerElement(inventoryPanel);
+        uiClickHandler.registerElement(equipmentPanel);
+        uiClickHandler.registerElement(infoPanel);
+        uiClickHandler.registerElement(tooltipPanel);
+
+        // 角色状态
+        const player = {
+            x: 400,
+            y: 400,
+            targetX: 400,
+            targetY: 400,
+            speed: 200,
+            radius: 15
+        };
+
+        // 点击可视化
+        const clickVisuals = [];
+
+        // 日志系统
+        function addLog(message, color = '#333') {
+            const logContainer = document.getElementById('logContainer');
+            const logEntry = document.createElement('div');
+            logEntry.style.color = color;
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        // 更新状态显示
+        function updateStatus() {
+            const mousePos = inputManager.getMousePosition();
+            document.getElementById('mousePos').textContent = `(${Math.round(mousePos.x)}, ${Math.round(mousePos.y)})`;
+            document.getElementById('playerPos').textContent = `(${Math.round(player.x)}, ${Math.round(player.y)})`;
+        }
+
+        // 游戏循环
+        let lastTime = performance.now();
+        function gameLoop(currentTime) {
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+
+            // 更新
+            update(deltaTime);
+
+            // 渲染
+            render();
+
+            // 更新状态显示
+            updateStatus();
+
+            // 清除输入状态
+            inputManager.update();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function update(deltaTime) {
+            // 处理点击事件
+            if (inputManager.isMouseClicked() && !inputManager.isMouseClickHandled()) {
+                const mousePos = inputManager.getMousePosition();
+                const button = inputManager.getMouseButton() === 2 ? 'right' : 'left';
+
+                // 检查 UI 是否处理了点击
+                const uiHandled = uiClickHandler.handleClick(mousePos.x, mousePos.y, button);
+
+                if (uiHandled) {
+                    // UI 处理了点击
+                    inputManager.markMouseClickHandled();
+                    document.getElementById('clickStatus').textContent = '已点击';
+                    document.getElementById('uiHandled').textContent = '是';
+                    document.getElementById('uiHandled').className = 'status-value blocked';
+                    document.getElementById('moveAllowed').textContent = '否';
+                    document.getElementById('moveAllowed').className = 'status-value blocked';
+                    addLog('✗ 点击被 UI 阻止，角色不移动', '#e74c3c');
+                } else {
+                    // 没有 UI 处理，角色移动
+                    player.targetX = mousePos.x;
+                    player.targetY = mousePos.y;
+                    document.getElementById('clickStatus').textContent = '已点击';
+                    document.getElementById('uiHandled').textContent = '否';
+                    document.getElementById('uiHandled').className = 'status-value allowed';
+                    document.getElementById('moveAllowed').textContent = '是';
+                    document.getElementById('moveAllowed').className = 'status-value allowed';
+                    addLog(`✓ 角色移动到 (${Math.round(mousePos.x)}, ${Math.round(mousePos.y)})`, '#27ae60');
+                }
+
+                // 添加点击可视化
+                clickVisuals.push({
+                    x: mousePos.x,
+                    y: mousePos.y,
+                    blocked: uiHandled,
+                    life: 1.0
+                });
+            }
+
+            // 更新角色移动
+            const dx = player.targetX - player.x;
+            const dy = player.targetY - player.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > 2) {
+                const moveDistance = player.speed * deltaTime;
+                const ratio = Math.min(moveDistance / distance, 1);
+                player.x += dx * ratio;
+                player.y += dy * ratio;
+            }
+
+            // 更新点击可视化
+            for (let i = clickVisuals.length - 1; i >= 0; i--) {
+                clickVisuals[i].life -= deltaTime * 2;
+                if (clickVisuals[i].life <= 0) {
+                    clickVisuals.splice(i, 1);
+                }
+            }
+        }
+
+        function render() {
+            // 清空画布
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 绘制网格
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            for (let x = 0; x < canvas.width; x += 50) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += 50) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+
+            // 绘制 UI 元素
+            inventoryPanel.render(ctx);
+            equipmentPanel.render(ctx);
+            infoPanel.render(ctx);
+            tooltipPanel.render(ctx);
+
+            // 绘制角色
+            ctx.fillStyle = '#e74c3c';
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#c0392b';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // 绘制角色标签
+            ctx.fillStyle = '#fff';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('角色', player.x, player.y - 25);
+
+            // 绘制点击可视化
+            for (const visual of clickVisuals) {
+                const alpha = visual.life;
+                const size = 10 + (1 - visual.life) * 20;
+                
+                ctx.strokeStyle = visual.blocked 
+                    ? `rgba(231, 76, 60, ${alpha})` 
+                    : `rgba(46, 204, 113, ${alpha})`;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(visual.x, visual.y, size, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // 绘制十字标记
+                ctx.beginPath();
+                ctx.moveTo(visual.x - size, visual.y);
+                ctx.lineTo(visual.x + size, visual.y);
+                ctx.moveTo(visual.x, visual.y - size);
+                ctx.lineTo(visual.x, visual.y + size);
+                ctx.stroke();
+            }
+
+            // 绘制鼠标位置
+            const mousePos = inputManager.getMousePosition();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(mousePos.x, mousePos.y, 5, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        // 按钮事件
+        document.getElementById('toggleInventory').addEventListener('click', () => {
+            inventoryPanel.toggle();
+            addLog(`背包面板 ${inventoryPanel.visible ? '显示' : '隐藏'}`, '#3498db');
+        });
+
+        document.getElementById('toggleEquipment').addEventListener('click', () => {
+            equipmentPanel.toggle();
+            addLog(`装备面板 ${equipmentPanel.visible ? '显示' : '隐藏'}`, '#2ecc71');
+        });
+
+        document.getElementById('toggleInfo').addEventListener('click', () => {
+            infoPanel.toggle();
+            addLog(`信息面板 ${infoPanel.visible ? '显示' : '隐藏'}`, '#9b59b6');
+        });
+
+        document.getElementById('toggleTooltip').addEventListener('click', () => {
+            tooltipPanel.toggle();
+            addLog(`提示框 ${tooltipPanel.visible ? '显示' : '隐藏'}`, '#f1c40f');
+        });
+
+        document.getElementById('resetPlayer').addEventListener('click', () => {
+            player.x = 400;
+            player.y = 400;
+            player.targetX = 400;
+            player.targetY = 400;
+            addLog('角色位置已重置', '#95a5a6');
+        });
+
+        document.getElementById('clearLog').addEventListener('click', () => {
+            document.getElementById('logContainer').innerHTML = '<div style="color: #27ae60;">✓ 日志已清除</div>';
+        });
+
+        // 启动游戏循环
+        addLog('✓ UI 点击处理器已初始化', '#3498db');
+        addLog(`✓ 已注册 ${uiClickHandler.getElementCount()} 个 UI 元素`, '#3498db');
+        addLog('✓ 开始测试...', '#27ae60');
+        gameLoop(performance.now());
+    </script>
+</body>
+</html>

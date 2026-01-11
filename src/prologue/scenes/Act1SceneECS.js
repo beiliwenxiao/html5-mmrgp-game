@@ -16,6 +16,7 @@
 import { PrologueScene } from './PrologueScene.js';
 import { EntityFactory } from '../../ecs/EntityFactory.js';
 import { InputManager } from '../../core/InputManager.js';
+import UIClickHandler from '../../core/UIClickHandler.js';
 import { Camera } from '../../rendering/Camera.js';
 import { CombatSystem } from '../../systems/CombatSystem.js';
 import { MovementSystem } from '../../systems/MovementSystem.js';
@@ -47,6 +48,7 @@ export class Act1SceneECS extends PrologueScene {
     this.equipmentSystem = null;
     this.renderSystem = null;
     this.combatEffects = null;
+    this.uiClickHandler = new UIClickHandler();  // UI 点击处理器
     
     // 序章系统
     this.tutorialSystem = new TutorialSystem();
@@ -204,6 +206,11 @@ export class Act1SceneECS extends PrologueScene {
         }
       }
     });
+    
+    // 注册所有 UI 元素到 UIClickHandler
+    this.uiClickHandler.registerElement(this.inventoryPanel);
+    this.uiClickHandler.registerElement(this.equipmentPanel);
+    this.uiClickHandler.registerElement(this.playerInfoPanel);
     
     // 创建玩家实体
     this.createPlayerEntity();
@@ -731,6 +738,41 @@ export class Act1SceneECS extends PrologueScene {
       entity.update(deltaTime);
     }
     
+    // ===== UI 点击处理（必须在 MovementSystem 之前） =====
+    // 处理 UI 面板的鼠标事件
+    if (this.inputManager.isMouseClicked() && !this.inputManager.isMouseClickHandled()) {
+      const mousePos = this.inputManager.getMousePosition();
+      const button = this.inputManager.getMouseButton() === 2 ? 'right' : 'left';
+      
+      // 使用 UIClickHandler 检查 UI 是否处理了点击
+      const uiHandled = this.uiClickHandler.handleClick(mousePos.x, mousePos.y, button);
+      
+      if (uiHandled) {
+        // UI 处理了点击，标记为已处理
+        this.inputManager.markMouseClickHandled();
+      } else {
+        // 检查教程提示框（HTML元素）
+        if (this.tutorialSystem) {
+          const tutorialElement = document.getElementById('tutorial-panel');
+          if (tutorialElement && !tutorialElement.classList.contains('hidden')) {
+            const rect = tutorialElement.getBoundingClientRect();
+            const canvas = document.getElementById('gameCanvas');
+            const canvasRect = canvas.getBoundingClientRect();
+            
+            // 将canvas坐标转换为页面坐标
+            const pageX = canvasRect.left + mousePos.x;
+            const pageY = canvasRect.top + mousePos.y;
+            
+            if (pageX >= rect.left && pageX <= rect.right &&
+                pageY >= rect.top && pageY <= rect.bottom) {
+              // 教程提示框处理了点击
+              this.inputManager.markMouseClickHandled();
+            }
+          }
+        }
+      }
+    }
+    
     // 更新移动系统
     this.movementSystem.update(deltaTime, this.entities);
     
@@ -803,76 +845,15 @@ export class Act1SceneECS extends PrologueScene {
     // 更新人物信息面板
     this.playerInfoPanel.update(deltaTime);
     
-    // 处理UI面板的鼠标事件
-    let uiHandledClick = false;
+    // 更新鼠标悬停状态（即使没有点击也需要更新）
+    const mousePos = this.inputManager.getMousePosition();
     
-    if (this.inputManager.isMouseClicked()) {
-      const mousePos = this.inputManager.getMousePosition();
-      
-      // 检查背包面板
-      if (this.inventoryPanel.visible) {
-        this.inventoryPanel.handleMouseMove(mousePos.x, mousePos.y);
-        const button = this.inputManager.getMouseButton() === 2 ? 'right' : 'left';
-        const handled = this.inventoryPanel.handleMouseClick(mousePos.x, mousePos.y, button);
-        if (handled) {
-          uiHandledClick = true;
-        }
-      }
-      
-      // 检查装备面板
-      if (this.equipmentPanel.visible && !uiHandledClick) {
-        this.equipmentPanel.handleMouseMove(mousePos.x, mousePos.y);
-        const button = this.inputManager.getMouseButton() === 2 ? 'right' : 'left';
-        const handled = this.equipmentPanel.handleMouseClick(mousePos.x, mousePos.y, button);
-        if (handled) {
-          uiHandledClick = true;
-        }
-      }
-      
-      // 检查人物信息面板
-      if (this.playerInfoPanel.visible && !uiHandledClick) {
-        if (mousePos.x >= this.playerInfoPanel.x && 
-            mousePos.x <= this.playerInfoPanel.x + this.playerInfoPanel.width &&
-            mousePos.y >= this.playerInfoPanel.y && 
-            mousePos.y <= this.playerInfoPanel.y + this.playerInfoPanel.height) {
-          uiHandledClick = true;
-        }
-      }
-      
-      // 检查教程提示框（HTML元素）
-      if (this.tutorialSystem && !uiHandledClick) {
-        const tutorialElement = document.getElementById('tutorial-panel');
-        if (tutorialElement && !tutorialElement.classList.contains('hidden')) {
-          const rect = tutorialElement.getBoundingClientRect();
-          const canvas = document.getElementById('gameCanvas');
-          const canvasRect = canvas.getBoundingClientRect();
-          
-          // 将canvas坐标转换为页面坐标
-          const pageX = canvasRect.left + mousePos.x;
-          const pageY = canvasRect.top + mousePos.y;
-          
-          if (pageX >= rect.left && pageX <= rect.right &&
-              pageY >= rect.top && pageY <= rect.bottom) {
-            uiHandledClick = true;
-          }
-        }
-      }
-    } else {
-      // 即使没有点击，也要更新鼠标悬停状态
-      const mousePos = this.inputManager.getMousePosition();
-      
-      if (this.inventoryPanel.visible) {
-        this.inventoryPanel.handleMouseMove(mousePos.x, mousePos.y);
-      }
-      
-      if (this.equipmentPanel.visible) {
-        this.equipmentPanel.handleMouseMove(mousePos.x, mousePos.y);
-      }
+    if (this.inventoryPanel.visible) {
+      this.inventoryPanel.handleMouseMove(mousePos.x, mousePos.y);
     }
     
-    // 如果UI处理了点击，清除鼠标点击状态，防止移动系统响应
-    if (uiHandledClick) {
-      this.inputManager.mouse.clicked = false;
+    if (this.equipmentPanel.visible) {
+      this.equipmentPanel.handleMouseMove(mousePos.x, mousePos.y);
     }
     
     // 检查拾取

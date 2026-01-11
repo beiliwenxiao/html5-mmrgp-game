@@ -192,4 +192,21 @@ export class PlayerInfoPanel extends UIElement {
       ctx.fillText('无技能', this.x + this.padding, currentY);
     }
   }
+
+  /**
+   * 处理鼠标点击事件
+   * @param {number} x - 鼠标X坐标
+   * @param {number} y - 鼠标Y坐标
+   * @param {string} button - 鼠标按钮 ('left' | 'right')
+   * @returns {boolean} 是否处理了点击事件
+   */
+  handleMouseClick(x, y, button = 'left') {
+    // 如果不可见或点击不在面板内，返回 false
+    if (!this.visible || !this.containsPoint(x, y)) {
+      return false;
+    }
+    
+    // 点击在面板内任何位置都算处理了（阻止事件传播）
+    return true;
+  }
 }

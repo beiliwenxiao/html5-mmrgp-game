@@ -174,7 +174,10 @@ export class MovementSystem {
     if (!this.inputManager) return;
     
     // 检测鼠标点击（左键）
-    if (this.inputManager.isMouseClicked() && this.inputManager.getMouseButton() === 0) {
+    // 只有当点击未被 UI 处理时才响应移动
+    if (this.inputManager.isMouseClicked() && 
+        this.inputManager.getMouseButton() === 0 &&
+        !this.inputManager.isMouseClickHandled()) {
       // 只处理玩家实体的点击移动
       const playerEntity = this.playerEntity || entities.find(e => e.type === 'player');
       if (!playerEntity) return;

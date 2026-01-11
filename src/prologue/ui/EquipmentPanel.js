@@ -551,12 +551,13 @@ export class EquipmentPanel extends UIElement {
   
   /**
    * 处理鼠标点击事件
-   * @param {number} mouseX - 鼠标X坐标
-   * @param {number} mouseY - 鼠标Y坐标
+   * @param {number} x - 鼠标X坐标
+   * @param {number} y - 鼠标Y坐标
+   * @param {string} button - 鼠标按钮 ('left' | 'right')
    * @returns {boolean} 是否处理了点击事件
    */
-  handleMouseClick(mouseX, mouseY) {
-    if (!this.visible || !this.containsPoint(mouseX, mouseY)) {
+  handleMouseClick(x, y, button = 'left') {
+    if (!this.visible || !this.containsPoint(x, y)) {
       return false;
     }
     
@@ -566,8 +567,8 @@ export class EquipmentPanel extends UIElement {
       const slotX = this.x + layout.x;
       const slotY = this.y + layout.y;
       
-      if (mouseX >= slotX && mouseX <= slotX + this.slotSize &&
-          mouseY >= slotY && mouseY <= slotY + this.slotSize) {
+      if (x >= slotX && x <= slotX + this.slotSize &&
+          y >= slotY && y <= slotY + this.slotSize) {
         this.selectedSlot = slotType;
         
         // 触发槽位点击回调

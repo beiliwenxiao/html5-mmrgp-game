@@ -19,7 +19,8 @@ export class InputManager {
             worldY: 0,
             isDown: false,
             button: -1,
-            clicked: false
+            clicked: false,
+            handled: false  // 标记点击事件是否已被处理（用于 UI 点击阻止）
         };
         
         // 键位映射
@@ -284,6 +285,24 @@ export class InputManager {
     }
 
     /**
+     * 标记鼠标点击已被处理
+     * 用于 UI 点击阻止功能，当 UI 处理了点击事件后调用此方法
+     * 防止点击事件传播到游戏世界层（如移动系统）
+     */
+    markMouseClickHandled() {
+        this.mouse.handled = true;
+        this.mouse.clicked = false;  // 清除点击状态
+    }
+
+    /**
+     * 检查鼠标点击是否已被处理
+     * @returns {boolean} 如果点击已被 UI 处理则返回 true
+     */
+    isMouseClickHandled() {
+        return this.mouse.handled;
+    }
+
+    /**
      * 设置相机位置（用于坐标转换）
      * @param {number} x - 相机X坐标
      * @param {number} y - 相机Y坐标
@@ -329,6 +348,7 @@ export class InputManager {
         
         // 清除鼠标点击状态
         this.mouse.clicked = false;
+        this.mouse.handled = false;  // 重置处理标记
     }
 
     /**
