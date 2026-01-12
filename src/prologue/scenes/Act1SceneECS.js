@@ -28,6 +28,10 @@ import { RenderSystem } from '../../rendering/RenderSystem.js';
 import { CombatEffects } from '../../rendering/CombatEffects.js';
 import { SkillEffects } from '../../rendering/SkillEffects.js';
 import { InventoryPanel } from '../../ui/InventoryPanel.js';
+import { TutorialConfig } from '../config/TutorialConfig.js';
+import { TutorialConditions } from '../conditions/TutorialConditions.js';
+import { ProgressiveTipsConfig } from '../config/ProgressiveTipsConfig.js';
+import { ProgressiveTipsConditions } from '../conditions/ProgressiveTipsConditions.js';
 import { PlayerInfoPanel } from '../../ui/PlayerInfoPanel.js';
 import { EquipmentPanel } from '../../ui/EquipmentPanel.js';
 import { FloatingTextManager } from '../../ui/FloatingText.js';
@@ -322,204 +326,69 @@ export class Act1SceneECS extends PrologueScene {
 
   /**
    * 渐进式提示配置
-   * 通过配置数组定义提示流程，每个提示包含：
-   * - id: 提示唯一标识
-   * - title: 提示标题
-   * - description: 提示描述
-   * - text: 提示文本内容
-   * - position: 提示位置
-   * - priority: 优先级
-   * - triggerCondition: 触发条件函数
+   * 使用配置文件和条件判断器
    */
   getProgressiveTipsConfig() {
-    return [
-      // 1. 醒来（不显示火堆）
-      {
-        id: 'progressive_tip_1',
-        title: '提示',
-        description: '你从黑暗中醒来',
-        text: '你从黑暗中醒来,饥寒交迫。按任意键继续',
-        position: 'center',
-        priority: 100,
+    const tips = [];
+    
+    // 遍历渐进式提示配置
+    for (const tipId in ProgressiveTipsConfig) {
+      const config = ProgressiveTipsConfig[tipId];
+      
+      tips.push({
+        id: config.id,
+        title: config.title,
+        description: config.description,
+        text: config.text,
+        position: config.position,
+        priority: config.priority,
         triggerCondition: () => {
-          return this.tutorialPhase === 'character_creation' && !this.tutorialsCompleted.progressive_tip_1;
+          return ProgressiveTipsConditions.evaluate(
+            config.triggerConditionId,
+            this
+          );
         }
-      },
-      // 2. 移动（火堆出现）
-      {
-        id: 'progressive_tip_2',
-        title: '提示',
-        description: '四处走走看看',
-        text: '四处走走。按<span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span>移动',
-        position: 'center',
-        priority: 99,
-        triggerCondition: () => {
-          return this.tutorialsCompleted.progressive_tip_1 && !this.tutorialsCompleted.progressive_tip_2;
-        }
-      },
-      // 3. 发现火堆
-      {
-        id: 'progressive_tip_3',
-        title: '提示',
-        description: '发现火堆',
-        text: '你发现一个熄灭的火堆。靠近并按<span class="key">E</span>键点燃火堆',
-        position: 'center',
-        priority: 98,
-        triggerCondition: () => {
-          return this.tutorialsCompleted.progressive_tip_2 && !this.campfire.lit && !this.tutorialsCompleted.progressive_tip_3;
-        }
-      },
-      // 4. 发现物品（点燃火堆后，只有残羹）
-      {
-        id: 'progressive_tip_4',
-        title: '提示',
-        description: '发现物品',
-        text: '点燃了篝火，你发现了一些物品。靠近物品，按<span class="key">E</span>键拾取',
-        position: 'center',
-        priority: 97,
-        triggerCondition: () => {
-          return this.campfire.lit && this.pickupItems && this.pickupItems.length > 0 && !this.tutorialsCompleted.progressive_tip_4;
-        }
-      },
-      // 5. 查看背包（拾取1个物品后）
-      {
-        id: 'progressive_tip_5',
-        title: '提示',
-        description: '查看背包',
-        text: '物品到了背包里，查看一下背包，按<span class="key">B</span>键查看背包',
-        position: 'center',
-        priority: 96,
-        triggerCondition: () => {
-          return this.tutorialPhase === 'view_inventory' && !this.tutorialsCompleted.progressive_tip_5;
-        }
-      },
-      // 6. 使用消耗品
-      {
-        id: 'progressive_tip_6',
-        title: '提示',
-        description: '使用消耗品',
-        text: '点击残羹使用，恢复生命值',
-        position: 'center',
-        priority: 95,
-        triggerCondition: () => {
-          return this.tutorialPhase === 'consumable' && !this.tutorialsCompleted.progressive_tip_6;
-        }
-      },
-      // 7. 查看属性（使用残羹后）
-      {
-        id: 'progressive_tip_7',
-        title: '提示',
-        description: '恢复了一点',
-        text: '你发现自己舒服了一些。按 <span class="key">C</span> 查看属性',
-        position: 'center',
-        priority: 94,
-        triggerCondition: () => {
-          return this.tutorialsCompleted.progressive_tip_6 && !this.tutorialsCompleted.progressive_tip_7;
-        }
-      },
-      // 8. 又发现物品（查看属性后，2个装备）
-      {
-        id: 'progressive_tip_8',
-        title: '提示',
-        description: '又发现了物品',
-        text: '查看周围，你又发现了一些物品。靠近物品，按<span class="key">E</span>键拾取',
-        position: 'center',
-        priority: 93,
-        triggerCondition: () => {
-          return this.tutorialPhase === 'pickup_equipment' && !this.tutorialsCompleted.progressive_tip_8;
-        }
-      },
-      // 9. 装备物品
-      {
-        id: 'progressive_tip_9',
-        title: '提示',
-        description: '装备物品',
-        text: '点击物品装备',
-        position: 'center',
-        priority: 92,
-        triggerCondition: () => {
-          return this.inventoryPanel?.visible && !this.tutorialsCompleted.progressive_tip_9;
-        }
-      },
-      // 10. 查看装备（装备2件物品后）
-      {
-        id: 'progressive_tip_10',
-        title: '提示',
-        description: '查看装备',
-        text: '按<span class="key">V</span>键查看装备',
-        position: 'center',
-        priority: 91,
-        triggerCondition: () => {
-          const equipment = this.playerEntity?.getComponent('equipment');
-          // 必须装备两件物品（武器和护甲）
-          const equippedCount = equipment && equipment.slots ? 
-            Object.keys(equipment.slots).filter(slot => equipment.slots[slot]).length : 0;
-          return equippedCount >= 2 && !this.tutorialsCompleted.progressive_tip_10;
-        }
-      }
-    ];
+      });
+    }
+    
+    return tips;
   }
 
   /**
    * 基础教程配置
+   * 使用配置文件和条件判断器
    */
   getBasicTutorialsConfig() {
-    return [
-      {
-        id: 'movement',
-        title: '移动教程',
-        description: '学习如何移动角色',
-        steps: [
-          { text: '使用<span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span>或方向键移动角色，或点击鼠标移动', position: 'top' }
-        ],
-        priority: 10,
+    const tutorials = [];
+    
+    // 遍历教程配置
+    for (const tutorialId in TutorialConfig) {
+      const config = TutorialConfig[tutorialId];
+      
+      tutorials.push({
+        id: config.id,
+        title: config.title,
+        description: config.description,
+        steps: config.steps,
+        priority: config.priority,
         triggerCondition: () => {
-          return this.tutorialPhase === 'movement' && !this.tutorialsCompleted.movement;
+          return TutorialConditions.evaluate(
+            config.triggerConditionId,
+            this,
+            this.getGameState()
+          );
         },
         completionCondition: () => {
-          return this.playerMovedDistance >= 100;
+          return TutorialConditions.evaluate(
+            config.completionConditionId,
+            this,
+            this.getGameState()
+          );
         }
-      },
-      {
-        id: 'pickup',
-        title: '拾取教程',
-        description: '学习如何拾取物品',
-        steps: [
-          { text: '靠近物品并按<span class="key">E</span>键拾取', position: 'top' }
-        ],
-        priority: 9,
-        triggerCondition: () => {
-          return this.tutorialPhase === 'pickup' && !this.tutorialsCompleted.pickup;
-        }
-      },
-      {
-        id: 'equipment',
-        title: '装备教程',
-        description: '学习如何装备物品',
-        steps: [
-          { text: '打开背包（按B键）', position: 'top' },
-          { text: '点击物品查看详情', position: 'center' },
-          { text: '点击"装备"按钮装备物品', position: 'center' }
-        ],
-        priority: 8,
-        triggerCondition: () => {
-          return this.tutorialPhase === 'equipment' && !this.tutorialsCompleted.equipment;
-        }
-      },
-      {
-        id: 'combat',
-        title: '战斗教程',
-        description: '学习如何战斗',
-        steps: [
-          { text: '按空格键攻击敌人', position: 'top' },
-          { text: '注意生命值，低于30%时要小心', position: 'top' }
-        ],
-        priority: 7,
-        triggerCondition: () => {
-          return this.tutorialPhase === 'combat' && !this.tutorialsCompleted.combat;
-        }
-      }
-    ];
+      });
+    }
+    
+    return tutorials;
   }
 
   /**

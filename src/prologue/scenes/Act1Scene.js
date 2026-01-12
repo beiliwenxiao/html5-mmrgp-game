@@ -19,6 +19,8 @@ import { PrologueScene } from './PrologueScene.js';
 import { TutorialSystem } from '../systems/TutorialSystem.js';
 import { DialogueSystem } from '../systems/DialogueSystem.js';
 import { QuestSystem } from '../systems/QuestSystem.js';
+import { TutorialConfig } from '../config/TutorialConfig.js';
+import { TutorialConditions } from '../conditions/TutorialConditions.js';
 
 export class Act1Scene extends PrologueScene {
   constructor() {
@@ -127,92 +129,41 @@ export class Act1Scene extends PrologueScene {
    * 注册教程
    */
   registerTutorials() {
-    // 移动教程
-    this.tutorialSystem.registerTutorial('movement', {
-      title: '移动教程',
-      description: '学习如何移动角色',
-      steps: [
-        {
-          text: '使用WASD或方向键移动角色',
-          position: 'top'
-        }
-      ],
-      triggerCondition: (gameState) => {
-        return this.tutorialPhase === 'movement' && !this.tutorialsCompleted.movement;
-      },
-      completionCondition: (gameState) => {
-        return this.playerMovedDistance >= 100; // 移动100像素后完成
-      },
-      pauseGame: false,
-      canSkip: false,
-      priority: 10
-    });
-
-    // 拾取教程
-    this.tutorialSystem.registerTutorial('pickup', {
-      title: '拾取教程',
-      description: '学习如何拾取物品',
-      steps: [
-        {
-          text: '靠近物品并按E键拾取',
-          position: 'top'
-        }
-      ],
-      triggerCondition: (gameState) => {
-        return this.tutorialPhase === 'pickup' && !this.tutorialsCompleted.pickup;
-      },
-      pauseGame: false,
-      canSkip: false,
-      priority: 9
-    });
-
-    // 装备教程
-    this.tutorialSystem.registerTutorial('equipment', {
-      title: '装备教程',
-      description: '学习如何装备物品',
-      steps: [
-        {
-          text: '打开背包（按I键）',
-          position: 'top'
+    // 遍历教程配置，注册所有教程
+    for (const tutorialId in TutorialConfig) {
+      const config = TutorialConfig[tutorialId];
+      
+      // 构建教程配置对象
+      const tutorialData = {
+        title: config.title,
+        description: config.description,
+        steps: config.steps,
+        pauseGame: config.pauseGame,
+        canSkip: config.canSkip,
+        priority: config.priority,
+        // 触发条件：使用TutorialConditions中的条件函数
+        triggerCondition: (gameState) => {
+          return TutorialConditions.evaluate(
+            config.triggerConditionId,
+            this,
+            gameState
+          );
         },
-        {
-          text: '点击物品查看详情',
-          position: 'center'
-        },
-        {
-          text: '点击"装备"按钮装备物品',
-          position: 'center'
+        // 完成条件：使用TutorialConditions中的条件函数
+        completionCondition: (gameState) => {
+          return TutorialConditions.evaluate(
+            config.completionConditionId,
+            this,
+            gameState
+          );
         }
-      ],
-      triggerCondition: (gameState) => {
-        return this.tutorialPhase === 'equipment' && !this.tutorialsCompleted.equipment;
-      },
-      pauseGame: false,
-      canSkip: false,
-      priority: 8
-    });
-
-    // 战斗教程
-    this.tutorialSystem.registerTutorial('combat', {
-      title: '战斗教程',
-      description: '学习如何战斗',
-      steps: [
-        {
-          text: '按空格键攻击敌人',
-          position: 'top'
-        },
-        {
-          text: '注意生命值，低于30%时要小心',
-          position: 'top'
-        }
-      ],
-      triggerCondition: (gameState) => {
-        return this.tutorialPhase === 'combat' && !this.tutorialsCompleted.combat;
-      },
-      pauseGame: false,
-      canSkip: false,
-      priority: 7
-    });
+      };
+      
+      // 注册教程
+      this.tutorialSystem.registerTutorial(tutorialId, tutorialData);
+    }
+    
+    console.log(`Act1Scene: 已注册 ${Object.keys(TutorialConfig).length} 个教程`);
   }
 
   /**
