@@ -19,3 +19,9 @@ export { PlayerSyncSystem, RemotePlayer, PlayerState } from './PlayerSyncSystem.
 export { FriendSystem, Friend, FriendRequest, FriendStatus, FriendRequestStatus, FriendGroupType } from './FriendSystem.js';
 export { TeamSystem, Team, TeamMember, TeamInvite, TeamState, TeamRole, InviteStatus, ExpShareMode, LootMode } from './TeamSystem.js';
 export { PVPSystem, PVPPlayerData, ArenaBattle, PVPState, ArenaState, PVPConfig } from './PVPSystem.js';
+export { DialogueSystem } from './DialogueSystem.js';
+export { TutorialSystem } from './TutorialSystem.js';
+export { ProgressManager } from './ProgressManager.js';
+export { ClassSystem, ClassType, ClassNames, ClassInstructors, ClassData, SpecializationData } from './ClassSystem.js';
+export { AISystem } from './AISystem.js';
+export { NPCRecruitmentSystem } from './NPCRecruitmentSystem.js';

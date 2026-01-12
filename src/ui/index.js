@@ -22,3 +22,5 @@ export { NPCPanel } from './NPCPanel.js';
 export { QuestPanel } from './QuestPanel.js';
 export { ShopPanel } from './ShopPanel.js';
 export { ChatPanel } from './ChatPanel.js';
+export { DialogueBox } from './DialogueBox.js';
+export { TutorialTooltip } from './TutorialTooltip.js';

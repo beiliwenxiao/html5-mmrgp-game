@@ -21,9 +21,9 @@ import { Camera } from '../../rendering/Camera.js';
 import { CombatSystem } from '../../systems/CombatSystem.js';
 import { MovementSystem } from '../../systems/MovementSystem.js';
 import { EquipmentSystem } from '../../systems/EquipmentSystem.js';
-import { TutorialSystem } from '../systems/TutorialSystem.js';
-import { DialogueSystem } from '../systems/DialogueSystem.js';
-import { QuestSystem } from '../systems/QuestSystem.js';
+import { TutorialSystem } from '../../systems/TutorialSystem.js';
+import { DialogueSystem } from '../../systems/DialogueSystem.js';
+import { QuestSystem } from '../../systems/QuestSystem.js';
 import { RenderSystem } from '../../rendering/RenderSystem.js';
 import { CombatEffects } from '../../rendering/CombatEffects.js';
 import { SkillEffects } from '../../rendering/SkillEffects.js';
@@ -188,12 +188,12 @@ export class Act1SceneECS extends PrologueScene {
       visible: false  // 默认隐藏，按 C 键打开
     });
     
-    // 装备面板 - 角色信息面板右边
+    // 装备面板 - 角色信息面板下方
     this.equipmentPanel = new EquipmentPanel({
-      x: 300,
-      y: 10,
-      width: 180,
-      height: 400,
+      x: 10,
+      y: 340,  // 角色信息面板下方（10 + 320 + 10）
+      width: 280,  // 与角色信息面板同宽
+      height: 250,  // 缩短高度
       visible: false
     });
     
@@ -908,13 +908,21 @@ export class Act1SceneECS extends PrologueScene {
     }
     // 阶段4.5: 背包查看阶段
     else if (this.tutorialPhase === 'view_inventory') {
-      // 等待玩家打开背包后进入消耗品使用阶段
+      // 等待玩家打开背包后进入查看属性阶段
       if (this.tutorialsCompleted.progressive_tip_5) {
+        this.tutorialPhase = 'view_stats';
+        console.log('Act1SceneECS: 进入查看属性阶段');
+      }
+    }
+    // 阶段5: 查看属性阶段
+    else if (this.tutorialPhase === 'view_stats') {
+      // 等待玩家查看属性后进入消耗品使用阶段
+      if (this.tutorialsCompleted.progressive_tip_6) {
         this.tutorialPhase = 'consumable';
         console.log('Act1SceneECS: 进入消耗品使用阶段');
       }
     }
-    // 阶段5: 消耗品使用阶段
+    // 阶段6: 消耗品使用阶段
     else if (this.tutorialPhase === 'consumable') {
       const inventory = this.playerEntity.getComponent('inventory');
       
@@ -927,26 +935,35 @@ export class Act1SceneECS extends PrologueScene {
         );
       }
       
-      // 如果残羹用完了，进入查看属性阶段
+      // 如果残羹用完了，进入关闭面板阶段
       if (!hasConsumable && !this.tutorialsCompleted.consumable) {
         this.tutorialsCompleted.consumable = true;
         console.log('Act1SceneECS: 完成消耗品使用阶段');
         
-        // 完成tip_6: 使用消耗品
-        if (!this.tutorialsCompleted.progressive_tip_6) {
-          this.completeTutorial('progressive_tip_6');
-          console.log('Act1SceneECS: 完成tip_6 - 使用消耗品');
+        // 完成tip_7: 使用消耗品
+        if (!this.tutorialsCompleted.progressive_tip_7) {
+          this.completeTutorial('progressive_tip_7');
+          console.log('Act1SceneECS: 完成tip_7 - 使用消耗品');
         }
         
-        // 进入查看属性阶段
-        this.tutorialPhase = 'view_stats';
-        console.log('Act1SceneECS: 进入查看属性阶段');
+        // 进入关闭面板阶段，等待 tip_7_1 完成
+        this.tutorialPhase = 'close_panels';
+        console.log('Act1SceneECS: 进入关闭面板阶段');
       }
     }
-    // 阶段6: 查看属性阶段
-    else if (this.tutorialPhase === 'view_stats') {
-      // 等待玩家查看属性后生成装备物品
-      if (this.tutorialsCompleted.progressive_tip_7) {
+    // 阶段6.5: 关闭面板阶段
+    else if (this.tutorialPhase === 'close_panels') {
+      // 检查两个面板是否都已关闭
+      const bothPanelsClosed = !this.playerInfoPanel?.visible && !this.inventoryPanel?.visible;
+      
+      // 如果两个面板都关闭了，完成 tip_7.1
+      if (bothPanelsClosed && !this.tutorialsCompleted.progressive_tip_7_1) {
+        this.completeTutorial('progressive_tip_7_1');
+        console.log('Act1SceneECS: 完成tip_7.1 - 关闭面板');
+      }
+      
+      // 等待玩家完成 tip_7_1（关闭两个面板）后生成装备物品
+      if (this.tutorialsCompleted.progressive_tip_7_1) {
         // 生成第二批物品（装备）
         if (this.equipmentItems.length === 0) {
           this.spawnEquipmentItems();
@@ -959,7 +976,7 @@ export class Act1SceneECS extends PrologueScene {
         console.log('Act1SceneECS: 进入装备拾取阶段');
       }
     }
-    // 阶段6.5: 装备拾取阶段
+    // 阶段7: 装备拾取阶段
     else if (this.tutorialPhase === 'pickup_equipment') {
       // 等待玩家拾取装备后进入装备教程
       const pickedCount = this.equipmentItems.filter(item => item.picked).length;
@@ -975,7 +992,7 @@ export class Act1SceneECS extends PrologueScene {
         console.log('Act1SceneECS: 进入装备教程');
       }
     }
-    // 阶段7: 装备教程
+    // 阶段8: 装备教程
     else if (this.tutorialPhase === 'equipment') {
       const equipment = this.playerEntity.getComponent('equipment');
       
@@ -1017,10 +1034,10 @@ export class Act1SceneECS extends PrologueScene {
         this.lastPlayerInfoToggleTime = now;
         console.log('Act1SceneECS: 切换人物信息面板显示', this.playerInfoPanel.visible);
         
-        // 完成tip_7: 查看属性（在view_stats阶段打开面板）
-        if (this.tutorialPhase === 'view_stats' && !this.tutorialsCompleted.progressive_tip_7 && this.playerInfoPanel.visible) {
-          this.completeTutorial('progressive_tip_7');
-          console.log('Act1SceneECS: 完成tip_7 - 查看属性');
+        // 完成tip_6: 查看属性（在view_stats阶段打开面板）
+        if (this.tutorialPhase === 'view_stats' && !this.tutorialsCompleted.progressive_tip_6 && this.playerInfoPanel.visible) {
+          this.completeTutorial('progressive_tip_6');
+          console.log('Act1SceneECS: 完成tip_6 - 查看属性');
         }
       }
     }
@@ -1529,10 +1546,7 @@ export class Act1SceneECS extends PrologueScene {
       this.dialogueSystem.render(ctx);
     }
     
-    // 渲染任务系统
-    if (this.questSystem) {
-      this.questSystem.render(ctx);
-    }
+    // 注意：QuestSystem 没有 render 方法，任务UI由其他组件负责
     
     // 渲染人物信息面板
     if (this.playerInfoPanel) {

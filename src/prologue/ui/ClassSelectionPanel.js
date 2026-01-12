@@ -13,7 +13,7 @@
  */
 
 import { UIElement } from '../../ui/UIElement.js';
-import { ClassType, ClassNames, ClassInstructors } from '../systems/ClassSystem.js';
+import { ClassType, ClassNames, ClassInstructors } from '../../systems/ClassSystem.js';
 
 /**
  * 职业卡片颜色映射

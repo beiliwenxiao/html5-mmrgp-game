@@ -65,36 +65,34 @@ export class ProgressiveTipsConditions {
   }
 
   /**
-   * 提示6 - 使用消耗品
+   * 提示6 - 查看属性
    * @param {Object} scene - 场景实例
    * @returns {boolean}
    */
   static progressive_tip_6_trigger(scene) {
-    return scene.tutorialPhase === 'consumable' && 
+    return scene.tutorialPhase === 'view_stats' && 
            !scene.tutorialsCompleted.progressive_tip_6;
   }
 
   /**
-   * 提示7 - 查看属性
+   * 提示7 - 使用消耗品
    * @param {Object} scene - 场景实例
    * @returns {boolean}
    */
   static progressive_tip_7_trigger(scene) {
-    return scene.tutorialsCompleted.progressive_tip_6 && 
+    return scene.tutorialPhase === 'consumable' && 
            !scene.tutorialsCompleted.progressive_tip_7;
   }
 
   /**
    * 提示7.1 - 关闭属性面板和背包面板
-   * 当属性面板和背包面板都关闭时触发
+   * 完成 tip_7 后立即触发，提示玩家关闭面板
    * @param {Object} scene - 场景实例
    * @returns {boolean}
    */
   static progressive_tip_7_1_trigger(scene) {
-    // 必须完成提示7，且两个面板都已关闭
-    const bothPanelsClosed = !scene.playerInfoPanel?.visible && !scene.inventoryPanel?.visible;
+    // 必须完成提示7，且还没完成 7.1
     return scene.tutorialsCompleted.progressive_tip_7 && 
-           bothPanelsClosed &&
            !scene.tutorialsCompleted.progressive_tip_7_1;
   }
 
@@ -105,6 +103,8 @@ export class ProgressiveTipsConditions {
    */
   static progressive_tip_8_trigger(scene) {
     return scene.tutorialPhase === 'pickup_equipment' && 
+           scene.equipmentItems && 
+           scene.equipmentItems.length > 0 &&
            !scene.tutorialsCompleted.progressive_tip_8;
   }
 
@@ -114,7 +114,19 @@ export class ProgressiveTipsConditions {
    * @returns {boolean}
    */
   static progressive_tip_9_trigger(scene) {
-    return scene.inventoryPanel?.visible && 
+    // 必须完成 tip_8（拾取装备），且背包中有装备物品
+    const inventory = scene.playerEntity?.getComponent('inventory');
+    let hasEquipment = false;
+    
+    if (inventory) {
+      const items = inventory.getAllItems();
+      hasEquipment = items.some(({ slot }) => 
+        slot.item.type === 'equipment'
+      );
+    }
+    
+    return scene.tutorialsCompleted.progressive_tip_8 && 
+           hasEquipment &&
            !scene.tutorialsCompleted.progressive_tip_9;
   }
 

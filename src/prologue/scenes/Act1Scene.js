@@ -16,9 +16,9 @@
  */
 
 import { PrologueScene } from './PrologueScene.js';
-import { TutorialSystem } from '../systems/TutorialSystem.js';
-import { DialogueSystem } from '../systems/DialogueSystem.js';
-import { QuestSystem } from '../systems/QuestSystem.js';
+import { TutorialSystem } from '../../systems/TutorialSystem.js';
+import { DialogueSystem } from '../../systems/DialogueSystem.js';
+import { QuestSystem } from '../../systems/QuestSystem.js';
 import { TutorialConfig } from '../config/TutorialConfig.js';
 import { TutorialConditions } from '../conditions/TutorialConditions.js';
 

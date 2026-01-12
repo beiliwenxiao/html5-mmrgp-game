@@ -118,30 +118,55 @@
 │   │   ├── Component.js
 │   │   ├── EntityFactory.js
 │   │   └── components/
-│   ├── systems/              # 游戏系统
+│   ├── systems/              # 游戏系统 ✨ 重构后
 │   │   ├── CombatSystem.js
 │   │   ├── MovementSystem.js
 │   │   ├── EquipmentSystem.js
+│   │   ├── DialogueSystem.js      # ✨ 新增
+│   │   ├── TutorialSystem.js      # ✨ 新增
+│   │   ├── ClassSystem.js         # ✨ 新增
 │   │   └── ...
 │   ├── rendering/            # 渲染系统
 │   │   ├── Camera.js
 │   │   ├── RenderSystem.js
 │   │   ├── CombatEffects.js
 │   │   └── ...
-│   ├── prologue/             # 序章场景
-│   │   ├── scenes/
-│   │   │   ├── Act1SceneECS.js
-│   │   │   └── ...
-│   │   ├── systems/
-│   │   └── ui/
-│   └── ui/                   # UI 组件
+│   ├── ui/                   # UI 组件 ✨ 重构后
+│   │   ├── InventoryPanel.js
+│   │   ├── EquipmentPanel.js
+│   │   ├── DialogueBox.js         # ✨ 新增
+│   │   ├── TutorialTooltip.js     # ✨ 新增
+│   │   └── ...
+│   └── prologue/             # 序章场景 ✨ 配置驱动
+│       ├── config/           # ✨ 配置文件（数据）
+│       │   ├── Act1Config.js
+│       │   ├── TutorialConfig.js
+│       │   └── ...
+│       ├── conditions/       # ✨ 条件函数（纯函数）
+│       ├── scenes/           # ✨ 场景类（简化）
+│       │   ├── Act1SceneRefactored.js  # ✨ 推荐使用
+│       │   └── ...
+│       └── ui/               # 场景特定UI
 ├── test/                     # 测试文件
 ├── docs/                     # 文档
 │   ├── QUICK_START_ECS.md
-│   ├── ACT1_SCENE_ECS_REFACTOR.md
+│   ├── PROLOGUE_REFACTOR_PLAN.md      # ✨ 重构计划
+│   ├── PROLOGUE_REFACTOR_GUIDE.md     # ✨ 重构指南
+│   ├── REFACTOR_SUMMARY.md            # ✨ 重构总结
 │   └── ...
 └── styles/                   # 样式文件
 ```
+
+### ✨ 重构说明
+
+项目已完成 Prologue 重构，采用**配置驱动**的架构：
+
+- **核心系统集中化**: 所有功能性代码都在 `src/systems/` 和 `src/ui/`
+- **配置驱动**: Prologue 场景只包含配置和数据
+- **代码复用**: 核心功能可在所有场景中使用
+- **易于维护**: 功能集中管理，修改一处即可
+
+详见：[重构指南](docs/PROLOGUE_REFACTOR_GUIDE.md)
 
 ## 📚 文档
 
@@ -150,11 +175,18 @@
 - [快速启动指南](docs/QUICK_START_ECS.md) - 5分钟上手
 - [游戏控制说明](docs/QUICK_START_ECS.md#游戏控制) - 所有控制方式
 
+### 架构文档 ✨
+
+- [Prologue 重构计划](docs/PROLOGUE_REFACTOR_PLAN.md) - 详细的重构计划
+- [Prologue 重构指南](docs/PROLOGUE_REFACTOR_GUIDE.md) - 重构指南和最佳实践
+- [重构总结](docs/REFACTOR_SUMMARY.md) - 重构完成情况
+- [场景使用说明](src/prologue/scenes/README.md) - 如何创建配置驱动的场景
+
 ### 开发文档
 
 - [ECS 架构重构](docs/ACT1_SCENE_ECS_REFACTOR.md) - 架构设计
 - [实现文档](docs/ACT1_SCENE_IMPLEMENTATION.md) - 详细实现
-- [重构总结](docs/ECS_REFACTOR_SUMMARY.md) - 完整总结
+- [ECS 快速入门](docs/QUICK_START_ECS.md) - ECS 架构说明
 
 ### API 文档
 
@@ -162,6 +194,7 @@
 - [核心系统](src/core/)
 - [游戏系统](src/systems/)
 - [渲染系统](src/rendering/)
+- [配置文件](src/prologue/config/README.md)
 
 ## 🔧 开发
 

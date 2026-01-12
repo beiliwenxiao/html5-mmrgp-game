@@ -76,23 +76,23 @@ export const ProgressiveTipsConfig = {
     triggerConditionId: 'progressive_tip_5_trigger'
   },
 
-  // 6. 使用消耗品
+  // 6. 查看属性（拾取物品后）
   progressive_tip_6: {
     id: 'progressive_tip_6',
     title: '提示',
-    description: '使用消耗品',
-    text: '点击残羹使用，恢复生命值',
+    description: '查看属性',
+    text: '按 <span class="key">C</span> 查看属性',
     position: 'center',
     priority: 95,
     triggerConditionId: 'progressive_tip_6_trigger'
   },
 
-  // 7. 查看属性（使用残羹后）
+  // 7. 使用消耗品（查看属性后）
   progressive_tip_7: {
     id: 'progressive_tip_7',
     title: '提示',
-    description: '恢复了一点',
-    text: '你发现自己舒服了一些。按 <span class="key">C</span> 查看属性',
+    description: '使用消耗品',
+    text: '你发现自己生命值很低。点击残羹使用，恢复生命值',
     position: 'center',
     priority: 94,
     triggerConditionId: 'progressive_tip_7_trigger'
