@@ -26,6 +26,7 @@ import { DialogueSystem } from '../systems/DialogueSystem.js';
 import { QuestSystem } from '../systems/QuestSystem.js';
 import { RenderSystem } from '../../rendering/RenderSystem.js';
 import { CombatEffects } from '../../rendering/CombatEffects.js';
+import { SkillEffects } from '../../rendering/SkillEffects.js';
 import { InventoryPanel } from '../../ui/InventoryPanel.js';
 import { PlayerInfoPanel } from '../../ui/PlayerInfoPanel.js';
 import { EquipmentPanel } from '../../ui/EquipmentPanel.js';
@@ -48,6 +49,7 @@ export class Act1SceneECS extends PrologueScene {
     this.equipmentSystem = null;
     this.renderSystem = null;
     this.combatEffects = null;
+    this.skillEffects = null;
     this.uiClickHandler = new UIClickHandler();  // UI 点击处理器
     
     // 序章系统
@@ -154,13 +156,16 @@ export class Act1SceneECS extends PrologueScene {
     this.inputManager = new InputManager(canvas);
     
     // 初始化战斗特效
-    this.combatEffects = new CombatEffects(ctx, this.camera);
+    this.combatEffects = new CombatEffects(this.particleSystem);
+    
+    // 初始化技能特效
+    this.skillEffects = new SkillEffects(this.particleSystem);
     
     // 初始化游戏系统
     this.combatSystem = new CombatSystem({
       inputManager: this.inputManager,
       camera: this.camera,
-      skillEffects: this.combatEffects
+      skillEffects: this.skillEffects
     });
     
     this.movementSystem = new MovementSystem({
@@ -856,6 +861,9 @@ export class Act1SceneECS extends PrologueScene {
     
     // 更新战斗特效
     this.combatEffects.update(deltaTime);
+    
+    // 更新技能特效
+    this.skillEffects.update(deltaTime);
     
     // 更新飘动文字
     this.floatingTextManager.update(deltaTime);
@@ -1632,6 +1640,9 @@ export class Act1SceneECS extends PrologueScene {
     
     // 渲染粒子系统
     this.particleSystem.render(ctx, this.camera);
+    
+    // 渲染技能特效（抛射物）
+    this.skillEffects.render(ctx, this.camera);
     
     // 渲染战斗特效
     this.combatEffects.render();
