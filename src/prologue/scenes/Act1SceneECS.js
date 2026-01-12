@@ -279,15 +279,84 @@ export class Act1SceneECS extends PrologueScene {
       level: 1,
       position: { x: 400, y: 300 },
       stats: {
-        maxHp: 100,
-        hp: 30, // 30% 生命值
-        maxMp: 50,
-        mp: 50,
-        attack: 10,
-        defense: 5,
-        speed: 100
+        // 基础属性
+        maxHp: 150,
+        hp: 45, // 30% 生命值
+        maxMp: 100,
+        mp: 100,
+        
+        // 攻击属性
+        attack: 15,
+        magicPower: 12,
+        attackSpeed: 1.0, // 每秒攻击次数
+        critRate: 0.05, // 暴击率 5%
+        critDamage: 1.5, // 暴击伤害倍率
+        
+        // 防御属性
+        defense: 8,
+        magicResist: 5,
+        dodge: 0.05, // 闪避率 5%
+        block: 0.03, // 格挡率 3%
+        
+        // 移动属性
+        speed: 120,
+        
+        // 恢复属性
+        hpRegen: 0.5, // 每秒恢复生命值
+        mpRegen: 1.0  // 每秒恢复魔法值
       },
-      skills: [],
+      skills: [
+        {
+          id: 'basic_attack',
+          name: '普通攻击',
+          type: 'physical',
+          damage: 15,
+          manaCost: 0,
+          cooldown: 1.0,
+          range: 150,
+          effectType: 'melee',
+          description: '基础近战攻击',
+          hotkey: '1',
+          isAutoAttack: true // 标记为自动攻击
+        },
+        {
+          id: 'heavy_strike',
+          name: '重击',
+          type: 'physical',
+          damage: 35,
+          manaCost: 10,
+          cooldown: 3.0,
+          range: 150,
+          effectType: 'heavyStrike',
+          description: '强力的重击，造成高额伤害',
+          hotkey: '2'
+        },
+        {
+          id: 'fireball',
+          name: '火球术',
+          type: 'magic',
+          damage: 28,
+          manaCost: 15,
+          cooldown: 2.5,
+          range: 400,
+          effectType: 'fireball',
+          projectileSpeed: 400,
+          description: '发射一个火球攻击敌人',
+          hotkey: '3'
+        },
+        {
+          id: 'heal',
+          name: '治疗术',
+          type: 'heal',
+          healAmount: 35,
+          manaCost: 20,
+          cooldown: 5.0,
+          range: 0,
+          effectType: 'heal',
+          description: '恢复自身生命值',
+          hotkey: '4'
+        }
+      ],
       equipment: {},
       inventory: []
     });
@@ -717,6 +786,37 @@ export class Act1SceneECS extends PrologueScene {
     // 检查火堆碰撞（阻止玩家穿过火堆）
     this.checkCampfireCollision();
     
+    // 处理敌人选中（鼠标点击）
+    if (this.inputManager.isMouseClicked() && !this.inputManager.isMouseClickHandled()) {
+      const mouseWorldPos = this.inputManager.getMouseWorldPosition(this.camera);
+      const clickedEnemy = this.combatSystem.findEnemyAtPosition(mouseWorldPos, this.entities);
+      
+      if (clickedEnemy) {
+        this.combatSystem.selectTarget(clickedEnemy);
+        console.log('选中敌人:', clickedEnemy.id);
+      } else {
+        // 点击空白处取消选中
+        this.combatSystem.selectTarget(null);
+      }
+    }
+    
+    // 自动攻击逻辑
+    if (this.combatSystem.selectedTarget && this.playerEntity) {
+      const skills = this.playerEntity.getComponent('skills');
+      if (skills) {
+        // 找到自动攻击技能（普通攻击）
+        const autoAttackSkill = skills.skills.find(s => s.isAutoAttack);
+        if (autoAttackSkill) {
+          // 检查冷却
+          const cooldownRemaining = skills.getCooldownRemaining(autoAttackSkill.id);
+          if (cooldownRemaining <= 0) {
+            // 尝试使用自动攻击
+            this.combatSystem.useSkill(this.playerEntity, autoAttackSkill.id, this.combatSystem.selectedTarget);
+          }
+        }
+      }
+    }
+    
     // 更新战斗系统
     this.combatSystem.update(deltaTime, this.entities);
     
@@ -988,8 +1088,7 @@ export class Act1SceneECS extends PrologueScene {
         }
         
         // 进入装备教程
-        this.tutorialPhase = 'equipment';
-        console.log('Act1SceneECS: 进入装备教程');
+        this.startEquipmentTutorial();
       }
     }
     // 阶段8: 装备教程
@@ -1581,18 +1680,28 @@ export class Act1SceneECS extends PrologueScene {
     
     const x = transform.position.x;
     const y = transform.position.y;
+    const size = sprite?.size || 32; // 方形大小
     
-    // 渲染精灵
+    // 检查是否被选中
+    const isSelected = this.combatSystem && this.combatSystem.selectedTarget === entity;
+    
+    // 渲染精灵（方形）
     if (sprite && sprite.visible) {
+      // 如果被选中，绘制选中框
+      if (isSelected) {
+        ctx.strokeStyle = '#ffff00';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x - size/2 - 3, y - size/2 - 3, size + 6, size + 6);
+      }
+      
+      // 绘制实体方形
       ctx.fillStyle = sprite.color || '#00ff00';
-      ctx.beginPath();
-      ctx.arc(x, y, sprite.radius || 20, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.fillRect(x - size/2, y - size/2, size, size);
       
       // 绘制边框
-      ctx.strokeStyle = '#ffffff';
+      ctx.strokeStyle = entity.type === 'player' ? '#4CAF50' : '#ff4444';
       ctx.lineWidth = 2;
-      ctx.stroke();
+      ctx.strokeRect(x - size/2, y - size/2, size, size);
     }
     
     // 渲染生命值条

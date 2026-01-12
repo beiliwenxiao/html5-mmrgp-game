@@ -52,16 +52,8 @@ export const TutorialConfig = {
     description: '学习如何装备物品',
     steps: [
       {
-        text: '打开背包（按I键）',
+        text: '打开背包（按B键），点击装备物品即可装备',
         position: 'top'
-      },
-      {
-        text: '点击物品查看详情',
-        position: 'center'
-      },
-      {
-        text: '点击"装备"按钮装备物品',
-        position: 'center'
       }
     ],
     triggerConditionId: 'equipment_trigger',
@@ -78,11 +70,7 @@ export const TutorialConfig = {
     description: '学习如何战斗',
     steps: [
       {
-        text: '按空格键攻击敌人',
-        position: 'top'
-      },
-      {
-        text: '注意生命值，低于30%时要小心',
+        text: '使用技能栏（1-4键）或空格键攻击敌人。注意生命值，低于30%时要小心',
         position: 'top'
       }
     ],

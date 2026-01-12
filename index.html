@@ -51,8 +51,24 @@
             background: rgba(0, 0, 0, 0.9);
             padding: 20px 40px;
             border-radius: 15px;
-            border: 3px solid #4CAF50;
+            border: 3px solid #2196F3;
             pointer-events: auto;
+            max-width: 600px;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(33, 150, 243, 0.5);
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        #tips-panel {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px 40px;
+            border-radius: 15px;
+            border: 3px solid #4CAF50;
+            pointer-events: none;
             max-width: 600px;
             text-align: center;
             box-shadow: 0 0 20px rgba(76, 175, 80, 0.5);
@@ -71,6 +87,12 @@
         }
         
         #tutorial-panel h3 {
+            color: #2196F3;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+        
+        #tips-panel h3 {
             color: #4CAF50;
             margin-bottom: 15px;
             font-size: 20px;
@@ -80,9 +102,27 @@
             font-size: 18px;
             line-height: 1.6;
             color: #ffffff;
+            margin-bottom: 20px;
+        }
+        
+        #tips-panel p {
+            font-size: 18px;
+            line-height: 1.6;
+            color: #ffffff;
         }
         
         #tutorial-panel .key {
+            display: inline-block;
+            background: #2196F3;
+            color: #000;
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 18px;
+            margin: 0 3px;
+        }
+        
+        #tips-panel .key {
             display: inline-block;
             background: #4CAF50;
             color: #000;
@@ -91,6 +131,46 @@
             font-weight: bold;
             font-size: 18px;
             margin: 0 3px;
+        }
+        
+        #tutorial-panel .tutorial-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+        
+        #tutorial-panel button {
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        #tutorial-panel button:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+        
+        #tutorial-panel button:active {
+            transform: translateY(0);
+        }
+        
+        #tutorial-panel button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        
+        #tutorial-panel .step-indicator {
+            font-size: 14px;
+            color: #aaa;
+            margin-top: 10px;
         }
         
         #debug-panel {
@@ -158,6 +238,103 @@
             width: 0%;
             transition: width 0.3s;
         }
+        
+        /* 技能栏样式 */
+        #skill-bar {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            pointer-events: auto;
+        }
+        
+        .skill-slot {
+            width: 60px;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #4CAF50;
+            border-radius: 8px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .skill-slot:hover {
+            border-color: #8BC34A;
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.5);
+        }
+        
+        .skill-slot.on-cooldown {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .skill-slot.on-cooldown:hover {
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .skill-icon {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+        
+        .skill-hotkey {
+            position: absolute;
+            bottom: 2px;
+            right: 4px;
+            font-size: 10px;
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        .skill-cooldown {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            color: #fff;
+            border-radius: 6px;
+        }
+        
+        .skill-name {
+            position: absolute;
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 11px;
+            color: #aaa;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .skill-slot:hover .skill-name {
+            opacity: 1;
+        }
+        
+        .skill-mana-cost {
+            position: absolute;
+            top: 2px;
+            left: 4px;
+            font-size: 10px;
+            color: #2196F3;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -168,6 +345,16 @@
             <div id="tutorial-panel" class="hidden">
                 <h3 id="tutorial-title">教程</h3>
                 <p id="tutorial-text">教程内容</p>
+                <div class="tutorial-buttons">
+                    <button id="tutorial-prev-btn" style="display: none;">上一步</button>
+                    <button id="tutorial-next-btn">下一步</button>
+                </div>
+                <div class="step-indicator" id="tutorial-step-indicator"></div>
+            </div>
+            
+            <div id="tips-panel" class="hidden">
+                <h3 id="tips-title">提示</h3>
+                <p id="tips-text">提示内容</p>
             </div>
             
             <div id="debug-panel">
@@ -179,7 +366,34 @@
             </div>
             
             <div id="controls-hint">
-                WASD/方向键: 移动 | 鼠标点击: 移动 | E: 拾取 | C: 属性 | B: 背包 | V: 装备 | 空格: 攻击
+                WASD/方向键: 移动 | 鼠标点击: 移动 | E: 拾取 | C: 属性 | B: 背包 | V: 装备 | 1-4: 技能
+            </div>
+            
+            <div id="skill-bar">
+                <div class="skill-slot" data-skill-index="0">
+                    <div class="skill-icon">⚔️</div>
+                    <div class="skill-hotkey">1</div>
+                    <div class="skill-mana-cost">0</div>
+                    <div class="skill-name">普通攻击</div>
+                </div>
+                <div class="skill-slot" data-skill-index="1">
+                    <div class="skill-icon">💥</div>
+                    <div class="skill-hotkey">2</div>
+                    <div class="skill-mana-cost">10</div>
+                    <div class="skill-name">重击</div>
+                </div>
+                <div class="skill-slot" data-skill-index="2">
+                    <div class="skill-icon">🔥</div>
+                    <div class="skill-hotkey">3</div>
+                    <div class="skill-mana-cost">15</div>
+                    <div class="skill-name">火球术</div>
+                </div>
+                <div class="skill-slot" data-skill-index="3">
+                    <div class="skill-icon">💚</div>
+                    <div class="skill-hotkey">4</div>
+                    <div class="skill-mana-cost">20</div>
+                    <div class="skill-name">治疗术</div>
+                </div>
             </div>
         </div>
         
@@ -212,6 +426,16 @@
         const tutorialPanel = document.getElementById('tutorial-panel');
         const tutorialTitle = document.getElementById('tutorial-title');
         const tutorialText = document.getElementById('tutorial-text');
+        const tutorialNextBtn = document.getElementById('tutorial-next-btn');
+        const tutorialPrevBtn = document.getElementById('tutorial-prev-btn');
+        const tutorialStepIndicator = document.getElementById('tutorial-step-indicator');
+        
+        const tipsPanel = document.getElementById('tips-panel');
+        const tipsTitle = document.getElementById('tips-title');
+        const tipsText = document.getElementById('tips-text');
+        
+        // 当前教程数据
+        let currentTutorialData = null;
         
         // 调试面板元素
         const fpsElement = document.getElementById('fps');
@@ -219,6 +443,23 @@
         const hpElement = document.getElementById('hp');
         const phaseElement = document.getElementById('phase');
         const enemiesElement = document.getElementById('enemies');
+        
+        // 教程按钮事件
+        tutorialNextBtn.addEventListener('click', () => {
+            if (scene && scene.tutorialSystem) {
+                const hasNext = scene.tutorialSystem.nextStep();
+                if (!hasNext) {
+                    // 没有下一步了，隐藏教程
+                    hideTutorial();
+                }
+            }
+        });
+        
+        tutorialPrevBtn.addEventListener('click', () => {
+            if (scene && scene.tutorialSystem) {
+                scene.tutorialSystem.previousStep();
+            }
+        });
         
         // 初始化游戏
         async function initGame() {
@@ -238,20 +479,50 @@
                 
                 // 设置教程回调（必须在scene.enter()之前设置）
                 scene.tutorialSystem.onShow((data) => {
+                    currentTutorialData = data;
+                    
+                    // 判断是渐进式提示还是基础教程
+                    const isProgressiveTip = data.tutorialId && data.tutorialId.startsWith('progressive_tip_');
+                    
                     // 处理两种回调格式：
                     // 1. showTutorial 调用时传入 tutorial 对象
                     // 2. showStep 调用时传入 stepData 对象
                     if (data.step && data.step.text) {
-                        // stepData 格式
-                        showTutorial(data.tutorialTitle, data.step.text);
+                        // stepData 格式（多步教程）
+                        if (isProgressiveTip) {
+                            // 渐进式提示：使用提示面板（无按钮）
+                            showTips(data.tutorialTitle, data.step.text);
+                        } else {
+                            // 基础教程：使用教程面板（有按钮）
+                            showTutorial(
+                                data.tutorialTitle, 
+                                data.step.text,
+                                data.stepIndex,
+                                data.totalSteps,
+                                data.isLastStep
+                            );
+                        }
                     } else if (data.title) {
                         // tutorial 对象格式（首次显示）
-                        showTutorial(data.title, data.steps[0]?.text || '');
+                        if (isProgressiveTip) {
+                            // 渐进式提示：使用提示面板（无按钮）
+                            showTips(data.title, data.steps[0]?.text || '');
+                        } else {
+                            // 基础教程：使用教程面板（有按钮）
+                            showTutorial(
+                                data.title, 
+                                data.steps[0]?.text || '',
+                                0,
+                                data.steps.length,
+                                data.steps.length === 1
+                            );
+                        }
                     }
                 });
                 
                 scene.tutorialSystem.onHide(() => {
                     hideTutorial();
+                    hideTips();
                 });
                 
                 // 进入场景（会触发第一个教程）
@@ -285,17 +556,54 @@
             return new Promise(resolve => setTimeout(resolve, ms));
         }
         
-        // 显示教程
-        function showTutorial(title, text) {
+        // 显示教程（基础教程，有按钮）
+        function showTutorial(title, text, stepIndex = 0, totalSteps = 1, isLastStep = true) {
             tutorialTitle.textContent = title;
             // 使用innerHTML支持HTML标签
             tutorialText.innerHTML = text;
             tutorialPanel.classList.remove('hidden');
+            
+            // 更新步骤指示器
+            if (totalSteps > 1) {
+                tutorialStepIndicator.textContent = `步骤 ${stepIndex + 1} / ${totalSteps}`;
+                tutorialStepIndicator.style.display = 'block';
+            } else {
+                tutorialStepIndicator.style.display = 'none';
+            }
+            
+            // 更新按钮状态
+            // 上一步按钮：只在不是第一步时显示
+            if (stepIndex > 0) {
+                tutorialPrevBtn.style.display = 'inline-block';
+            } else {
+                tutorialPrevBtn.style.display = 'none';
+            }
+            
+            // 下一步按钮：最后一步显示"完成"，其他显示"下一步"
+            if (isLastStep) {
+                tutorialNextBtn.textContent = '完成';
+            } else {
+                tutorialNextBtn.textContent = '下一步';
+            }
         }
         
         // 隐藏教程
         function hideTutorial() {
             tutorialPanel.classList.add('hidden');
+            currentTutorialData = null;
+        }
+        
+        // 显示提示（渐进式提示，无按钮）
+        function showTips(title, text) {
+            tipsTitle.textContent = title;
+            // 使用innerHTML支持HTML标签
+            tipsText.innerHTML = text;
+            tipsPanel.classList.remove('hidden');
+        }
+        
+        // 隐藏提示
+        function hideTips() {
+            tipsPanel.classList.add('hidden');
         }
         
         // 游戏循环
@@ -353,7 +661,80 @@
                 return stats && stats.hp > 0;
             });
             enemiesElement.textContent = aliveEnemies.length;
+            
+            // 更新技能栏
+            updateSkillBar();
         }
+        
+        // 更新技能栏显示
+        function updateSkillBar() {
+            if (!scene || !scene.playerEntity) return;
+            
+            const skills = scene.playerEntity.getComponent('skills');
+            if (!skills) return;
+            
+            const skillSlots = document.querySelectorAll('.skill-slot');
+            skillSlots.forEach((slot, index) => {
+                const skill = skills.skills[index];
+                if (!skill) return;
+                
+                // 检查冷却
+                const cooldownRemaining = skills.getCooldownRemaining(skill.id);
+                const isOnCooldown = cooldownRemaining > 0;
+                
+                // 更新样式
+                if (isOnCooldown) {
+                    slot.classList.add('on-cooldown');
+                    // 显示冷却时间
+                    let cooldownDiv = slot.querySelector('.skill-cooldown');
+                    if (!cooldownDiv) {
+                        cooldownDiv = document.createElement('div');
+                        cooldownDiv.className = 'skill-cooldown';
+                        slot.appendChild(cooldownDiv);
+                    }
+                    cooldownDiv.textContent = Math.ceil(cooldownRemaining);
+                } else {
+                    slot.classList.remove('on-cooldown');
+                    const cooldownDiv = slot.querySelector('.skill-cooldown');
+                    if (cooldownDiv) {
+                        cooldownDiv.remove();
+                    }
+                }
+            });
+        }
+        
+        // 技能栏点击事件
+        document.querySelectorAll('.skill-slot').forEach((slot, index) => {
+            slot.addEventListener('click', () => {
+                if (!scene || !scene.playerEntity) return;
+                useSkill(index);
+            });
+        });
+        
+        // 使用技能
+        function useSkill(skillIndex) {
+            if (!scene || !scene.combatSystem) return;
+            
+            const skills = scene.playerEntity.getComponent('skills');
+            if (!skills) return;
+            
+            const skill = skills.skills[skillIndex];
+            if (!skill) return;
+            
+            // 尝试使用技能
+            scene.combatSystem.useSkill(scene.playerEntity, skill.id);
+        }
+        
+        // 键盘快捷键
+        document.addEventListener('keydown', (e) => {
+            if (!scene || !scene.playerEntity) return;
+            
+            // 技能快捷键 1-4
+            if (e.key >= '1' && e.key <= '4') {
+                const skillIndex = parseInt(e.key) - 1;
+                useSkill(skillIndex);
+            }
+        });
         
         // 启动游戏
         initGame();
