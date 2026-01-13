@@ -92,7 +92,7 @@ export const ProgressiveTipsConfig = {
     id: 'progressive_tip_7',
     title: '提示',
     description: '使用消耗品',
-    text: '你发现自己生命值很低。点击残羹使用，恢复生命值',
+    text: '你发现自己生命值很低。wa点击残羹使用，恢复生命值',
     position: 'center',
     priority: 94,
     triggerConditionId: 'progressive_tip_7_trigger'

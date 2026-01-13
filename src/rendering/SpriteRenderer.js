@@ -69,10 +69,67 @@ export class SpriteRenderer {
     // 恢复上下文状态
     ctx.restore();
 
+    // 渲染名字（如果有）
+    this.renderName(ctx, entity, transform, sprite);
+
     // 渲染调试信息
     if (this.debugMode) {
       this.renderDebug(ctx, entity, transform, sprite);
     }
+  }
+
+  /**
+   * 渲染实体名字
+   * @param {CanvasRenderingContext2D} ctx - Canvas渲染上下文
+   * @param {Entity} entity - 实体
+   * @param {TransformComponent} transform - 变换组件
+   * @param {SpriteComponent} sprite - 精灵组件
+   */
+  renderName(ctx, entity, transform, sprite) {
+    // 检查是否有名字组件或标签
+    const nameComponent = entity.getComponent('name');
+    const name = nameComponent?.name || entity.tags?.find(tag => tag.startsWith('name:'))?.substring(5);
+    
+    if (!name) return;
+    
+    const halfHeight = sprite.height / 2;
+    const nameY = transform.position.y - halfHeight - 10;
+    
+    ctx.save();
+    ctx.font = 'bold 14px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    
+    // 测量文字宽度
+    const textWidth = ctx.measureText(name).width;
+    const padding = 4;
+    
+    // 绘制背景
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.fillRect(
+      transform.position.x - textWidth / 2 - padding,
+      nameY - 16,
+      textWidth + padding * 2,
+      18
+    );
+    
+    // 绘制文字阴影
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 3;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 1;
+    
+    // 根据实体类型设置颜色
+    if (entity.tags?.includes('enemy')) {
+      ctx.fillStyle = '#ff6666';
+    } else if (entity.tags?.includes('player')) {
+      ctx.fillStyle = '#66ff66';
+    } else {
+      ctx.fillStyle = '#ffffff';
+    }
+    
+    ctx.fillText(name, transform.position.x, nameY);
+    ctx.restore();
   }
 
   /**

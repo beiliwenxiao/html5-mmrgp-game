@@ -36,6 +36,10 @@ import { PlayerInfoPanel } from '../../ui/PlayerInfoPanel.js';
 import { EquipmentPanel } from '../../ui/EquipmentPanel.js';
 import { FloatingTextManager } from '../../ui/FloatingText.js';
 import { ParticleSystem } from '../../rendering/ParticleSystem.js';
+import { Entity } from '../../ecs/Entity.js';
+import { TransformComponent } from '../../ecs/components/TransformComponent.js';
+import { SpriteComponent } from '../../ecs/components/SpriteComponent.js';
+import { NameComponent } from '../../ecs/components/NameComponent.js';
 
 export class Act1SceneECS extends PrologueScene {
   constructor() {
@@ -170,6 +174,11 @@ export class Act1SceneECS extends PrologueScene {
       inputManager: this.inputManager,
       camera: this.camera,
       skillEffects: this.skillEffects
+    });
+    
+    // 设置掉落回调
+    this.combatSystem.setLootDropCallback((position, lootItems) => {
+      this.spawnLootItems(position, lootItems);
     });
     
     this.movementSystem = new MovementSystem({
@@ -315,45 +324,47 @@ export class Act1SceneECS extends PrologueScene {
           cooldown: 1.0,
           range: 150,
           effectType: 'melee',
-          description: '基础近战攻击',
+          description: '靠近自动攻击，鼠标可切换目标',
           hotkey: '1',
           isAutoAttack: true // 标记为自动攻击
-        },
-        {
-          id: 'heavy_strike',
-          name: '重击',
-          type: 'physical',
-          damage: 35,
-          manaCost: 10,
-          cooldown: 3.0,
-          range: 150,
-          effectType: 'heavyStrike',
-          description: '强力的重击，造成高额伤害',
-          hotkey: '2'
         },
         {
           id: 'fireball',
           name: '火球术',
           type: 'magic',
-          damage: 28,
+          damage: 45,
           manaCost: 15,
-          cooldown: 2.5,
-          range: 400,
+          cooldown: 2.0,
+          range: 500,
           effectType: 'fireball',
-          projectileSpeed: 400,
-          description: '发射一个火球攻击敌人',
+          projectileSpeed: 450,
+          description: '发射炽热的火球，造成火焰伤害',
+          hotkey: '2'
+        },
+        {
+          id: 'ice_lance',
+          name: '寒冰箭',
+          type: 'magic',
+          damage: 40,
+          manaCost: 12,
+          cooldown: 1.8,
+          range: 550,
+          effectType: 'ice_lance',
+          projectileSpeed: 500,
+          description: '发射寒冰箭，冻结敌人',
           hotkey: '3'
         },
         {
-          id: 'heal',
-          name: '治疗术',
-          type: 'heal',
-          healAmount: 35,
-          manaCost: 20,
-          cooldown: 5.0,
-          range: 0,
-          effectType: 'heal',
-          description: '恢复自身生命值',
+          id: 'flame_burst',
+          name: '烈焰爆发',
+          type: 'magic',
+          damage: 65,
+          manaCost: 25,
+          cooldown: 4.0,
+          range: 450,
+          effectType: 'flame_burst',
+          projectileSpeed: 400,
+          description: '释放强大的火焰能量，造成范围伤害',
           hotkey: '4'
         }
       ],
@@ -721,6 +732,10 @@ export class Act1SceneECS extends PrologueScene {
         aiType: 'aggressive'
       });
       
+      // 调试：检查名字组件
+      const nameComp = enemy.getComponent('name');
+      console.log(`创建敌人: ${enemy.name}, 名字组件:`, nameComp);
+      
       this.entities.push(enemy);
       this.enemyEntities.push(enemy);
     }
@@ -923,6 +938,9 @@ export class Act1SceneECS extends PrologueScene {
     
     // 检查波次完成
     this.checkWaveCompletion();
+    
+    // 移除死亡的实体
+    this.removeDeadEntities();
     
     // 更新场景过渡
     if (this.isTransitioning) {
@@ -1211,19 +1229,79 @@ export class Act1SceneECS extends PrologueScene {
       }
     }
     
-    // 检查第二批物品（装备）
-    for (const item of this.equipmentItems) {
+    // 检查第二批物品（装备和掉落物）
+    for (let i = this.equipmentItems.length - 1; i >= 0; i--) {
+      const item = this.equipmentItems[i];
       if (item.picked) continue;
       
-      const dx = item.x - playerX;
-      const dy = item.y - playerY;
+      // 获取物品位置
+      const itemTransform = item.getComponent ? item.getComponent('transform') : null;
+      const itemX = itemTransform ? itemTransform.position.x : item.x;
+      const itemY = itemTransform ? itemTransform.position.y : item.y;
+      
+      const dx = itemX - playerX;
+      const dy = itemY - playerY;
       const distance = Math.sqrt(dx * dx + dy * dy);
       
       if (distance <= 50) {
-        this.pickupItem(item, true);
+        // 检查是否是掉落物实体
+        if (item.tags && item.tags.includes('loot')) {
+          this.pickupLoot(item);
+          this.equipmentItems.splice(i, 1);
+          this.entities = this.entities.filter(e => e !== item);
+        } else {
+          this.pickupItem(item, true);
+        }
         this.lastPickupTime = now;
         return;
       }
+    }
+  }
+
+  /**
+   * 拾取掉落物
+   * @param {Entity} lootEntity - 掉落物实体
+   */
+  pickupLoot(lootEntity) {
+    const itemData = lootEntity.itemData;
+    if (!itemData) return;
+    
+    const stats = this.playerEntity.getComponent('stats');
+    if (!stats) return;
+    
+    console.log(`拾取掉落物: ${itemData.name}`);
+    
+    // 根据物品类型处理
+    if (itemData.type === 'health_potion') {
+      // 恢复生命值
+      const healAmount = stats.heal(itemData.value);
+      
+      // 显示治疗飘动文字
+      const transform = this.playerEntity.getComponent('transform');
+      if (transform && healAmount > 0) {
+        this.floatingTextManager.addHeal(
+          transform.position.x,
+          transform.position.y - 30,
+          healAmount
+        );
+      }
+      
+      console.log(`使用生命药水，恢复 ${healAmount} 生命值`);
+    } else if (itemData.type === 'mana_potion') {
+      // 恢复魔法值
+      const manaAmount = stats.restoreMana(itemData.value);
+      
+      // 显示魔法恢复飘动文字
+      const transform = this.playerEntity.getComponent('transform');
+      if (transform && manaAmount > 0) {
+        this.floatingTextManager.addManaRestore(
+          transform.position.x,
+          transform.position.y - 50,
+          manaAmount
+        );
+      }
+      
+      console.log(`使用魔法药水，恢复 ${manaAmount} 魔法值`);
     }
   }
 
@@ -1506,6 +1584,93 @@ export class Act1SceneECS extends PrologueScene {
     }
     
     setTimeout(() => this.startTransition(), 1000);
+  }
+
+  /**
+   * 移除死亡的实体
+   */
+  removeDeadEntities() {
+    // 过滤出死亡的实体
+    const deadEntities = this.entities.filter(entity => entity.isDead);
+    
+    if (deadEntities.length === 0) return;
+    
+    for (const entity of deadEntities) {
+      // 从实体列表中移除
+      const index = this.entities.indexOf(entity);
+      if (index > -1) {
+        this.entities.splice(index, 1);
+      }
+      
+      // 从敌人列表中移除
+      const enemyIndex = this.enemyEntities.indexOf(entity);
+      if (enemyIndex > -1) {
+        this.enemyEntities.splice(enemyIndex, 1);
+      }
+      
+      console.log(`移除死亡实体: ${entity.name || entity.id}`);
+    }
+  }
+
+  /**
+   * 生成掉落物
+   * @param {Object} position - 掉落位置
+   * @param {Array} lootItems - 掉落物品列表
+   */
+  spawnLootItems(position, lootItems) {
+    if (!lootItems || lootItems.length === 0) return;
+    
+    console.log(`在 (${position.x}, ${position.y}) 生成 ${lootItems.length} 个掉落物`);
+    
+    // 为每个掉落物创建实体
+    lootItems.forEach((item, index) => {
+      // 计算掉落位置（散开分布）
+      const angle = (index / lootItems.length) * Math.PI * 2;
+      const radius = 30;
+      const dropX = position.x + Math.cos(angle) * radius;
+      const dropY = position.y + Math.sin(angle) * radius;
+      
+      // 创建掉落物实体
+      const lootEntity = this.createLootEntity(item, dropX, dropY);
+      this.entities.push(lootEntity);
+      this.equipmentItems.push(lootEntity);
+    });
+  }
+
+  /**
+   * 创建掉落物实体
+   * @param {Object} item - 物品数据
+   * @param {number} x - X坐标
+   * @param {number} y - Y坐标
+   * @returns {Entity}
+   */
+  createLootEntity(item, x, y) {
+    const entity = new Entity(`loot_${Date.now()}_${Math.random()}`, 'loot');
+    
+    // 添加变换组件
+    entity.addComponent(new TransformComponent(x, y));
+    
+    // 添加精灵组件
+    const color = item.type === 'health_potion' ? '#ff4444' : '#4444ff';
+    const sprite = new SpriteComponent('loot_sprite', {
+      width: 20,
+      height: 20,
+      color: color
+    });
+    entity.addComponent(sprite);
+    
+    // 添加名字组件
+    entity.addComponent(new NameComponent(item.name, {
+      color: '#ffff00',
+      fontSize: 12,
+      offsetY: -15
+    }));
+    
+    // 存储物品数据
+    entity.itemData = item;
+    entity.tags = ['loot'];
+    
+    return entity;
   }
 
   /**

@@ -162,6 +162,17 @@ export class SkillEffects {
         this.createHealEffect(position);
         break;
       
+      // Act1 场景技能
+      case 'fireball':
+        this.createFireballEffect(position, target, onHit);
+        break;
+      case 'ice_lance':
+        this.createIceLanceEffect(position, target, onHit);
+        break;
+      case 'flame_burst':
+        this.createFlameBurstEffect(position, target, onHit);
+        break;
+      
       // 弓箭手技能
       case 'archer_multi_shot':
         this.createMultiArrowEffect(position, target, onHit);
@@ -413,6 +424,94 @@ export class SkillEffects {
         velocityRange: { min: 80, max: 150 },
         angleRange: { min: 0, max: Math.PI * 2 },
         sizeRange: { min: 6, max: 10 }
+      }
+    );
+  }
+
+  /**
+   * 创建烈焰爆发特效
+   * @param {Object} position - 起始位置
+   * @param {Object} target - 目标位置
+   * @param {Function} onHit - 命中回调
+   */
+  createFlameBurstEffect(position, target, onHit) {
+    if (!target) return;
+    
+    // 计算方向
+    const dx = target.x - position.x;
+    const dy = target.y - position.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const speed = 400;
+    
+    // 创建更大的火焰球
+    const projectile = {
+      position: { ...position },
+      velocity: {
+        x: (dx / distance) * speed,
+        y: (dy / distance) * speed
+      },
+      target: { ...target },
+      elapsed: 0,
+      maxLife: distance / speed,
+      size: 16, // 更大的尺寸
+      color: '#ff2200',
+      shape: 'circle',
+      trailConfig: {
+        position: { ...position },
+        velocity: { x: 0, y: 0 },
+        life: 600, // 更持久的尾迹
+        size: 12,
+        color: '#ff4400',
+        gravity: 0
+      },
+      onHit: (hitPos) => {
+        this.createFlameBurstHitEffect(hitPos);
+        if (onHit) onHit(hitPos);
+      },
+      completed: false
+    };
+    
+    this.projectiles.push(projectile);
+  }
+
+  /**
+   * 创建烈焰爆发命中特效
+   * @param {Object} position - 命中位置
+   */
+  createFlameBurstHitEffect(position) {
+    // 大范围爆炸效果
+    this.particleSystem.emitBurst(
+      {
+        position: { ...position },
+        velocity: { x: 0, y: 0 },
+        life: 800, // 更持久
+        size: 14,
+        color: '#ff2200',
+        gravity: 30
+      },
+      40, // 更多粒子
+      {
+        velocityRange: { min: 150, max: 300 },
+        angleRange: { min: 0, max: Math.PI * 2 },
+        sizeRange: { min: 10, max: 16 }
+      }
+    );
+    
+    // 额外的火焰环效果
+    this.particleSystem.emitBurst(
+      {
+        position: { ...position },
+        velocity: { x: 0, y: 0 },
+        life: 600,
+        size: 10,
+        color: '#ff6600',
+        gravity: 0
+      },
+      30,
+      {
+        velocityRange: { min: 100, max: 200 },
+        angleRange: { min: 0, max: Math.PI * 2 },
+        sizeRange: { min: 8, max: 12 }
       }
     );
   }

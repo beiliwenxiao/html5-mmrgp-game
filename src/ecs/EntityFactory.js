@@ -11,6 +11,7 @@ import { CombatComponent } from './components/CombatComponent.js';
 import { MovementComponent } from './components/MovementComponent.js';
 import { EquipmentComponent } from './components/EquipmentComponent.js';
 import { InventoryComponent } from './components/InventoryComponent.js';
+import { NameComponent } from './components/NameComponent.js';
 
 /**
  * 实体工厂类
@@ -174,11 +175,22 @@ export class EntityFactory {
       speed: stats.speed || 80
     }));
     
+    // 添加名字组件
+    entity.addComponent(new NameComponent(enemyData.name, {
+      color: '#ff6666',
+      fontSize: 14,
+      offsetY: -10
+    }));
+    
     // 存储敌人信息
     entity.name = enemyData.name;
     entity.templateId = enemyData.templateId;
     entity.aiType = enemyData.aiType || 'passive';
     entity.lootTable = enemyData.lootTable || [];
+    
+    // 添加敌人标签
+    entity.tags = entity.tags || [];
+    entity.tags.push('enemy');
     
     return entity;
   }

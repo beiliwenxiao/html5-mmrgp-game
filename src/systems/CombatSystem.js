@@ -997,8 +997,16 @@ export class CombatSystem {
     
     if (!stats) return;
     
-    // 获取治疗量
-    const healAmount = skill.effects.find(e => e.type === 'heal')?.value || 0;
+    // 获取治疗量（支持两种格式）
+    let healAmount = 0;
+    if (skill.healAmount !== undefined) {
+      // 使用 healAmount 属性
+      healAmount = skill.healAmount;
+    } else if (skill.effects && Array.isArray(skill.effects)) {
+      // 使用 effects 数组
+      const healEffect = skill.effects.find(e => e.type === 'heal');
+      healAmount = healEffect?.value || 0;
+    }
     
     // 恢复生命值
     const actualHeal = stats.heal(healAmount);
@@ -1115,11 +1123,85 @@ export class CombatSystem {
     if (entity.type === 'player') {
       this.handlePlayerDeath(entity);
     } else {
-      // 敌人死亡，延迟移除
+      // 敌人死亡，生成掉落物
+      this.spawnLoot(entity);
+      
+      // 延迟移除
       setTimeout(() => {
         this.removeDeadEntity(entity);
       }, 1000); // 等待死亡动画播放完成
     }
+  }
+
+  /**
+   * 生成掉落物
+   * @param {Entity} entity - 死亡的实体
+   */
+  spawnLoot(entity) {
+    const transform = entity.getComponent('transform');
+    if (!transform) {
+      console.log('CombatSystem: 实体没有 transform 组件，无法掉落');
+      return;
+    }
+    
+    console.log(`CombatSystem: 准备生成掉落物，位置: (${transform.position.x}, ${transform.position.y})`);
+    
+    // 触发掉落事件，让场景处理掉落物生成
+    if (this.onLootDrop) {
+      const lootItems = this.generateLoot(entity);
+      console.log(`CombatSystem: 生成了 ${lootItems.length} 个掉落物`, lootItems);
+      this.onLootDrop(transform.position, lootItems);
+    } else {
+      console.log('CombatSystem: 掉落回调未设置！');
+    }
+  }
+
+  /**
+   * 生成掉落物品列表
+   * @param {Entity} entity - 死亡的实体
+   * @returns {Array} 掉落物品列表
+   */
+  generateLoot(entity) {
+    const loot = [];
+    
+    // 固定掉落2瓶红药水
+    loot.push({
+      type: 'health_potion',
+      name: '生命药水',
+      value: 50
+    });
+    loot.push({
+      type: 'health_potion',
+      name: '生命药水',
+      value: 50
+    });
+    
+    // 固定掉落3瓶蓝药水
+    loot.push({
+      type: 'mana_potion',
+      name: '魔法药水',
+      value: 30
+    });
+    loot.push({
+      type: 'mana_potion',
+      name: '魔法药水',
+      value: 30
+    });
+    loot.push({
+      type: 'mana_potion',
+      name: '魔法药水',
+      value: 30
+    });
+    
+    return loot;
+  }
+
+  /**
+   * 设置掉落回调
+   * @param {Function} callback - 掉落回调函数
+   */
+  setLootDropCallback(callback) {
+    this.onLootDrop = callback;
   }
 
   /**
