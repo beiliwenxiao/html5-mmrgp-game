@@ -1164,34 +1164,22 @@ export class CombatSystem {
   generateLoot(entity) {
     const loot = [];
     
-    // 固定掉落2瓶红药水
-    loot.push({
-      type: 'health_potion',
-      name: '生命药水',
-      value: 50
-    });
-    loot.push({
-      type: 'health_potion',
-      name: '生命药水',
-      value: 50
-    });
-    
-    // 固定掉落3瓶蓝药水
-    loot.push({
-      type: 'mana_potion',
-      name: '魔法药水',
-      value: 30
-    });
-    loot.push({
-      type: 'mana_potion',
-      name: '魔法药水',
-      value: 30
-    });
-    loot.push({
-      type: 'mana_potion',
-      name: '魔法药水',
-      value: 30
-    });
+    // 随机掉落1个药瓶（50%红瓶，50%蓝瓶）
+    if (Math.random() < 0.5) {
+      // 掉落红瓶
+      loot.push({
+        type: 'health_potion',
+        name: '生命药水',
+        value: 50
+      });
+    } else {
+      // 掉落蓝瓶
+      loot.push({
+        type: 'mana_potion',
+        name: '魔法药水',
+        value: 30
+      });
+    }
     
     return loot;
   }

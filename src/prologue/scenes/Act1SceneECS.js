@@ -1618,7 +1618,12 @@ export class Act1SceneECS extends PrologueScene {
    * @param {Array} lootItems - 掉落物品列表
    */
   spawnLootItems(position, lootItems) {
-    if (!lootItems || lootItems.length === 0) return;
+    console.log('Act1SceneECS.spawnLootItems 被调用', { position, lootItems });
+    
+    if (!lootItems || lootItems.length === 0) {
+      console.log('没有掉落物品');
+      return;
+    }
     
     console.log(`在 (${position.x}, ${position.y}) 生成 ${lootItems.length} 个掉落物`);
     
@@ -1630,10 +1635,14 @@ export class Act1SceneECS extends PrologueScene {
       const dropX = position.x + Math.cos(angle) * radius;
       const dropY = position.y + Math.sin(angle) * radius;
       
+      console.log(`创建掉落物: ${item.name} 在 (${dropX}, ${dropY})`);
+      
       // 创建掉落物实体
       const lootEntity = this.createLootEntity(item, dropX, dropY);
       this.entities.push(lootEntity);
       this.equipmentItems.push(lootEntity);
+      
+      console.log('掉落物实体已创建并添加到列表', lootEntity);
     });
   }
 
@@ -1650,25 +1659,47 @@ export class Act1SceneECS extends PrologueScene {
     // 添加变换组件
     entity.addComponent(new TransformComponent(x, y));
     
-    // 添加精灵组件
-    const color = item.type === 'health_potion' ? '#ff4444' : '#4444ff';
+    // 添加精灵组件 - 小长方形瓶子（加大尺寸）
+    const color = item.type === 'health_potion' ? '#ff3333' : '#3333ff';
     const sprite = new SpriteComponent('loot_sprite', {
-      width: 20,
-      height: 20,
-      color: color
+      width: 16,   // 宽度：加大
+      height: 24,  // 高度：加大
+      color: color,
+      visible: true,
+      defaultAnimation: 'idle'
     });
+    
+    // 添加简单的待机动画
+    sprite.addAnimation('idle', {
+      frames: [0],
+      frameRate: 1,
+      loop: true
+    });
+    sprite.playAnimation('idle');
+    
     entity.addComponent(sprite);
     
     // 添加名字组件
-    entity.addComponent(new NameComponent(item.name, {
+    const nameComp = new NameComponent(item.name, {
       color: '#ffff00',
-      fontSize: 12,
-      offsetY: -15
-    }));
+      fontSize: 14,
+      offsetY: -20,
+      visible: true
+    });
+    entity.addComponent(nameComp);
     
     // 存储物品数据
     entity.itemData = item;
     entity.tags = ['loot'];
+    
+    console.log('掉落物实体详情:', {
+      id: entity.id,
+      type: entity.type,
+      position: entity.getComponent('transform').position,
+      sprite: entity.getComponent('sprite'),
+      name: entity.getComponent('name'),
+      hasNameComponent: entity.hasComponent('name')
+    });
     
     return entity;
   }
@@ -1845,28 +1876,64 @@ export class Act1SceneECS extends PrologueScene {
     
     const x = transform.position.x;
     const y = transform.position.y;
-    const size = sprite?.size || 32; // 方形大小
+    const size = sprite?.width || sprite?.size || 32; // 使用精灵的宽度
+    const height = sprite?.height || sprite?.size || 32; // 使用精灵的高度
     
     // 检查是否被选中
     const isSelected = this.combatSystem && this.combatSystem.selectedTarget === entity;
     
-    // 渲染精灵（方形）
+    // 渲染精灵（矩形）
     if (sprite && sprite.visible) {
       // 如果被选中，绘制选中框
       if (isSelected) {
         ctx.strokeStyle = '#ffff00';
         ctx.lineWidth = 3;
-        ctx.strokeRect(x - size/2 - 3, y - size/2 - 3, size + 6, size + 6);
+        ctx.strokeRect(x - size/2 - 3, y - height/2 - 3, size + 6, height + 6);
       }
       
-      // 绘制实体方形
+      // 绘制实体矩形
       ctx.fillStyle = sprite.color || '#00ff00';
-      ctx.fillRect(x - size/2, y - size/2, size, size);
+      ctx.fillRect(x - size/2, y - height/2, size, height);
       
       // 绘制边框
       ctx.strokeStyle = entity.type === 'player' ? '#4CAF50' : '#ff4444';
       ctx.lineWidth = 2;
-      ctx.strokeRect(x - size/2, y - size/2, size, size);
+      ctx.strokeRect(x - size/2, y - height/2, size, height);
+    }
+    
+    // 渲染名字
+    const nameComponent = entity.getComponent('name');
+    if (nameComponent && nameComponent.visible) {
+      const nameY = y - height/2 + (nameComponent.offsetY || -10);
+      
+      ctx.save();
+      ctx.font = `bold ${nameComponent.fontSize || 14}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      
+      // 测量文字宽度
+      const textWidth = ctx.measureText(nameComponent.name).width;
+      const padding = 4;
+      
+      // 绘制背景
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      ctx.fillRect(
+        x - textWidth / 2 - padding,
+        nameY - 16,
+        textWidth + padding * 2,
+        18
+      );
+      
+      // 绘制文字阴影
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+      ctx.shadowBlur = 3;
+      ctx.shadowOffsetX = 1;
+      ctx.shadowOffsetY = 1;
+      
+      // 使用名字组件中的颜色
+      ctx.fillStyle = nameComponent.color || '#ffffff';
+      ctx.fillText(nameComponent.name, x, nameY);
+      ctx.restore();
     }
     
     // 渲染生命值条
@@ -2172,7 +2239,7 @@ export class Act1SceneECS extends PrologueScene {
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 48px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText('你死了...', ctx.canvas.width / 2, ctx.canvas.height / 2 - 30);
+      ctx.fillText('你又昏过去了...', ctx.canvas.width / 2, ctx.canvas.height / 2 - 30);
       
       ctx.font = '24px Arial';
       ctx.fillText('但这不是结局', ctx.canvas.width / 2, ctx.canvas.height / 2 + 30);

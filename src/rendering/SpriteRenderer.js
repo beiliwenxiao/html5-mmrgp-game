@@ -86,17 +86,35 @@ export class SpriteRenderer {
    * @param {SpriteComponent} sprite - 精灵组件
    */
   renderName(ctx, entity, transform, sprite) {
-    // 检查是否有名字组件或标签
+    // 检查是否有名字组件
     const nameComponent = entity.getComponent('name');
-    const name = nameComponent?.name || entity.tags?.find(tag => tag.startsWith('name:'))?.substring(5);
     
+    // 调试日志
+    if (entity.type === 'enemy' || entity.type === 'loot') {
+      console.log('renderName 被调用:', {
+        entityId: entity.id,
+        entityType: entity.type,
+        hasNameComponent: !!nameComponent,
+        nameComponent: nameComponent
+      });
+    }
+    
+    // 如果没有名字组件或不可见，则不渲染
+    if (!nameComponent || !nameComponent.visible) {
+      if (entity.type === 'enemy' || entity.type === 'loot') {
+        console.log('名字不渲染，原因:', !nameComponent ? '没有名字组件' : '不可见');
+      }
+      return;
+    }
+    
+    const name = nameComponent.name;
     if (!name) return;
     
     const halfHeight = sprite.height / 2;
-    const nameY = transform.position.y - halfHeight - 10;
+    const nameY = transform.position.y - halfHeight + (nameComponent.offsetY || -10);
     
     ctx.save();
-    ctx.font = 'bold 14px Arial';
+    ctx.font = `bold ${nameComponent.fontSize || 14}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
     
@@ -119,14 +137,10 @@ export class SpriteRenderer {
     ctx.shadowOffsetX = 1;
     ctx.shadowOffsetY = 1;
     
-    // 根据实体类型设置颜色
-    if (entity.tags?.includes('enemy')) {
-      ctx.fillStyle = '#ff6666';
-    } else if (entity.tags?.includes('player')) {
-      ctx.fillStyle = '#66ff66';
-    } else {
-      ctx.fillStyle = '#ffffff';
-    }
+    // 使用名字组件中的颜色
+    ctx.fillStyle = nameComponent.color || '#ffffff';
+    
+    console.log('渲染名字:', name, '颜色:', nameComponent.color, '位置:', transform.position);
     
     ctx.fillText(name, transform.position.x, nameY);
     ctx.restore();
