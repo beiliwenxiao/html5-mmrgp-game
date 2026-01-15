@@ -186,6 +186,15 @@ class AggressiveAI extends AIController {
       const newTarget = this.findNearestEnemy(entity, allEntities, 400);
       if (newTarget) {
         combat.setTarget(newTarget);
+        console.log(`${entity.name} 找到目标: ${newTarget.name} (type: ${newTarget.type}, faction: ${newTarget.faction})`);
+      } else {
+        // 调试：为什么找不到目标
+        const playerEntities = allEntities.filter(e => e.type === 'player');
+        console.log(`${entity.name} 找不到目标。玩家数量: ${playerEntities.length}`, {
+          entityFaction: entity.faction,
+          entityType: entity.type,
+          totalEntities: allEntities.length
+        });
       }
     }
 

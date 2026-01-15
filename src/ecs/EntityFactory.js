@@ -44,6 +44,9 @@ export class EntityFactory {
   createPlayer(characterData) {
     const entity = new Entity(characterData.id || this.generateId(), 'player');
     
+    // 设置阵营（玩家/友军阵营）
+    entity.faction = 'ally';
+    
     // 添加变换组件
     const position = characterData.position || { x: 0, y: 0 };
     entity.addComponent(new TransformComponent(position.x, position.y));
@@ -128,6 +131,9 @@ export class EntityFactory {
    */
   createEnemy(enemyData) {
     const entity = new Entity(enemyData.id || this.generateId(), 'enemy');
+    
+    // 设置阵营（敌人阵营）
+    entity.faction = 'enemy';
     
     // 添加变换组件
     const position = enemyData.position || { x: 0, y: 0 };

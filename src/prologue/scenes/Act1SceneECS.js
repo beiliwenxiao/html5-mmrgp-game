@@ -734,9 +734,23 @@ export class Act1SceneECS extends PrologueScene {
       
       // 注册AI控制器（让敌人主动攻击）
       this.aiSystem.registerAI(enemy, 'aggressive');
+      
+      // 调试：确认敌人属性
+      console.log(`敌人 ${enemy.name} 已创建:`, {
+        id: enemy.id,
+        type: enemy.type,
+        faction: enemy.faction,
+        aiType: enemy.aiType,
+        position: enemyData
+      });
     }
     
     console.log(`Act1SceneECS: 生成了 ${waveData.length} 个敌人，已注册AI`);
+    console.log(`玩家信息:`, {
+      id: this.playerEntity?.id,
+      type: this.playerEntity?.type,
+      faction: this.playerEntity?.faction
+    });
   }
 
   /**
