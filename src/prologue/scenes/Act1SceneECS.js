@@ -505,7 +505,7 @@ export class Act1SceneECS extends PrologueScene {
   startMovementTutorial() {
     console.log('Act1SceneECS: 开始移动教程');
     this.tutorialPhase = 'movement';
-    this.tutorialSystem.showTutorial('movement');
+    // 不再调用 showTutorial，使用渐进式提示系统
     
     // 记录初始位置
     const transform = this.playerEntity.getComponent('transform');
@@ -521,7 +521,7 @@ export class Act1SceneECS extends PrologueScene {
     console.log('Act1SceneECS: 开始拾取教程');
     this.tutorialPhase = 'pickup';
     this.spawnPickupItems();
-    this.tutorialSystem.showTutorial('pickup');
+    // 不再调用 showTutorial，使用渐进式提示系统
   }
 
   /**
@@ -645,7 +645,7 @@ export class Act1SceneECS extends PrologueScene {
   startEquipmentTutorial() {
     console.log('Act1SceneECS: 开始装备教程');
     this.tutorialPhase = 'equipment';
-    this.tutorialSystem.showTutorial('equipment');
+    // 不再调用 showTutorial，使用渐进式提示系统
   }
 
   /**
@@ -654,7 +654,7 @@ export class Act1SceneECS extends PrologueScene {
   startCombatTutorial() {
     console.log('Act1SceneECS: 开始战斗教程');
     this.tutorialPhase = 'combat';
-    this.tutorialSystem.showTutorial('combat');
+    // 不再调用 showTutorial，使用渐进式提示系统
     this.spawnCombatWave(0);
   }
 
@@ -1836,8 +1836,27 @@ export class Act1SceneECS extends PrologueScene {
    */
   switchToNextScene() {
     console.log('Act1SceneECS: 切换到第二幕');
-    // 这里应该调用 SceneManager 切换场景
-    // sceneManager.switchScene('Act2Scene', { player: this.playerEntity });
+    
+    // 准备传递给第二幕的数据
+    const sceneData = {
+      player: {
+        id: this.playerEntity.id,
+        name: this.playerEntity.getComponent('NameComponent')?.name || '玩家',
+        class: 'warrior', // 默认职业，后续可以从职业选择中获取
+        level: 1,
+        health: this.playerEntity.getComponent('CombatComponent')?.health || 100,
+        maxHealth: this.playerEntity.getComponent('CombatComponent')?.maxHealth || 100,
+        hp: this.playerEntity.getComponent('CombatComponent')?.health || 100,
+        maxHp: this.playerEntity.getComponent('CombatComponent')?.maxHealth || 100,
+        skillPoints: 0,
+        inventory: this.playerEntity.getComponent('InventoryComponent')?.items || [],
+        equipment: this.playerEntity.getComponent('EquipmentComponent')?.equipment || {}
+      },
+      previousAct: 1
+    };
+    
+    // 调用父类的场景切换方法
+    this.goToNextScene(sceneData);
   }
 
   /**

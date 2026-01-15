@@ -144,23 +144,48 @@ export class PrologueScene extends Scene {
         console.log(`PrologueScene: Exiting ${this.name}`);
         
         // 清理教程系统
-        if (this.tutorialSystem) {
+        if (this.tutorialSystem && typeof this.tutorialSystem.cleanup === 'function') {
             this.tutorialSystem.cleanup();
         }
         
         // 清理对话系统
         if (this.dialogueSystem) {
-            this.dialogueSystem.cleanup();
+            // DialogueSystem 使用 reset() 而不是 cleanup()
+            if (typeof this.dialogueSystem.reset === 'function') {
+                this.dialogueSystem.reset();
+            }
         }
         
         // 清理任务系统
         if (this.questSystem) {
-            this.questSystem.cleanup();
+            // QuestSystem 可能没有 cleanup 方法，安全检查
+            if (typeof this.questSystem.cleanup === 'function') {
+                this.questSystem.cleanup();
+            }
         }
         
         // 清理场景实体
-        this.entities.clear();
-        this.npcs.clear();
+        // 兼容 Map 和 Array 两种类型
+        if (this.entities) {
+            if (typeof this.entities.clear === 'function') {
+                // Map 类型
+                this.entities.clear();
+            } else if (Array.isArray(this.entities)) {
+                // Array 类型
+                this.entities.length = 0;
+            }
+        }
+        
+        // 清理 NPC
+        if (this.npcs) {
+            if (typeof this.npcs.clear === 'function') {
+                // Map 类型
+                this.npcs.clear();
+            } else if (Array.isArray(this.npcs)) {
+                // Array 类型
+                this.npcs.length = 0;
+            }
+        }
         
         super.exit();
     }
@@ -242,7 +267,7 @@ export class PrologueScene extends Scene {
         if (this.sceneManager) {
             const nextActNumber = this.actNumber + 1;
             if (nextActNumber <= 6) {
-                this.sceneManager.switchScene(`Act${nextActNumber}Scene`, sceneData);
+                this.sceneManager.switchTo(`Act${nextActNumber}Scene`, sceneData);
             } else {
                 // 序章完成
                 console.log('PrologueScene: Prologue completed!');

@@ -409,6 +409,15 @@
     
     <script type="module">
         import { Act1SceneECS } from './src/prologue/scenes/Act1SceneECS.js';
+        import { Act2Scene } from './src/prologue/scenes/Act2Scene.js';
+        import { SceneManager } from './src/core/SceneManager.js';
+        import { DialogueBox } from './src/ui/DialogueBox.js';
+        
+        // 场景管理器
+        let sceneManager = null;
+        
+        // UI组件
+        let dialogueBox = null;
         
         // 游戏状态
         let scene = null;
@@ -461,6 +470,86 @@
             }
         });
         
+        // 为场景设置回调
+        function setupSceneCallbacks(sceneInstance) {
+            if (!sceneInstance || !sceneInstance.tutorialSystem) return;
+            
+            // 设置教程回调
+            sceneInstance.tutorialSystem.onShow((data) => {
+                currentTutorialData = data;
+                
+                // 判断是渐进式提示还是基础教程
+                const isProgressiveTip = data.tutorialId && data.tutorialId.startsWith('progressive_tip_');
+                
+                // 处理两种回调格式：
+                // 1. showTutorial 调用时传入 tutorial 对象
+                // 2. showStep 调用时传入 stepData 对象
+                if (data.step && data.step.text) {
+                    // stepData 格式（多步教程）
+                    if (isProgressiveTip) {
+                        // 渐进式提示：使用提示面板（无按钮）
+                        showTips(data.tutorialTitle, data.step.text);
+                    } else {
+                        // 基础教程：使用教程面板（有按钮）
+                        showTutorial(
+                            data.tutorialTitle, 
+                            data.step.text,
+                            data.stepIndex,
+                            data.totalSteps,
+                            data.isLastStep
+                        );
+                    }
+                } else if (data.title) {
+                    // tutorial 对象格式（首次显示）
+                    if (isProgressiveTip) {
+                        // 渐进式提示：使用提示面板（无按钮）
+                        showTips(data.title, data.steps[0]?.text || '');
+                    } else {
+                        // 基础教程：使用教程面板（有按钮）
+                        showTutorial(
+                            data.title, 
+                            data.steps[0]?.text || '',
+                            0,
+                            data.steps.length,
+                            data.steps.length === 1
+                        );
+                    }
+                }
+            });
+            
+            sceneInstance.tutorialSystem.onHide(() => {
+                hideTutorial();
+                hideTips();
+            });
+            
+            // 设置对话系统回调（如果有）
+            if (sceneInstance.dialogueSystem) {
+                // 创建或更新 DialogueBox
+                if (!dialogueBox) {
+                    dialogueBox = new DialogueBox({
+                        x: 100,
+                        y: 370,
+                        width: 600,
+                        height: 200,
+                        visible: false,
+                        dialogueSystem: sceneInstance.dialogueSystem
+                    });
+                } else {
+                    dialogueBox.setDialogueSystem(sceneInstance.dialogueSystem);
+                }
+                
+                // 当对话开始时显示对话框
+                sceneInstance.dialogueSystem.onStart(() => {
+                    dialogueBox.show();
+                });
+                
+                // 当对话结束时隐藏对话框
+                sceneInstance.dialogueSystem.onEnd(() => {
+                    dialogueBox.hide();
+                });
+            }
+        }
+        
         // 初始化游戏
         async function initGame() {
             try {
@@ -471,62 +560,36 @@
                 updateLoading(25, '加载核心系统...');
                 await sleep(500);
                 
-                updateLoading(50, '创建场景...');
-                scene = new Act1SceneECS();
+                updateLoading(50, '创建场景管理器...');
+                sceneManager = new SceneManager();
+                await sleep(300);
+                
+                updateLoading(60, '注册场景...');
+                // 创建并注册第一幕场景
+                const act1Scene = new Act1SceneECS();
+                sceneManager.registerScene('Act1Scene', act1Scene);
+                sceneManager.registerScene('Act1SceneECS', act1Scene); // 兼容旧名称
+                
+                // 创建并注册第二幕场景
+                const act2Scene = new Act2Scene();
+                sceneManager.registerScene('Act2Scene', act2Scene);
+                
+                // 设置场景管理器引用
+                act1Scene.setSceneManager(sceneManager);
+                act2Scene.setSceneManager(sceneManager);
+                
+                // 为所有场景设置教程回调
+                setupSceneCallbacks(act1Scene);
+                setupSceneCallbacks(act2Scene);
+                
+                scene = act1Scene;
                 await sleep(500);
                 
                 updateLoading(75, '初始化玩家实体...');
                 
-                // 设置教程回调（必须在scene.enter()之前设置）
-                scene.tutorialSystem.onShow((data) => {
-                    currentTutorialData = data;
-                    
-                    // 判断是渐进式提示还是基础教程
-                    const isProgressiveTip = data.tutorialId && data.tutorialId.startsWith('progressive_tip_');
-                    
-                    // 处理两种回调格式：
-                    // 1. showTutorial 调用时传入 tutorial 对象
-                    // 2. showStep 调用时传入 stepData 对象
-                    if (data.step && data.step.text) {
-                        // stepData 格式（多步教程）
-                        if (isProgressiveTip) {
-                            // 渐进式提示：使用提示面板（无按钮）
-                            showTips(data.tutorialTitle, data.step.text);
-                        } else {
-                            // 基础教程：使用教程面板（有按钮）
-                            showTutorial(
-                                data.tutorialTitle, 
-                                data.step.text,
-                                data.stepIndex,
-                                data.totalSteps,
-                                data.isLastStep
-                            );
-                        }
-                    } else if (data.title) {
-                        // tutorial 对象格式（首次显示）
-                        if (isProgressiveTip) {
-                            // 渐进式提示：使用提示面板（无按钮）
-                            showTips(data.title, data.steps[0]?.text || '');
-                        } else {
-                            // 基础教程：使用教程面板（有按钮）
-                            showTutorial(
-                                data.title, 
-                                data.steps[0]?.text || '',
-                                0,
-                                data.steps.length,
-                                data.steps.length === 1
-                            );
-                        }
-                    }
-                });
-                
-                scene.tutorialSystem.onHide(() => {
-                    hideTutorial();
-                    hideTips();
-                });
-                
-                // 进入场景（会触发第一个教程）
-                scene.enter();
+                // 使用场景管理器切换到第一幕
+                updateLoading(90, '进入第一幕...');
+                sceneManager.switchTo('Act1Scene');
                 await sleep(500);
                 
                 updateLoading(100, '完成！');
@@ -626,12 +689,32 @@
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
             // 更新和渲染场景
-            if (scene && scene.isActive) {
-                scene.update(deltaTime);
-                scene.render(ctx);
+            if (sceneManager) {
+                sceneManager.update(deltaTime);
+                sceneManager.render(ctx);
+                
+                // 更新和渲染对话框
+                if (dialogueBox) {
+                    dialogueBox.update(deltaTime);
+                    dialogueBox.render(ctx);
+                }
+                
+                // 获取当前场景
+                const currentScene = sceneManager.getCurrentScene();
+                
+                // 如果场景切换了，设置新场景的回调
+                if (currentScene !== scene) {
+                    console.log('场景切换检测到，设置新场景回调');
+                    scene = currentScene;
+                    if (scene) {
+                        setupSceneCallbacks(scene);
+                    }
+                }
                 
                 // 更新调试信息
-                updateDebugInfo();
+                if (scene) {
+                    updateDebugInfo();
+                }
             }
             
             requestAnimationFrame(gameLoop);
@@ -727,12 +810,41 @@
         
         // 键盘快捷键
         document.addEventListener('keydown', (e) => {
+            // 空格键 - 继续对话
+            if (e.code === 'Space' && dialogueBox && dialogueBox.visible) {
+                e.preventDefault();
+                dialogueBox.continueDialogue();
+                return;
+            }
+            
             if (!scene || !scene.playerEntity) return;
             
             // 技能快捷键 1-4
             if (e.key >= '1' && e.key <= '4') {
                 const skillIndex = parseInt(e.key) - 1;
                 useSkill(skillIndex);
+            }
+        });
+        
+        // 鼠标移动事件
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            if (dialogueBox && dialogueBox.visible) {
+                dialogueBox.handleMouseMove(mouseX, mouseY);
+            }
+        });
+        
+        // 鼠标点击事件
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            if (dialogueBox && dialogueBox.visible) {
+                dialogueBox.handleMouseClick(mouseX, mouseY);
             }
         });
         

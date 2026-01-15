@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>第二幕场景测试 - 符水救灾</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        #gameCanvas {
+            display: block;
+            background: #2a2a2a;
+            margin: 0 auto;
+        }
+
+        .ui-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .dialogue-box {
+            position: fixed;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 800px;
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid #FFD700;
+            border-radius: 10px;
+            padding: 20px;
+            pointer-events: auto;
+            display: none;
+        }
+
+        .dialogue-box.active {
+            display: block;
+        }
+
+        .dialogue-speaker {
+            font-size: 18px;
+            font-weight: bold;
+            color: #FFD700;
+            margin-bottom: 10px;
+        }
+
+        .dialogue-text {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #fff;
+            min-height: 60px;
+        }
+
+        .dialogue-continue {
+            text-align: right;
+            margin-top: 10px;
+            font-size: 14px;
+            color: #888;
+        }
+
+        .tutorial-box {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 300px;
+            background: rgba(52, 152, 219, 0.9);
+            border: 2px solid #3498db;
+            border-radius: 10px;
+            padding: 15px;
+            pointer-events: auto;
+            display: none;
+        }
+
+        .tutorial-box.active {
+            display: block;
+        }
+
+        .tutorial-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #fff;
+        }
+
+        .tutorial-text {
+            font-size: 14px;
+            line-height: 1.5;
+            color: #fff;
+        }
+
+        .tutorial-progress {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #ddd;
+        }
+
+        .debug-panel {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #444;
+            border-radius: 5px;
+            padding: 10px;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+            pointer-events: auto;
+            max-width: 300px;
+        }
+
+        .debug-panel h3 {
+            margin-bottom: 5px;
+            color: #4CAF50;
+        }
+
+        .debug-panel p {
+            margin: 3px 0;
+            color: #ddd;
+        }
+
+        .controls-panel {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #444;
+            border-radius: 5px;
+            padding: 10px;
+            font-size: 12px;
+            pointer-events: auto;
+        }
+
+        .controls-panel h3 {
+            margin-bottom: 5px;
+            color: #FFD700;
+        }
+
+        .controls-panel p {
+            margin: 3px 0;
+            color: #ddd;
+        }
+
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+
+        button:hover {
+            background: #45a049;
+        }
+
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <div class="ui-overlay">
+        <!-- 对话框 -->
+        <div id="dialogueBox" class="dialogue-box">
+            <div class="dialogue-speaker" id="dialogueSpeaker"></div>
+            <div class="dialogue-text" id="dialogueText"></div>
+            <div class="dialogue-continue">按 空格键 继续</div>
+        </div>
+
+        <!-- 教程框 -->
+        <div id="tutorialBox" class="tutorial-box">
+            <div class="tutorial-title" id="tutorialTitle"></div>
+            <div class="tutorial-text" id="tutorialText"></div>
+            <div class="tutorial-progress" id="tutorialProgress"></div>
+        </div>
+
+        <!-- 调试面板 -->
+        <div class="debug-panel">
+            <h3>调试信息</h3>
+            <p>场景: <span id="debugScene">-</span></p>
+            <p>对话阶段: <span id="debugPhase">-</span></p>
+            <p>技能点: <span id="debugSkillPoints">0</span></p>
+            <p>属性点: <span id="debugAttributePoints">0</span></p>
+            <p>已学技能: <span id="debugLearnedSkills">0</span></p>
+            <p>已分配属性: <span id="debugAllocatedAttributes">0</span></p>
+            <p>场景完成: <span id="debugComplete">否</span></p>
+        </div>
+
+        <!-- 控制面板 -->
+        <div class="controls-panel">
+            <h3>测试控制</h3>
+            <button id="btnSkipDialogue">跳过对话</button>
+            <button id="btnOpenSkillTree">打开技能树 (K)</button>
+            <button id="btnOpenAttributes">打开属性面板 (C)</button>
+            <button id="btnNextScene">下一幕 (Enter)</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { Act2Scene } from '../src/prologue/scenes/Act2Scene.js';
+
+        // 初始化Canvas
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 创建模拟玩家
+        const mockPlayer = {
+            id: 'test_player',
+            name: '测试玩家',
+            class: 'warrior', // 战士职业
+            level: 5,
+            health: 100,
+            maxHealth: 100,
+            hp: 100,
+            maxHp: 100,
+            skillPoints: 0,
+            inventory: [],
+            equipment: {}
+        };
+
+        // 创建场景
+        const scene = new Act2Scene();
+        
+        // 进入场景
+        scene.enter({ player: mockPlayer });
+
+        // 获取系统引用
+        const dialogueSystem = scene.getDialogueSystem();
+        const tutorialSystem = scene.getTutorialSystem();
+        const attributeSystem = scene.getAttributeSystem();
+        const skillTreeSystem = scene.getSkillTreeSystem();
+
+        // UI元素
+        const dialogueBox = document.getElementById('dialogueBox');
+        const dialogueSpeaker = document.getElementById('dialogueSpeaker');
+        const dialogueText = document.getElementById('dialogueText');
+        const tutorialBox = document.getElementById('tutorialBox');
+        const tutorialTitle = document.getElementById('tutorialTitle');
+        const tutorialText = document.getElementById('tutorialText');
+        const tutorialProgress = document.getElementById('tutorialProgress');
+
+        // 调试信息元素
+        const debugScene = document.getElementById('debugScene');
+        const debugPhase = document.getElementById('debugPhase');
+        const debugSkillPoints = document.getElementById('debugSkillPoints');
+        const debugAttributePoints = document.getElementById('debugAttributePoints');
+        const debugLearnedSkills = document.getElementById('debugLearnedSkills');
+        const debugAllocatedAttributes = document.getElementById('debugAllocatedAttributes');
+        const debugComplete = document.getElementById('debugComplete');
+
+        // 设置对话系统回调
+        dialogueSystem.onNodeChange((node) => {
+            dialogueBox.classList.add('active');
+            dialogueSpeaker.textContent = node.speaker;
+            dialogueText.textContent = dialogueSystem.getDisplayedText();
+        });
+
+        dialogueSystem.onEnd(() => {
+            dialogueBox.classList.remove('active');
+        });
+
+        // 设置教程系统回调
+        tutorialSystem.onShow((stepData) => {
+            tutorialBox.classList.add('active');
+            tutorialTitle.textContent = stepData.tutorialTitle;
+            tutorialText.textContent = stepData.step.text;
+            tutorialProgress.textContent = `步骤 ${stepData.stepIndex + 1} / ${stepData.totalSteps}`;
+        });
+
+        tutorialSystem.onHide(() => {
+            tutorialBox.classList.remove('active');
+        });
+
+        // 键盘事件处理
+        document.addEventListener('keydown', (e) => {
+            // 空格键 - 继续对话
+            if (e.code === 'Space') {
+                if (dialogueSystem.isDialogueActive()) {
+                    dialogueSystem.continue();
+                } else if (tutorialSystem.isShowingTutorial()) {
+                    tutorialSystem.nextStep();
+                }
+                e.preventDefault();
+            }
+
+            // K键 - 打开技能树（模拟）
+            if (e.code === 'KeyK') {
+                console.log('打开技能树');
+                // 模拟学习一个技能
+                if (mockPlayer.skillPoints > 0) {
+                    const skillTree = skillTreeSystem.getSkillTree(mockPlayer.class);
+                    if (skillTree) {
+                        const firstSkill = skillTree.getAllNodes()[0];
+                        if (firstSkill && !firstSkill.isLearned) {
+                            skillTreeSystem.learnSkill(mockPlayer, firstSkill.id);
+                            console.log(`学习了技能: ${firstSkill.name}`);
+                        }
+                    }
+                }
+            }
+
+            // C键 - 打开属性面板（模拟）
+            if (e.code === 'KeyC') {
+                console.log('打开属性面板');
+                // 模拟分配一个属性点
+                const attributeData = attributeSystem.getCharacterAttributes(mockPlayer.id);
+                if (attributeData && attributeData.availablePoints > 0) {
+                    attributeSystem.allocateAttribute(mockPlayer.id, 'strength', 1);
+                    console.log('分配了1点力量');
+                }
+            }
+
+            // Enter键 - 下一幕
+            if (e.code === 'Enter' && scene.isSceneComplete) {
+                console.log('进入下一幕');
+                alert('第二幕完成！准备进入第三幕...');
+            }
+
+            // 传递给场景
+            scene.handleKeyPress(e);
+        });
+
+        // 按钮事件
+        document.getElementById('btnSkipDialogue').addEventListener('click', () => {
+            if (dialogueSystem.isDialogueActive()) {
+                dialogueSystem.endDialogue();
+            }
+        });
+
+        document.getElementById('btnOpenSkillTree').addEventListener('click', () => {
+            document.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyK' }));
+        });
+
+        document.getElementById('btnOpenAttributes').addEventListener('click', () => {
+            document.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyC' }));
+        });
+
+        document.getElementById('btnNextScene').addEventListener('click', () => {
+            if (scene.isSceneComplete) {
+                document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Enter' }));
+            }
+        });
+
+        // 更新调试信息
+        function updateDebugInfo() {
+            debugScene.textContent = scene.name;
+            debugPhase.textContent = scene.dialoguePhase;
+            debugSkillPoints.textContent = mockPlayer.skillPoints || 0;
+            
+            const attributeData = attributeSystem.getCharacterAttributes(mockPlayer.id);
+            debugAttributePoints.textContent = attributeData ? attributeData.availablePoints : 0;
+            
+            const skillTree = skillTreeSystem.getSkillTree(mockPlayer.class);
+            const learnedSkills = skillTree ? skillTree.getAllNodes().filter(n => n.isLearned).length : 0;
+            debugLearnedSkills.textContent = learnedSkills;
+            
+            debugAllocatedAttributes.textContent = attributeData ? attributeData.totalInvestedPoints : 0;
+            debugComplete.textContent = scene.isSceneComplete ? '是' : '否';
+        }
+
+        // 游戏循环
+        let lastTime = 0;
+        function gameLoop(currentTime) {
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+
+            // 更新场景
+            scene.update(deltaTime);
+
+            // 渲染场景
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            scene.render(ctx);
+
+            // 更新对话文本（打字机效果）
+            if (dialogueSystem.isDialogueActive()) {
+                dialogueText.textContent = dialogueSystem.getDisplayedText();
+            }
+
+            // 更新调试信息
+            updateDebugInfo();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 启动游戏循环
+        requestAnimationFrame(gameLoop);
+
+        console.log('第二幕场景测试已启动');
+        console.log('玩家:', mockPlayer);
+        console.log('场景:', scene);
+    </script>
+</body>
+</html>
