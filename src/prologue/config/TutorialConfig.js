@@ -52,7 +52,7 @@ export const TutorialConfig = {
     description: '学习如何装备物品',
     steps: [
       {
-        text: '打开背包（按B键），点击装备物品即可装备',
+        text: '打开背包（按 <span class="key">B</span>键），点击装备物品即可装备',
         position: 'top'
       }
     ],
@@ -70,7 +70,7 @@ export const TutorialConfig = {
     description: '学习如何战斗',
     steps: [
       {
-        text: '使用技能栏（1-4键）或空格键攻击敌人。注意生命值，低于30%时要小心',
+        text: '使用技能栏（<span class="key">1</span> <span class="key">2</span> <span class="key">3</span> <span class="key">4</span>键 攻击敌人。注意生命值，低于30%时要小心',
         position: 'top'
       }
     ],

@@ -746,14 +746,27 @@ export class CombatSystem {
         // 获取对应的技能
         if (index < combat.skills.length) {
           const skill = combat.skills[index];
-          this.tryUseSkill(this.playerEntity, skill, currentTime, entities);
+          
+          // 普通攻击需要目标，其他技能使用鼠标位置
+          if (skill.isAutoAttack) {
+            // 普通攻击：需要选中目标
+            if (this.selectedTarget) {
+              this.tryUseSkill(this.playerEntity, skill, currentTime, entities);
+            } else {
+              console.log('普通攻击需要选择目标');
+            }
+          } else {
+            // 其他技能：使用鼠标位置作为目标点
+            const mouseWorldPos = this.inputManager.getMouseWorldPosition(this.camera);
+            this.tryUseSkillAtPosition(this.playerEntity, skill, mouseWorldPos, currentTime, entities);
+          }
         }
       }
     }
   }
 
   /**
-   * 尝试使用技能
+   * 尝试使用技能（针对单个目标）
    * @param {Entity} caster - 施法者
    * @param {Object} skill - 技能数据
    * @param {number} currentTime - 当前时间（毫秒）
@@ -808,7 +821,59 @@ export class CombatSystem {
   }
 
   /**
-   * 应用技能效果
+   * 尝试在指定位置使用技能（AOE技能）
+   * @param {Entity} caster - 施法者
+   * @param {Object} skill - 技能数据
+   * @param {Object} targetPos - 目标位置 {x, y}
+   * @param {number} currentTime - 当前时间（毫秒）
+   * @param {Array<Entity>} entities - 实体列表
+   * @returns {boolean} 是否成功使用
+   */
+  tryUseSkillAtPosition(caster, skill, targetPos, currentTime, entities) {
+    const combat = caster.getComponent('combat');
+    const stats = caster.getComponent('stats');
+    const casterTransform = caster.getComponent('transform');
+    
+    if (!combat || !stats || !casterTransform) return false;
+    
+    // 检查冷却
+    if (!combat.canUseSkill(skill.id, currentTime)) {
+      console.log(`技能 ${skill.name} 冷却中`);
+      return false;
+    }
+    
+    // 检查魔法值
+    if (stats.mp < skill.manaCost) {
+      console.log(`魔法值不足，需要 ${skill.manaCost}，当前 ${stats.mp}`);
+      return false;
+    }
+    
+    // 检查距离（施法者到目标位置的距离）
+    const dx = targetPos.x - casterTransform.position.x;
+    const dy = targetPos.y - casterTransform.position.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance > skill.range) {
+      console.log(`目标位置超出技能范围`);
+      return false;
+    }
+    
+    // 使用技能
+    const usedSkill = combat.useSkill(skill.id, currentTime);
+    if (!usedSkill) return false;
+    
+    // 消耗魔法值
+    stats.consumeMana(skill.manaCost);
+    
+    // 应用AOE技能效果
+    this.applyAOESkillEffects(caster, targetPos, skill, currentTime, entities);
+    
+    console.log(`${caster.name || caster.id} 在位置 (${Math.floor(targetPos.x)}, ${Math.floor(targetPos.y)}) 使用技能 ${skill.name}`);
+    return true;
+  }
+
+  /**
+   * 应用技能效果（单目标）
    * @param {Entity} caster - 施法者
    * @param {Entity} target - 目标
    * @param {Object} skill - 技能数据
@@ -914,6 +979,90 @@ export class CombatSystem {
       for (const effect of skill.effects) {
         this.applyEffect(caster, target, effect);
       }
+    }
+  }
+
+  /**
+   * 应用AOE技能效果
+   * @param {Entity} caster - 施法者
+   * @param {Object} targetPos - 目标位置 {x, y}
+   * @param {Object} skill - 技能数据
+   * @param {number} currentTime - 当前时间（毫秒）
+   * @param {Array<Entity>} entities - 实体列表
+   */
+  applyAOESkillEffects(caster, targetPos, skill, currentTime, entities) {
+    const sprite = caster.getComponent('sprite');
+    const casterTransform = caster.getComponent('transform');
+    
+    // 播放技能动画
+    if (sprite && skill.animation) {
+      sprite.playAnimation(skill.animation);
+      
+      setTimeout(() => {
+        if (sprite.currentAnimation === skill.animation) {
+          sprite.playAnimation('idle');
+        }
+      }, skill.castTime * 1000 || 500);
+    }
+    
+    // 创建技能特效（抛射物飞向目标位置）
+    if (this.skillEffects && casterTransform) {
+      // 如果有抛射物速度，创建飞行特效
+      if (skill.projectileSpeed && skill.projectileSpeed > 0) {
+        this.skillEffects.createSkillEffect(
+          skill.id,
+          casterTransform.position,
+          targetPos,
+          () => {
+            // 命中回调：对范围内所有敌人造成伤害
+            this.applyAOEDamage(caster, targetPos, skill, entities);
+          }
+        );
+      } else {
+        // 立即生效的AOE技能
+        this.skillEffects.createSkillEffect(skill.id, casterTransform.position, targetPos);
+        this.applyAOEDamage(caster, targetPos, skill, entities);
+      }
+    } else {
+      // 没有特效系统，直接应用伤害
+      this.applyAOEDamage(caster, targetPos, skill, entities);
+    }
+  }
+
+  /**
+   * 应用AOE伤害
+   * @param {Entity} caster - 施法者
+   * @param {Object} centerPos - 中心位置 {x, y}
+   * @param {Object} skill - 技能数据
+   * @param {Array<Entity>} entities - 实体列表
+   */
+  applyAOEDamage(caster, centerPos, skill, entities) {
+    // AOE范围（默认150像素）
+    const aoeRadius = skill.aoeRadius || 150;
+    
+    // 查找范围内的所有敌人
+    const enemies = entities.filter(e => {
+      // 只对敌人造成伤害
+      if (e.type !== 'enemy') return false;
+      if (e.isDead || e.isDying) return false;
+      
+      const transform = e.getComponent('transform');
+      if (!transform) return false;
+      
+      // 计算距离
+      const dx = transform.position.x - centerPos.x;
+      const dy = transform.position.y - centerPos.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      return distance <= aoeRadius;
+    });
+    
+    console.log(`AOE技能 ${skill.name} 命中 ${enemies.length} 个敌人`);
+    
+    // 对每个敌人造成伤害
+    for (const enemy of enemies) {
+      const damage = this.calculateSkillDamage(caster, enemy, skill);
+      this.applyDamage(enemy, damage);
     }
   }
 

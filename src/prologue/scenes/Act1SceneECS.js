@@ -21,6 +21,7 @@ import { Camera } from '../../rendering/Camera.js';
 import { CombatSystem } from '../../systems/CombatSystem.js';
 import { MovementSystem } from '../../systems/MovementSystem.js';
 import { EquipmentSystem } from '../../systems/EquipmentSystem.js';
+import { AISystem } from '../../systems/AISystem.js';
 import { TutorialSystem } from '../../systems/TutorialSystem.js';
 import { DialogueSystem } from '../../systems/DialogueSystem.js';
 import { QuestSystem } from '../../systems/QuestSystem.js';
@@ -55,6 +56,7 @@ export class Act1SceneECS extends PrologueScene {
     this.combatSystem = null;
     this.movementSystem = null;
     this.equipmentSystem = null;
+    this.aiSystem = null;
     this.renderSystem = null;
     this.combatEffects = null;
     this.skillEffects = null;
@@ -186,6 +188,9 @@ export class Act1SceneECS extends PrologueScene {
     });
     
     this.equipmentSystem = new EquipmentSystem();
+    
+    // 初始化AI系统
+    this.aiSystem = new AISystem();
     
     // 初始化 UI 面板
     // 角色信息面板 - 最左侧
@@ -336,9 +341,10 @@ export class Act1SceneECS extends PrologueScene {
           manaCost: 15,
           cooldown: 2.0,
           range: 500,
+          aoeRadius: 100, // AOE范围
           effectType: 'fireball',
           projectileSpeed: 450,
-          description: '发射炽热的火球，造成火焰伤害',
+          description: '发射炽热的火球，造成范围火焰伤害',
           hotkey: '2'
         },
         {
@@ -349,9 +355,10 @@ export class Act1SceneECS extends PrologueScene {
           manaCost: 12,
           cooldown: 1.8,
           range: 550,
+          aoeRadius: 80, // AOE范围
           effectType: 'ice_lance',
           projectileSpeed: 500,
-          description: '发射寒冰箭，冻结敌人',
+          description: '发射寒冰箭，冻结范围内敌人',
           hotkey: '3'
         },
         {
@@ -362,9 +369,10 @@ export class Act1SceneECS extends PrologueScene {
           manaCost: 25,
           cooldown: 4.0,
           range: 450,
+          aoeRadius: 150, // AOE范围
           effectType: 'flame_burst',
           projectileSpeed: 400,
-          description: '释放强大的火焰能量，造成范围伤害',
+          description: '释放强大的火焰能量，造成大范围伤害',
           hotkey: '4'
         }
       ],
@@ -472,10 +480,10 @@ export class Act1SceneECS extends PrologueScene {
   }
 
   /**
-   * 注册教程（基于配置）
+   * 注册教程（仅渐进式提示）
    */
   registerTutorials() {
-    // 注册渐进式提示
+    // 只注册渐进式提示，不注册基础教程
     const progressiveTips = this.getProgressiveTipsConfig();
     for (const tip of progressiveTips) {
       this.tutorialSystem.registerTutorial(tip.id, {
@@ -487,21 +495,6 @@ export class Act1SceneECS extends PrologueScene {
         canSkip: false,
         priority: tip.priority,
         autoTrigger: true
-      });
-    }
-
-    // 注册基础教程
-    const basicTutorials = this.getBasicTutorialsConfig();
-    for (const tutorial of basicTutorials) {
-      this.tutorialSystem.registerTutorial(tutorial.id, {
-        title: tutorial.title,
-        description: tutorial.description,
-        steps: tutorial.steps,
-        triggerCondition: tutorial.triggerCondition,
-        completionCondition: tutorial.completionCondition,
-        pauseGame: false,
-        canSkip: false,
-        priority: tutorial.priority
       });
     }
   }
@@ -738,9 +731,12 @@ export class Act1SceneECS extends PrologueScene {
       
       this.entities.push(enemy);
       this.enemyEntities.push(enemy);
+      
+      // 注册AI控制器（让敌人主动攻击）
+      this.aiSystem.registerAI(enemy, 'aggressive');
     }
     
-    console.log(`Act1SceneECS: 生成了 ${waveData.length} 个敌人`);
+    console.log(`Act1SceneECS: 生成了 ${waveData.length} 个敌人，已注册AI`);
   }
 
   /**
@@ -831,6 +827,9 @@ export class Act1SceneECS extends PrologueScene {
         }
       }
     }
+    
+    // 更新AI系统（敌人AI）
+    this.aiSystem.update(deltaTime, this.entities, this.combatSystem);
     
     // 更新战斗系统
     this.combatSystem.update(deltaTime, this.entities);
