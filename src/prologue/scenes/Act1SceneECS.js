@@ -811,6 +811,9 @@ export class Act1SceneECS extends PrologueScene {
     // 检查火堆碰撞（阻止玩家穿过火堆）
     this.checkCampfireCollision();
     
+    // 检查实体之间的碰撞（玩家与敌人）
+    this.checkEntityCollisions();
+    
     // 处理敌人选中（鼠标点击）
     if (this.inputManager.isMouseClicked() && !this.inputManager.isMouseClickHandled()) {
       const mouseWorldPos = this.inputManager.getMouseWorldPosition(this.camera);
@@ -1403,6 +1406,86 @@ export class Act1SceneECS extends PrologueScene {
       } else {
         // 垂直推开
         transform.position.y += overlapY;
+      }
+    }
+  }
+
+  /**
+   * 检查实体之间的碰撞（玩家与敌人）
+   */
+  checkEntityCollisions() {
+    // 获取所有活着的实体
+    const aliveEntities = this.entities.filter(e => !e.isDead && !e.isDying);
+    
+    // 实体半径（与火堆碰撞比例一致）
+    const entityRadius = 20; // 玩家半径
+    
+    // 碰撞区域比例（与火堆一致：宽度8/10，高度3/4）
+    const collisionWidthRatio = 0.8;
+    const collisionHeightRatio = 0.75;
+    
+    // 检查每对实体之间的碰撞
+    for (let i = 0; i < aliveEntities.length; i++) {
+      const entityA = aliveEntities[i];
+      const transformA = entityA.getComponent('transform');
+      if (!transformA) continue;
+      
+      for (let j = i + 1; j < aliveEntities.length; j++) {
+        const entityB = aliveEntities[j];
+        const transformB = entityB.getComponent('transform');
+        if (!transformB) continue;
+        
+        // 计算碰撞区域（应用比例）
+        const radiusA = entityRadius * collisionWidthRatio;
+        const radiusB = entityRadius * collisionWidthRatio;
+        const heightA = entityRadius * 2 * collisionHeightRatio;
+        const heightB = entityRadius * 2 * collisionHeightRatio;
+        
+        // AABB 碰撞检测
+        const aLeft = transformA.position.x - radiusA;
+        const aRight = transformA.position.x + radiusA;
+        const aTop = transformA.position.y - heightA / 2;
+        const aBottom = transformA.position.y + heightA / 2;
+        
+        const bLeft = transformB.position.x - radiusB;
+        const bRight = transformB.position.x + radiusB;
+        const bTop = transformB.position.y - heightB / 2;
+        const bBottom = transformB.position.y + heightB / 2;
+        
+        // 检测碰撞
+        if (aRight > bLeft && 
+            aLeft < bRight && 
+            aBottom > bTop && 
+            aTop < bBottom) {
+          
+          // 发生碰撞，计算推开方向
+          const dx = transformA.position.x - transformB.position.x;
+          const dy = transformA.position.y - transformB.position.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          
+          if (distance === 0) continue; // 避免除以零
+          
+          // 归一化方向
+          const nx = dx / distance;
+          const ny = dy / distance;
+          
+          // 计算重叠量
+          const overlapX = (radiusA + radiusB) - Math.abs(dx);
+          const overlapY = (heightA / 2 + heightB / 2) - Math.abs(dy);
+          
+          // 沿重叠较小的方向推开
+          const pushDistance = Math.min(overlapX, overlapY) / 2;
+          
+          if (Math.abs(overlapX) < Math.abs(overlapY)) {
+            // 水平推开
+            transformA.position.x += nx * pushDistance;
+            transformB.position.x -= nx * pushDistance;
+          } else {
+            // 垂直推开
+            transformA.position.y += ny * pushDistance;
+            transformB.position.y -= ny * pushDistance;
+          }
+        }
       }
     }
   }
