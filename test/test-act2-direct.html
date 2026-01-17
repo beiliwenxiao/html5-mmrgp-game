@@ -164,17 +164,14 @@
                 // 先进入场景（这会初始化系统）
                 scene.enter(playerData);
                 
-                // 然后设置对话系统回调
+                // 然后设置对话系统回调（只设置节点变化回调，不设置结束回调）
                 if (scene.dialogueSystem) {
                     scene.dialogueSystem.onNodeChange((node) => {
                         console.log('对话节点变化:', node);
                         showDialogue(node.speaker, node.text);
                     });
                     
-                    scene.dialogueSystem.onEnd(() => {
-                        console.log('对话结束');
-                        hideDialogue();
-                    });
+                    // 不要设置 onEnd 回调，让场景自己管理对话流程
                 }
                 
                 // 设置教程系统回调
@@ -268,16 +265,24 @@
             if (e.code === 'Space' && scene.dialogueSystem && scene.dialogueSystem.isDialogueActive()) {
                 e.preventDefault();
                 scene.dialogueSystem.continue();
+                return;
+            }
+            
+            // 如果对话正在进行，不响应其他按键
+            if (scene.dialogueSystem && scene.dialogueSystem.isDialogueActive()) {
+                return;
             }
             
             // K键 - 打开技能树
             if (e.code === 'KeyK') {
                 console.log('打开技能树（未实现UI）');
+                return;
             }
             
             // C键 - 打开属性面板
             if (e.code === 'KeyC') {
                 console.log('打开属性面板（未实现UI）');
+                return;
             }
             
             // Enter键 - 进入下一幕

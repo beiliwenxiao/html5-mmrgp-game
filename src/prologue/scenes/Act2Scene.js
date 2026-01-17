@@ -25,6 +25,11 @@ export class Act2Scene extends PrologueScene {
     // 对话阶段
     this.dialoguePhase = 'awakening'; // awakening, talisman_water, upgrade, skills, attributes
     
+    // 对话完成标志
+    this.awakeningDialogueCompleted = false;
+    this.talismanWaterDialogueCompleted = false;
+    this.equipmentUpgradeDialogueCompleted = false;
+    
     // 是否已获得装备
     this.hasReceivedEquipment = false;
     
@@ -39,6 +44,19 @@ export class Act2Scene extends PrologueScene {
     
     // 场景完成标志
     this.isSceneComplete = false;
+    
+    // 符水使用流程状态
+    this.talismanWaterGiven = false;      // 是否已给予符水
+    this.waitingForTalismanUse = false;   // 是否等待使用符水
+    this.talismanWaterUsed = false;       // 是否已使用符水
+    this.showedAttributeHint = false;     // 是否已显示属性面板提示
+    this.waitingForAttributePanel = false; // 是否等待属性面板关闭
+    
+    // 通知系统回调
+    this.onNotification = null;
+    
+    // 玩家实体引用（用于背包系统）
+    this.playerEntity = null;
   }
 
   /**
@@ -48,16 +66,28 @@ export class Act2Scene extends PrologueScene {
   enter(data = null) {
     super.enter(data);
     
-    console.log('Act2Scene: 进入第二幕场景');
+    console.log('Act2Scene: 进入第二幕场景', data);
+    
+    // 从上一个场景继承玩家实体
+    if (data && data.playerEntity) {
+      this.playerEntity = data.playerEntity;
+      console.log('Act2Scene: 继承玩家实体', this.playerEntity);
+    }
     
     // 初始化系统
     this.initializeSystems();
     
     // 恢复玩家生命值
+    if (this.playerEntity) {
+      const stats = this.playerEntity.getComponent('stats');
+      if (stats) {
+        stats.hp = stats.maxHp;
+        console.log('Act2Scene: 玩家生命值已恢复');
+      }
+    }
     if (this.player) {
       this.player.health = this.player.maxHealth || 100;
       this.player.hp = this.player.maxHp || 100;
-      console.log('Act2Scene: 玩家生命值已恢复');
     }
     
     // 创建张角NPC
@@ -124,13 +154,7 @@ export class Act2Scene extends PrologueScene {
         zhangjiao_invite: {
           speaker: '张角',
           text: '不必客气。如果你愿意，可以留下来帮忙。这乱世，需要更多有志之士。',
-          nextNode: null,
-          action: () => {
-            // 对话结束后，开始符水对话
-            setTimeout(() => {
-              this.startTalismanWaterDialogue();
-            }, 1000);
-          }
+          nextNode: null
         }
       }
     });
@@ -163,16 +187,7 @@ export class Act2Scene extends PrologueScene {
         zhangjiao_smile: {
           speaker: '张角',
           text: '乱世求生，需要智慧。来，喝吧，这符水能恢复你的体力。',
-          nextNode: null,
-          action: () => {
-            // 给予符水物品
-            this.giveT
-alismanWater();
-            // 对话结束后，开始装备升级对话
-            setTimeout(() => {
-              this.startEquipmentUpgradeDialogue();
-            }, 1000);
-          }
+          nextNode: null
         }
       }
     });
@@ -195,15 +210,7 @@ alismanWater();
         zhangjiao_advice: {
           speaker: '张角',
           text: '装备只是外物，真正的力量来自于你自己。让我教你如何提升自己的能力。',
-          nextNode: null,
-          action: () => {
-            // 给予新装备
-            this.giveNewEquipment();
-            // 对话结束后，开始技能教程
-            setTimeout(() => {
-              this.startSkillTutorial();
-            }, 1000);
-          }
+          nextNode: null
         }
       }
     });
@@ -309,52 +316,198 @@ alismanWater();
   startEquipmentUpgradeDialogue() {
     this.dialoguePhase = 'upgrade';
     this.dialogueSystem.startDialogue('equipment_upgrade');
+    
+    // 设置对话结束回调
+    const originalOnEnd = this.dialogueSystem._onEndCallback;
+    this.dialogueSystem.onEnd(() => {
+      if (originalOnEnd) originalOnEnd();
+      
+      if (!this.equipmentUpgradeDialogueCompleted) {
+        this.equipmentUpgradeDialogueCompleted = true;
+        this.giveNewEquipment();
+        setTimeout(() => {
+          this.startSkillTutorial();
+        }, 1500);
+      }
+    });
+    
     console.log('Act2Scene: 开始装备升级对话');
+  }
+
+  /**
+   * 设置通知回调
+   * @param {Function} callback - 通知回调函数
+   */
+  setNotificationCallback(callback) {
+    this.onNotification = callback;
+  }
+
+  /**
+   * 发送通知
+   * @param {string} message - 通知消息
+   * @param {string} type - 通知类型
+   */
+  notify(message, type = 'info') {
+    console.log(`Act2Scene 通知: ${message}`);
+    if (this.onNotification) {
+      this.onNotification(message, type);
+    }
+  }
+
+  /**
+   * 设置玩家实体（用于背包系统）
+   * @param {Entity} entity - 玩家实体
+   */
+  setPlayerEntity(entity) {
+    this.playerEntity = entity;
+    console.log('Act2Scene: 设置玩家实体', entity);
   }
 
   /**
    * 给予符水物品
    */
   giveTalismanWater() {
-    if (!this.player) return;
-
-    // 添加符水到背包
+    // 创建符水物品数据
     const talismanWater = {
       id: 'talisman_water',
       name: '符水',
       type: 'consumable',
+      usable: true,
+      maxStack: 10,
+      rarity: 1, // 不凡
       description: '张角的符水，实际上是烧了黄纸的白粥，可以恢复50点生命值',
       effect: {
         type: 'heal',
         value: 50
       },
-      quantity: 3
+      value: 10
     };
 
-    if (this.player.inventory) {
-      this.player.inventory.push(talismanWater);
-    } else {
-      this.player.inventory = [talismanWater];
+    // 尝试添加到玩家实体的背包组件
+    if (this.playerEntity) {
+      const inventoryComponent = this.playerEntity.getComponent('inventory');
+      if (inventoryComponent) {
+        inventoryComponent.addItem(talismanWater, 1);
+        console.log('Act2Scene: 符水已添加到背包组件');
+      }
+    }
+    
+    // 同时添加到 player 对象（兼容旧代码）
+    if (this.player) {
+      if (this.player.inventory) {
+        this.player.inventory.push({ ...talismanWater, quantity: 1 });
+      } else {
+        this.player.inventory = [{ ...talismanWater, quantity: 1 }];
+      }
     }
 
+    // 标记已给予符水
+    this.talismanWaterGiven = true;
+    this.waitingForTalismanUse = true;
+
+    // 发送通知
+    this.notify('得到 符水x1', 'success');
+    
+    // 显示提示：按B打开背包
+    setTimeout(() => {
+      this.showTalismanUseTutorial();
+    }, 1500);
+
     console.log('Act2Scene: 已给予符水');
+  }
+
+  /**
+   * 显示符水使用教程
+   */
+  showTalismanUseTutorial() {
+    if (!this.waitingForTalismanUse) return;
+    
+    // 注册并显示符水使用教程
+    this.tutorialSystem.registerTutorial('use_talisman_water', {
+      title: '使用符水',
+      description: '学习如何使用背包中的物品',
+      steps: [
+        {
+          text: '按 <span class="key">B</span> 键打开背包，使用符水恢复生命值。',
+          position: 'top'
+        }
+      ],
+      pauseGame: false,
+      canSkip: false,
+      priority: 110
+    });
+    
+    this.tutorialSystem.showTutorial('use_talisman_water');
+    console.log('Act2Scene: 显示符水使用教程');
+  }
+
+  /**
+   * 处理符水使用事件
+   * @param {Object} item - 使用的物品
+   * @param {number} healAmount - 恢复的生命值
+   */
+  onTalismanWaterUsed(item, healAmount) {
+    if (item && item.id === 'talisman_water' && this.waitingForTalismanUse) {
+      this.waitingForTalismanUse = false;
+      this.talismanWaterUsed = true;
+      
+      // 隐藏符水使用教程
+      this.tutorialSystem.hideTutorial();
+      
+      // 发送恢复通知
+      this.notify(`恢复了 ${healAmount} 点生命值`, 'success');
+      
+      // 显示属性面板提示
+      setTimeout(() => {
+        this.showAttributePanelHint();
+      }, 1500);
+      
+      console.log('Act2Scene: 符水已使用，恢复了', healAmount, '点生命值');
+    }
+  }
+
+  /**
+   * 显示属性面板提示
+   */
+  showAttributePanelHint() {
+    if (this.showedAttributeHint) return;
+    this.showedAttributeHint = true;
+    
+    // 注册并显示属性面板提示
+    this.tutorialSystem.registerTutorial('check_attribute_panel', {
+      title: '查看属性',
+      description: '查看角色属性变化',
+      steps: [
+        {
+          text: '按 <span class="key">C</span> 键打开属性面板，查看生命值的变化。',
+          position: 'top'
+        }
+      ],
+      pauseGame: false,
+      canSkip: true,
+      priority: 105
+    });
+    
+    this.tutorialSystem.showTutorial('check_attribute_panel');
+    console.log('Act2Scene: 显示属性面板提示');
   }
 
   /**
    * 给予新装备
    */
   giveNewEquipment() {
-    if (!this.player) return;
-
     // 布衣
     const clothArmor = {
       id: 'cloth_armor',
       name: '布衣',
-      type: 'armor',
-      rarity: 'common',
-      attributes: {
+      type: 'equipment',
+      subType: 'armor',
+      rarity: 0, // 普通
+      maxStack: 1,
+      usable: false,
+      stats: {
         defense: 5,
-        health: 20
+        maxHp: 20
       },
       description: '简单的布制衣服，提供基础防护'
     };
@@ -363,21 +516,42 @@ alismanWater();
     const woodenSword = {
       id: 'wooden_sword',
       name: '木剑',
-      type: 'weapon',
-      rarity: 'common',
-      attributes: {
+      type: 'equipment',
+      subType: 'weapon',
+      rarity: 0, // 普通
+      maxStack: 1,
+      usable: false,
+      stats: {
         attack: 10
       },
       description: '简单的木制剑，比树棍强多了'
     };
 
-    // 添加到背包
-    if (!this.player.inventory) {
-      this.player.inventory = [];
+    // 添加到玩家实体的背包组件
+    if (this.playerEntity) {
+      const inventoryComponent = this.playerEntity.getComponent('inventory');
+      if (inventoryComponent) {
+        inventoryComponent.addItem(clothArmor, 1);
+        inventoryComponent.addItem(woodenSword, 1);
+        console.log('Act2Scene: 装备已添加到背包组件');
+      }
     }
     
-    this.player.inventory.push(clothArmor, woodenSword);
+    // 同时添加到 player 对象（兼容旧代码）
+    if (this.player) {
+      if (!this.player.inventory) {
+        this.player.inventory = [];
+      }
+      this.player.inventory.push(clothArmor, woodenSword);
+    }
+    
     this.hasReceivedEquipment = true;
+
+    // 发送通知
+    this.notify('得到 布衣x1', 'success');
+    setTimeout(() => {
+      this.notify('得到 木剑x1', 'success');
+    }, 500);
 
     console.log('Act2Scene: 已给予新装备');
   }
@@ -390,6 +564,7 @@ alismanWater();
     if (this.player) {
       this.player.skillPoints = (this.player.skillPoints || 0) + 5;
       console.log('Act2Scene: 给予5个技能点');
+      this.notify('获得 5 技能点', 'success');
     }
 
     // 初始化角色的技能树（如果还没有）
@@ -428,6 +603,7 @@ alismanWater();
       }
       
       console.log('Act2Scene: 给予10个属性点');
+      this.notify('获得 10 属性点', 'success');
     }
 
     // 显示属性分配教程
@@ -441,6 +617,37 @@ alismanWater();
    */
   update(deltaTime) {
     super.update(deltaTime);
+
+    // 检查对话结束并触发下一个对话
+    if (this.dialogueSystem && !this.dialogueSystem.isDialogueActive()) {
+      // 觉醒对话结束 -> 符水对话
+      if (this.dialoguePhase === 'awakening' && !this.awakeningDialogueCompleted) {
+        this.awakeningDialogueCompleted = true;
+        setTimeout(() => {
+          this.startTalismanWaterDialogue();
+        }, 1000);
+      }
+      // 符水对话结束 -> 给予符水并等待使用
+      else if (this.dialoguePhase === 'talisman_water' && !this.talismanWaterDialogueCompleted) {
+        this.talismanWaterDialogueCompleted = true;
+        this.giveTalismanWater();
+        // 不再自动开始下一个对话，等待玩家使用符水
+      }
+      // 符水已使用且属性面板提示已显示 -> 装备升级对话
+      else if (this.talismanWaterUsed && this.showedAttributeHint && !this.equipmentUpgradeDialogueCompleted) {
+        // 等待玩家关闭属性面板后继续
+        if (!this.waitingForAttributePanel) {
+          this.waitingForAttributePanel = true;
+          setTimeout(() => {
+            this.startEquipmentUpgradeDialogue();
+          }, 2000);
+        }
+      }
+      // 装备升级对话结束 -> 技能教程
+      else if (this.dialoguePhase === 'upgrade' && this.equipmentUpgradeDialogueCompleted && !this.hasReceivedEquipment) {
+        // 这个逻辑已经在 equipmentUpgradeDialogueCompleted 设置时处理
+      }
+    }
 
     // 检查技能学习完成
     if (!this.hasLearnedSkills && this.player && this.player.skillPoints !== undefined) {
@@ -548,11 +755,15 @@ alismanWater();
     let hints = [];
     
     // 根据当前阶段显示不同提示
-    if (this.dialogueSystem.isDialogueActive()) {
+    if (this.dialogueSystem && this.dialogueSystem.isDialogueActive()) {
       hints.push('按 空格键 继续对话');
-    } else if (!this.hasLearnedSkills) {
+    } else if (this.waitingForTalismanUse) {
+      hints.push('按 B 键打开背包，使用符水');
+    } else if (this.talismanWaterUsed && !this.showedAttributeHint) {
+      hints.push('按 C 键打开属性面板');
+    } else if (!this.hasLearnedSkills && this.hasReceivedEquipment) {
       hints.push('按 K 键打开技能树');
-    } else if (!this.hasAllocatedAttributes) {
+    } else if (!this.hasAllocatedAttributes && this.hasLearnedSkills) {
       hints.push('按 C 键打开属性面板');
     } else if (this.isSceneComplete) {
       hints.push('按 Enter 键进入下一幕');

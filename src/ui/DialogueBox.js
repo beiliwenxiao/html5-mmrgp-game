@@ -3,7 +3,7 @@
  * 需求: 6, 9, 35
  */
 
-import { UIElement } from '../../ui/UIElement.js';
+import { UIElement } from './UIElement.js';
 
 export class DialogueBox extends UIElement {
   constructor(options = {}) {

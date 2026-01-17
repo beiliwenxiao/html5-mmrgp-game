@@ -1852,6 +1852,7 @@ export class Act1SceneECS extends PrologueScene {
         inventory: this.playerEntity.getComponent('InventoryComponent')?.items || [],
         equipment: this.playerEntity.getComponent('EquipmentComponent')?.equipment || {}
       },
+      playerEntity: this.playerEntity, // 传递玩家实体引用
       previousAct: 1
     };
     
