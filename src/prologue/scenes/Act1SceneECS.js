@@ -1847,24 +1847,37 @@ export class Act1SceneECS extends PrologueScene {
   switchToNextScene() {
     console.log('Act1SceneECS: 切换到第二幕');
     
+    // 获取玩家组件数据
+    const stats = this.playerEntity.getComponent('stats');
+    const inventory = this.playerEntity.getComponent('inventory');
+    const equipment = this.playerEntity.getComponent('equipment');
+    const combat = this.playerEntity.getComponent('combat');
+    
     // 准备传递给第二幕的数据
     const sceneData = {
       player: {
         id: this.playerEntity.id,
-        name: this.playerEntity.getComponent('NameComponent')?.name || '玩家',
-        class: 'warrior', // 默认职业，后续可以从职业选择中获取
-        level: 1,
-        health: this.playerEntity.getComponent('CombatComponent')?.health || 100,
-        maxHealth: this.playerEntity.getComponent('CombatComponent')?.maxHealth || 100,
-        hp: this.playerEntity.getComponent('CombatComponent')?.health || 100,
-        maxHp: this.playerEntity.getComponent('CombatComponent')?.maxHealth || 100,
+        name: this.playerEntity.name || '玩家',
+        class: this.playerEntity.class || 'refugee',
+        level: stats?.level || 1,
+        health: stats?.hp || 100,
+        maxHealth: stats?.maxHp || 100,
+        hp: stats?.hp || 100,
+        maxHp: stats?.maxHp || 100,
+        mp: stats?.mp || 100,
+        maxMp: stats?.maxMp || 100,
+        attack: stats?.attack || 10,
+        defense: stats?.defense || 5,
+        speed: stats?.speed || 100,
         skillPoints: 0,
-        inventory: this.playerEntity.getComponent('InventoryComponent')?.items || [],
-        equipment: this.playerEntity.getComponent('EquipmentComponent')?.equipment || {}
+        inventory: inventory?.getAllItems() || [],
+        equipment: equipment?.slots || {}
       },
-      playerEntity: this.playerEntity, // 传递玩家实体引用
+      playerEntity: this.playerEntity, // 传递完整的玩家实体引用
       previousAct: 1
     };
+    
+    console.log('Act1SceneECS: 传递数据到第二幕', sceneData);
     
     // 调用父类的场景切换方法
     this.goToNextScene(sceneData);

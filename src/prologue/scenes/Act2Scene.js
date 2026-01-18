@@ -3,6 +3,10 @@ import { DialogueSystem } from '../../systems/DialogueSystem.js';
 import { TutorialSystem } from '../../systems/TutorialSystem.js';
 import { AttributeSystem } from '../../systems/AttributeSystem.js';
 import { SkillTreeSystem } from '../../systems/SkillTreeSystem.js';
+import { EntityFactory } from '../../ecs/EntityFactory.js';
+import { InputManager } from '../../core/InputManager.js';
+import { MovementSystem } from '../../systems/MovementSystem.js';
+import { RenderSystem } from '../../rendering/RenderSystem.js';
 
 /**
  * 第二幕场景：符水救灾
@@ -74,10 +78,62 @@ export class Act2Scene extends PrologueScene {
     
     console.log('Act2Scene: 进入第二幕场景', data);
     
+    // 获取 canvas
+    const canvas = document.getElementById('gameCanvas');
+    if (!canvas) {
+      console.error('Act2Scene: Canvas not found');
+      return;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    
+    // 初始化渲染系统（包含 Camera）
+    this.renderSystem = new RenderSystem(ctx, null, 800, 600);
+    this.camera = this.renderSystem.getCamera();
+    this.camera.setBounds(0, 0, 800, 600);
+    
+    // 初始化输入管理器
+    this.inputManager = new InputManager(canvas);
+    
+    // 初始化移动系统
+    this.movementSystem = new MovementSystem({
+      inputManager: this.inputManager,
+      camera: this.camera
+    });
+    
+    // 设置地图边界
+    this.movementSystem.setMapBounds(0, 0, 800, 600);
+    
+    // 实体列表
+    this.entities = [];
+    
     // 从上一个场景继承玩家实体
     if (data && data.playerEntity) {
       this.playerEntity = data.playerEntity;
+      // 重置玩家位置
+      const transform = this.playerEntity.getComponent('transform');
+      if (transform) {
+        transform.position.x = 200;
+        transform.position.y = 300;
+      }
       console.log('Act2Scene: 继承玩家实体', this.playerEntity);
+    } else {
+      // 如果没有继承玩家实体，创建一个新的
+      this.createPlayerEntity();
+    }
+    
+    // 将玩家添加到实体列表
+    if (this.playerEntity) {
+      this.entities.push(this.playerEntity);
+      
+      // 设置相机跟随玩家
+      const transform = this.playerEntity.getComponent('transform');
+      if (transform) {
+        this.camera.setTarget(transform);
+      }
+      
+      // 设置移动系统的玩家实体
+      this.movementSystem.setPlayerEntity(this.playerEntity);
     }
     
     // 初始化系统
@@ -101,6 +157,39 @@ export class Act2Scene extends PrologueScene {
     
     // 开始觉醒对话
     this.startAwakeningDialogue();
+  }
+  
+  /**
+   * 创建玩家实体
+   */
+  createPlayerEntity() {
+    const entityFactory = new EntityFactory();
+    
+    this.playerEntity = entityFactory.createPlayer({
+      name: '灾民',
+      class: 'refugee',
+      level: 1,
+      position: { x: 200, y: 300 },
+      stats: {
+        maxHp: 150,
+        hp: 150,
+        maxMp: 100,
+        mp: 100,
+        attack: 15,
+        defense: 8,
+        speed: 120
+      },
+      skills: [
+        { id: 'basic_attack', name: '普通攻击', damage: 15, manaCost: 0, cooldown: 1.0, range: 150 },
+        { id: 'fireball', name: '火球术', damage: 45, manaCost: 15, cooldown: 2.0, range: 500 },
+        { id: 'ice_lance', name: '寒冰箭', damage: 40, manaCost: 12, cooldown: 1.8, range: 550 },
+        { id: 'flame_burst', name: '烈焰爆发', damage: 65, manaCost: 25, cooldown: 4.0, range: 450 }
+      ],
+      equipment: {},
+      inventory: []
+    });
+    
+    console.log('Act2Scene: 创建玩家实体', this.playerEntity);
   }
 
   /**
@@ -629,7 +718,40 @@ export class Act2Scene extends PrologueScene {
    * @param {number} deltaTime - 时间增量（秒）
    */
   update(deltaTime) {
-    super.update(deltaTime);
+    // 不调用 super.update()，因为 Act2Scene 使用数组而不是 Map 存储实体
+    if (!this.isActive || this.isPaused) {
+      return;
+    }
+    
+    // 更新相机
+    if (this.camera) {
+      this.camera.update(deltaTime);
+    }
+    
+    // 更新所有实体
+    for (const entity of this.entities) {
+      entity.update(deltaTime);
+    }
+    
+    // 更新移动系统
+    if (this.movementSystem) {
+      this.movementSystem.update(deltaTime, this.entities);
+    }
+    
+    // 更新输入管理器（清除本帧的输入状态）
+    if (this.inputManager) {
+      this.inputManager.update();
+    }
+    
+    // 更新教程系统
+    if (this.tutorialSystem) {
+      this.tutorialSystem.update(deltaTime, {});
+    }
+    
+    // 更新对话系统
+    if (this.dialogueSystem) {
+      this.dialogueSystem.update(deltaTime);
+    }
 
     // 检查对话结束并触发下一个对话
     if (this.dialogueSystem && !this.dialogueSystem.isDialogueActive()) {
@@ -698,18 +820,81 @@ export class Act2Scene extends PrologueScene {
    * @param {CanvasRenderingContext2D} ctx - Canvas渲染上下文
    */
   render(ctx) {
-    super.render(ctx);
+    // 清空Canvas
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    
+    // 渲染背景
+    this.renderBackground(ctx);
 
-    // 渲染场景标题
-    this.renderSceneTitle(ctx);
+    // 保存上下文状态
+    ctx.save();
+    
+    // 应用相机变换
+    if (this.camera) {
+      const viewBounds = this.camera.getViewBounds();
+      ctx.translate(-viewBounds.left, -viewBounds.top);
+    }
+    
+    // 渲染玩家
+    if (this.playerEntity) {
+      this.renderPlayer(ctx);
+    }
 
     // 渲染张角NPC
     if (this.zhangjiaoNPC) {
       this.renderNPC(ctx, this.zhangjiaoNPC);
     }
+    
+    // 恢复上下文状态
+    ctx.restore();
 
-    // 渲染提示信息
+    // 渲染场景标题（不受相机影响）
+    this.renderSceneTitle(ctx);
+
+    // 渲染提示信息（不受相机影响）
     this.renderHints(ctx);
+  }
+  
+  /**
+   * 渲染玩家
+   * @param {CanvasRenderingContext2D} ctx - Canvas渲染上下文
+   */
+  renderPlayer(ctx) {
+    const transform = this.playerEntity.getComponent('transform');
+    if (!transform) return;
+    
+    ctx.save();
+    
+    // 绘制玩家（蓝色方块）
+    ctx.fillStyle = '#4a9eff';
+    ctx.fillRect(transform.position.x - 15, transform.position.y - 15, 30, 30);
+    
+    // 绘制玩家名称
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(this.playerEntity.name || '玩家', transform.position.x, transform.position.y - 25);
+    
+    // 绘制血条
+    const stats = this.playerEntity.getComponent('stats');
+    if (stats) {
+      const barWidth = 40;
+      const barHeight = 4;
+      const barX = transform.position.x - barWidth / 2;
+      const barY = transform.position.y - 35;
+      
+      // 血条背景
+      ctx.fillStyle = '#333';
+      ctx.fillRect(barX, barY, barWidth, barHeight);
+      
+      // 血条
+      const hpPercent = stats.hp / stats.maxHp;
+      ctx.fillStyle = hpPercent > 0.3 ? '#4CAF50' : '#ff4444';
+      ctx.fillRect(barX, barY, barWidth * hpPercent, barHeight);
+    }
+    
+    ctx.restore();
   }
 
   /**
