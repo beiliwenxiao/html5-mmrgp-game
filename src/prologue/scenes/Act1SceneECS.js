@@ -199,7 +199,13 @@ export class Act1SceneECS extends PrologueScene {
       y: 10,
       width: 280,
       height: 320,
-      visible: false  // 默认隐藏，按 C 键打开
+      visible: false,  // 默认隐藏，按 C 键打开
+      onAttributeAllocate: (player) => {
+        // 属性加点按钮点击回调
+        console.log('Act1SceneECS: 属性加点按钮被点击');
+        // TODO: 集成 AttributeSystem 后，这里打开 AttributePanel
+        // 目前第一幕场景暂不支持属性加点功能
+      }
     });
     
     // 装备面板 - 角色信息面板下方
@@ -939,6 +945,10 @@ export class Act1SceneECS extends PrologueScene {
     
     if (this.equipmentPanel.visible) {
       this.equipmentPanel.handleMouseMove(mousePos.x, mousePos.y);
+    }
+    
+    if (this.playerInfoPanel.visible) {
+      this.playerInfoPanel.handleMouseMove(mousePos.x, mousePos.y);
     }
     
     // 检查拾取
@@ -1955,6 +1965,11 @@ export class Act1SceneECS extends PrologueScene {
     // 渲染对话系统
     if (this.dialogueSystem) {
       this.dialogueSystem.render(ctx);
+    }
+    
+    // 渲染战斗系统（伤害数字等）
+    if (this.combatSystem) {
+      this.combatSystem.render(ctx);
     }
     
     // 注意：QuestSystem 没有 render 方法，任务UI由其他组件负责

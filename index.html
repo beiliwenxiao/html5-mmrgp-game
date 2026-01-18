@@ -416,6 +416,7 @@
         import { NotificationSystem } from './src/ui/NotificationSystem.js';
         import { InventoryPanel } from './src/ui/InventoryPanel.js';
         import { AttributePanel } from './src/ui/AttributePanel.js';
+        import { PlayerInfoPanel } from './src/ui/PlayerInfoPanel.js';
         
         // 场景管理器
         let sceneManager = null;
@@ -426,6 +427,7 @@
         let notificationSystem = null;
         let inventoryPanel = null;
         let attributePanel = null;
+        let playerInfoPanel = null;
         
         // 游戏状态
         let scene = null;
@@ -437,6 +439,7 @@
         // 获取元素
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        
         const loadingScreen = document.getElementById('loading-screen');
         const progressFill = document.getElementById('progress-fill');
         const loadingText = document.getElementById('loading-text');
@@ -751,6 +754,13 @@
                     inventoryPanel.render(ctx);
                 }
                 
+                // 角色信息面板由场景自己渲染，这里不需要重复渲染
+                // 只有当场景没有角色信息面板时才渲染全局的
+                if (playerInfoPanel && (!scene || !scene.playerInfoPanel)) {
+                    playerInfoPanel.update(deltaTime);
+                    playerInfoPanel.render(ctx);
+                }
+                
                 // 获取当前场景
                 const currentScene = sceneManager.getCurrentScene();
                 
@@ -770,6 +780,21 @@
                         if (inventoryPanel && scene.playerEntity) {
                             inventoryPanel.setEntity(scene.playerEntity);
                         }
+                        
+                        // 重置技能树面板和属性面板（因为不同场景可能有不同的系统实例）
+                        if (skillTreePanel) {
+                            skillTreePanel.hide();
+                            skillTreePanel = null;
+                        }
+                        if (attributePanel) {
+                            attributePanel.hide();
+                            attributePanel = null;
+                        }
+                        // 重置全局角色信息面板（因为不同场景可能有不同的玩家实体）
+                        if (playerInfoPanel) {
+                            playerInfoPanel.hide();
+                            playerInfoPanel = null;
+                        }
                     }
                 }
                 
@@ -784,28 +809,42 @@
         
         // 更新调试信息
         function updateDebugInfo() {
-            if (!scene || !scene.playerEntity) return;
+            if (!scene) return;
             
             fpsElement.textContent = fps;
             
-            const transform = scene.playerEntity.getComponent('transform');
-            if (transform) {
-                positionElement.textContent = 
-                    `${Math.floor(transform.position.x)}, ${Math.floor(transform.position.y)}`;
+            // 使用 playerEntity（两幕都有）
+            if (scene.playerEntity) {
+                const transform = scene.playerEntity.getComponent('transform');
+                if (transform) {
+                    positionElement.textContent = 
+                        `${Math.floor(transform.position.x)}, ${Math.floor(transform.position.y)}`;
+                } else {
+                    positionElement.textContent = '-';
+                }
+                
+                const stats = scene.playerEntity.getComponent('stats');
+                if (stats) {
+                    hpElement.textContent = `${Math.floor(stats.hp)}/${stats.maxHp}`;
+                }
+            } else {
+                positionElement.textContent = '-';
+                hpElement.textContent = '-';
             }
             
-            const stats = scene.playerEntity.getComponent('stats');
-            if (stats) {
-                hpElement.textContent = `${Math.floor(stats.hp)}/${stats.maxHp}`;
+            // tutorialPhase（两幕都有）
+            phaseElement.textContent = scene.tutorialPhase || '-';
+            
+            // enemyEntities（两幕都有，第二幕为空数组）
+            if (scene.enemyEntities && Array.isArray(scene.enemyEntities)) {
+                const aliveEnemies = scene.enemyEntities.filter(enemy => {
+                    const stats = enemy.getComponent('stats');
+                    return stats && stats.hp > 0;
+                });
+                enemiesElement.textContent = aliveEnemies.length;
+            } else {
+                enemiesElement.textContent = '0';
             }
-            
-            phaseElement.textContent = scene.tutorialPhase;
-            
-            const aliveEnemies = scene.enemyEntities.filter(enemy => {
-                const stats = enemy.getComponent('stats');
-                return stats && stats.hp > 0;
-            });
-            enemiesElement.textContent = aliveEnemies.length;
             
             // 更新技能栏
             updateSkillBar();
@@ -881,34 +920,45 @@
             
             // K键 - 打开技能树
             if (e.code === 'KeyK') {
+                // 获取当前场景的技能树系统和玩家
+                const currentSkillTreeSystem = scene?.skillTreeSystem || scene?.getSkillTreeSystem?.();
+                const currentPlayer = scene?.player;
+                
                 if (skillTreePanel) {
                     skillTreePanel.toggle();
-                } else if (scene && scene.skillTreeSystem && scene.player) {
+                } else if (currentSkillTreeSystem && currentPlayer) {
                     // 创建技能树面板
                     skillTreePanel = new SkillTreePanel({
                         x: 100,
                         y: 50,
                         width: 600,
                         height: 500,
-                        skillTreeSystem: scene.skillTreeSystem,
-                        character: scene.player
+                        skillTreeSystem: currentSkillTreeSystem,
+                        character: currentPlayer
                     });
                     skillTreePanel.show();
+                } else {
+                    console.log('技能树系统或玩家数据不可用');
                 }
                 return;
             }
             
             // B键 - 打开背包
             if (e.code === 'KeyB') {
-                // 优先使用场景中已有的背包面板
+                // 如果场景有自己的背包面板，让场景自己处理（通过 inputManager）
+                // 这里不做任何处理，避免重复切换
                 if (scene && scene.inventoryPanel) {
-                    scene.inventoryPanel.toggle();
-                    // 更新全局引用
+                    // 场景会通过 checkInventoryToggle 处理
+                    // 更新全局引用以便其他地方使用
                     inventoryPanel = scene.inventoryPanel;
-                } else if (inventoryPanel) {
+                    return;
+                }
+                
+                // 只有场景没有背包面板时才在这里处理
+                if (inventoryPanel) {
                     inventoryPanel.toggle();
                 } else if (scene && scene.playerEntity) {
-                    // 只有在场景没有背包面板时才创建新的
+                    // 创建新的背包面板
                     inventoryPanel = new InventoryPanel({
                         x: 200,
                         y: 100,
@@ -930,18 +980,51 @@
                 return;
             }
             
-            // C键 - 打开属性面板
+            // C键 - 打开角色信息面板（PlayerInfoPanel）
             if (e.code === 'KeyC') {
-                if (attributePanel) {
-                    if (attributePanel.isOpen()) {
-                        attributePanel.hide();
-                    } else if (scene && scene.player) {
-                        attributePanel.show(scene.player.id);
+                // 如果场景有自己的角色信息面板，让场景自己处理（通过 inputManager）
+                if (scene && scene.playerInfoPanel) {
+                    // 场景会通过 checkPlayerInfoToggle 处理
+                    return;
+                }
+                
+                // 场景没有角色信息面板时，使用全局的
+                if (scene && scene.playerEntity) {
+                    if (playerInfoPanel) {
+                        playerInfoPanel.toggle();
+                    } else {
+                        // 创建全局角色信息面板
+                        playerInfoPanel = new PlayerInfoPanel({
+                            x: 10,
+                            y: 10,
+                            width: 280,
+                            height: 320,
+                            visible: true,
+                            onAttributeAllocate: (player) => {
+                                console.log('全局 PlayerInfoPanel: 属性加点按钮被点击');
+                                // 获取场景的属性系统
+                                const currentAttributeSystem = scene?.attributeSystem || scene?.getAttributeSystem?.();
+                                if (currentAttributeSystem && player) {
+                                    if (attributePanel) {
+                                        if (attributePanel.isOpen()) {
+                                            attributePanel.hide();
+                                        } else {
+                                            attributePanel.show(player.id);
+                                        }
+                                    } else {
+                                        // 创建属性面板
+                                        attributePanel = new AttributePanel(document.body, currentAttributeSystem);
+                                        attributePanel.show(player.id);
+                                    }
+                                } else {
+                                    console.log('属性系统不可用');
+                                }
+                            }
+                        });
+                        playerInfoPanel.setPlayer(scene.playerEntity);
                     }
-                } else if (scene && scene.attributeSystem && scene.player) {
-                    // 创建属性面板
-                    attributePanel = new AttributePanel(document.body, scene.attributeSystem);
-                    attributePanel.show(scene.player.id);
+                } else {
+                    console.log('当前场景没有玩家实体');
                 }
                 return;
             }
@@ -974,6 +1057,12 @@
             if (inventoryPanel && inventoryPanel.visible && (!scene || !scene.inventoryPanel)) {
                 inventoryPanel.handleMouseMove(mouseX, mouseY);
             }
+            
+            // 角色信息面板的鼠标移动由场景处理
+            // 只有当场景没有角色信息面板时才处理全局的
+            if (playerInfoPanel && playerInfoPanel.visible && (!scene || !scene.playerInfoPanel)) {
+                playerInfoPanel.handleMouseMove(mouseX, mouseY);
+            }
         });
         
         // 鼠标点击事件
@@ -986,6 +1075,14 @@
             // 只有当场景没有背包面板时才处理全局的
             if (inventoryPanel && inventoryPanel.visible && (!scene || !scene.inventoryPanel)) {
                 if (inventoryPanel.handleMouseClick(mouseX, mouseY, 'left')) {
+                    return;
+                }
+            }
+            
+            // 角色信息面板的点击由场景处理
+            // 只有当场景没有角色信息面板时才处理全局的
+            if (playerInfoPanel && playerInfoPanel.visible && (!scene || !scene.playerInfoPanel)) {
+                if (playerInfoPanel.handleMouseClick(mouseX, mouseY, 'left')) {
                     return;
                 }
             }

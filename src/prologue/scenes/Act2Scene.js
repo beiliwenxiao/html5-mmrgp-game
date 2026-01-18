@@ -57,6 +57,12 @@ export class Act2Scene extends PrologueScene {
     
     // 玩家实体引用（用于背包系统）
     this.playerEntity = null;
+    
+    // 敌人实体数组（保持与第一幕数据结构一致）
+    this.enemyEntities = [];
+    
+    // 教程阶段（保持与第一幕数据结构一致）
+    this.tutorialPhase = 'awakening';
   }
 
   /**
@@ -297,6 +303,7 @@ export class Act2Scene extends PrologueScene {
    */
   startAwakeningDialogue() {
     this.dialoguePhase = 'awakening';
+    this.tutorialPhase = 'awakening';
     this.dialogueSystem.startDialogue('awakening');
     console.log('Act2Scene: 开始觉醒对话');
   }
@@ -306,6 +313,7 @@ export class Act2Scene extends PrologueScene {
    */
   startTalismanWaterDialogue() {
     this.dialoguePhase = 'talisman_water';
+    this.tutorialPhase = 'talisman_water';
     this.dialogueSystem.startDialogue('talisman_water');
     console.log('Act2Scene: 开始符水对话');
   }
@@ -315,6 +323,7 @@ export class Act2Scene extends PrologueScene {
    */
   startEquipmentUpgradeDialogue() {
     this.dialoguePhase = 'upgrade';
+    this.tutorialPhase = 'upgrade';
     this.dialogueSystem.startDialogue('equipment_upgrade');
     
     // 设置对话结束回调
@@ -560,6 +569,8 @@ export class Act2Scene extends PrologueScene {
    * 开始技能教程
    */
   startSkillTutorial() {
+    this.tutorialPhase = 'skills';
+    
     // 给予技能点
     if (this.player) {
       this.player.skillPoints = (this.player.skillPoints || 0) + 5;
@@ -584,6 +595,8 @@ export class Act2Scene extends PrologueScene {
    * 开始属性教程
    */
   startAttributeTutorial() {
+    this.tutorialPhase = 'attributes';
+    
     // 给予属性点
     if (this.player) {
       // 初始化角色属性（如果还没有）

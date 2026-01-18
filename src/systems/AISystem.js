@@ -170,6 +170,7 @@ class AggressiveAI extends AIController {
   constructor() {
     super();
     this.updateInterval = 0.3; // 更频繁的更新
+    this.lastAttackTime = 0;   // 上次攻击时间
   }
 
   makeDecision(entity, allEntities, combatSystem) {
@@ -187,14 +188,6 @@ class AggressiveAI extends AIController {
       if (newTarget) {
         combat.setTarget(newTarget);
         console.log(`${entity.name} 找到目标: ${newTarget.name} (type: ${newTarget.type}, faction: ${newTarget.faction})`);
-      } else {
-        // 调试：为什么找不到目标
-        const playerEntities = allEntities.filter(e => e.type === 'player');
-        console.log(`${entity.name} 找不到目标。玩家数量: ${playerEntities.length}`, {
-          entityFaction: entity.faction,
-          entityType: entity.type,
-          totalEntities: allEntities.length
-        });
       }
     }
 
@@ -207,7 +200,11 @@ class AggressiveAI extends AIController {
         // 在范围内，停止移动并攻击
         this.stopMovement(entity);
         
-        // 攻击由CombatSystem的updateArmyAI处理
+        // 执行攻击
+        const currentTime = performance.now();
+        if (combat.canAttack(currentTime) && combatSystem) {
+          combatSystem.performAttack(entity, target, currentTime);
+        }
       } else {
         // 不在范围内，移动到目标
         this.moveTowardsTarget(entity, target);
@@ -260,9 +257,15 @@ class DefensiveAI extends AIController {
       if (distance < this.safeDistance) {
         this.retreatFrom(entity, nearestEnemy);
       } else if (distance <= combat.attackRange) {
-        // 在攻击范围内，停止移动并设置目标
+        // 在攻击范围内，停止移动并攻击
         this.stopMovement(entity);
         combat.setTarget(nearestEnemy);
+        
+        // 执行攻击
+        const currentTime = performance.now();
+        if (combat.canAttack(currentTime) && combatSystem) {
+          combatSystem.performAttack(entity, nearestEnemy, currentTime);
+        }
       } else {
         // 保持距离
         this.stopMovement(entity);
@@ -331,8 +334,14 @@ class SupportAI extends AIController {
 
       // 检查是否在攻击范围内
       if (this.isInRange(entity, weakEnemy, combat.attackRange)) {
-        // 在范围内，停止移动
+        // 在范围内，停止移动并攻击
         this.stopMovement(entity);
+        
+        // 执行攻击
+        const currentTime = performance.now();
+        if (combat.canAttack(currentTime) && combatSystem) {
+          combatSystem.performAttack(entity, weakEnemy, currentTime);
+        }
       } else {
         // 不在范围内，移动到目标
         this.moveTowardsTarget(entity, weakEnemy);
@@ -346,6 +355,12 @@ class SupportAI extends AIController {
         
         if (this.isInRange(entity, nearestEnemy, combat.attackRange)) {
           this.stopMovement(entity);
+          
+          // 执行攻击
+          const currentTime = performance.now();
+          if (combat.canAttack(currentTime) && combatSystem) {
+            combatSystem.performAttack(entity, nearestEnemy, currentTime);
+          }
         } else {
           this.moveTowardsTarget(entity, nearestEnemy);
         }

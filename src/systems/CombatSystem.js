@@ -607,7 +607,9 @@ export class CombatSystem {
     const randomFactor = 1 + (Math.random() * 2 - 1) * variance;
     const damage = Math.floor(finalDamage * randomFactor);
     
-    return Math.max(1, damage);
+    // 确保最小伤害为 1-5 点随机值
+    const minDamage = Math.floor(Math.random() * 5) + 1; // 1-5
+    return Math.max(minDamage, damage);
   }
 
   /**

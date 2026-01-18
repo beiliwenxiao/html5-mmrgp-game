@@ -126,7 +126,7 @@ export const ProgressiveTipsConfig = {
     id: 'progressive_tip_9',
     title: '提示',
     description: '装备物品',
-    text: '点击物品装备',
+    text: '按 <span class="key">B</span> 打开背包，点击物品装备',
     position: 'center',
     priority: 80,
     triggerConditionId: 'progressive_tip_9_trigger'

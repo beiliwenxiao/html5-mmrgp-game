@@ -11,6 +11,7 @@ export class PlayerInfoPanel extends UIElement {
    * @param {string} [options.backgroundColor='rgba(0, 0, 0, 0.7)'] - 背景颜色
    * @param {string} [options.borderColor='#4a9eff'] - 边框颜色
    * @param {string} [options.textColor='#ffffff'] - 文字颜色
+   * @param {Function} [options.onAttributeAllocate] - 属性加点按钮点击回调
    */
   constructor(options = {}) {
     super({
@@ -31,6 +32,13 @@ export class PlayerInfoPanel extends UIElement {
     this.borderWidth = 2;
     this.padding = 15;
     this.lineHeight = 20;
+    
+    // 属性加点按钮回调
+    this.onAttributeAllocate = options.onAttributeAllocate || null;
+    
+    // 属性加点按钮状态
+    this.attributeButtonHovered = false;
+    this.attributeButtonRect = null;
     
     // 职业颜色映射
     this.classColors = {
@@ -53,6 +61,14 @@ export class PlayerInfoPanel extends UIElement {
    */
   setPlayer(player) {
     this.player = player;
+  }
+  
+  /**
+   * 设置属性加点回调
+   * @param {Function} callback - 回调函数
+   */
+  setOnAttributeAllocate(callback) {
+    this.onAttributeAllocate = callback;
   }
 
   /**
@@ -128,10 +144,41 @@ export class PlayerInfoPanel extends UIElement {
     ctx.fillText(`${stats.level}`, this.x + this.padding + 180, currentY);
     currentY += this.lineHeight + 8;
 
-    // 绘制属性标题
+    // 绘制属性标题和加点按钮
     ctx.fillStyle = this.borderColor;
     ctx.font = 'bold 14px Arial';
     ctx.fillText('属性', this.x + this.padding, currentY);
+    
+    // 绘制属性加点按钮 [+]
+    const buttonX = this.x + this.padding + 50;
+    const buttonY = currentY - 12;
+    const buttonWidth = 24;
+    const buttonHeight = 16;
+    
+    // 保存按钮位置用于点击检测
+    this.attributeButtonRect = {
+      x: buttonX,
+      y: buttonY,
+      width: buttonWidth,
+      height: buttonHeight
+    };
+    
+    // 按钮背景
+    ctx.fillStyle = this.attributeButtonHovered ? '#4a9eff' : '#2a5a8f';
+    ctx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
+    
+    // 按钮边框
+    ctx.strokeStyle = this.borderColor;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(buttonX, buttonY, buttonWidth, buttonHeight);
+    
+    // 按钮文字
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('+', buttonX + buttonWidth / 2, buttonY + 12);
+    ctx.textAlign = 'left';
+    
     currentY += this.lineHeight;
 
     // 绘制属性列表
@@ -194,6 +241,24 @@ export class PlayerInfoPanel extends UIElement {
   }
 
   /**
+   * 处理鼠标移动事件
+   * @param {number} x - 鼠标X坐标
+   * @param {number} y - 鼠标Y坐标
+   */
+  handleMouseMove(x, y) {
+    if (!this.visible) return;
+    
+    // 检查是否悬停在属性加点按钮上
+    if (this.attributeButtonRect) {
+      const btn = this.attributeButtonRect;
+      this.attributeButtonHovered = (
+        x >= btn.x && x <= btn.x + btn.width &&
+        y >= btn.y && y <= btn.y + btn.height
+      );
+    }
+  }
+
+  /**
    * 处理鼠标点击事件
    * @param {number} x - 鼠标X坐标
    * @param {number} y - 鼠标Y坐标
@@ -204,6 +269,19 @@ export class PlayerInfoPanel extends UIElement {
     // 如果不可见或点击不在面板内，返回 false
     if (!this.visible || !this.containsPoint(x, y)) {
       return false;
+    }
+    
+    // 检查是否点击了属性加点按钮
+    if (this.attributeButtonRect && button === 'left') {
+      const btn = this.attributeButtonRect;
+      if (x >= btn.x && x <= btn.x + btn.width &&
+          y >= btn.y && y <= btn.y + btn.height) {
+        console.log('PlayerInfoPanel: 点击属性加点按钮');
+        if (this.onAttributeAllocate) {
+          this.onAttributeAllocate(this.player);
+        }
+        return true;
+      }
     }
     
     // 点击在面板内任何位置都算处理了（阻止事件传播）
