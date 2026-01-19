@@ -455,6 +455,16 @@ export class EquipmentPanel extends UIElement {
             if (equipment) {
               console.log(`尝试卸下装备: ${equipment.name} 从 ${slotType} 槽位`);
               
+              // 保存卸下前的属性
+              const statsComponent = this.entity.getComponent('stats');
+              const oldStats = statsComponent ? {
+                attack: statsComponent.attack,
+                defense: statsComponent.defense,
+                maxHp: statsComponent.maxHp,
+                maxMp: statsComponent.maxMp,
+                speed: statsComponent.speed
+              } : null;
+              
               // 卸下装备
               const unequippedItem = equipmentComponent.unequip(slotType);
               
@@ -466,9 +476,12 @@ export class EquipmentPanel extends UIElement {
                   console.log(`成功卸下装备: ${unequippedItem.name}，已放回背包`);
                   
                   // 更新玩家属性（移除装备加成）
-                  const statsComponent = this.entity.getComponent('stats');
                   if (statsComponent) {
                     this.updateEntityStats(equipmentComponent, statsComponent);
+                    
+                    // 计算属性变化并显示提示
+                    const statChanges = this.calculateStatChanges(oldStats, statsComponent);
+                    this.showEquipmentNotification(null, unequippedItem.name, statChanges);
                   }
                 } else {
                   console.warn(`背包已满，无法卸下装备: ${unequippedItem.name}`);
@@ -554,5 +567,74 @@ export class EquipmentPanel extends UIElement {
       maxHp: statsComponent.maxHp,
       speed: statsComponent.speed
     });
+  }
+
+  /**
+   * 计算属性变化
+   * @param {Object} oldStats - 旧属性
+   * @param {Object} newStats - 新属性组件
+   * @returns {Object} 属性变化对象
+   */
+  calculateStatChanges(oldStats, newStats) {
+    if (!oldStats || !newStats) return {};
+    
+    const changes = {};
+    const statNames = {
+      attack: '攻击',
+      defense: '防御',
+      maxHp: '生命',
+      maxMp: '魔法',
+      speed: '速度'
+    };
+    
+    for (const stat in statNames) {
+      const diff = newStats[stat] - oldStats[stat];
+      if (diff !== 0) {
+        changes[stat] = {
+          name: statNames[stat],
+          value: diff
+        };
+      }
+    }
+    
+    return changes;
+  }
+
+  /**
+   * 显示装备通知
+   * @param {string} equipName - 装备的物品名称
+   * @param {string} unequipName - 卸下的物品名称
+   * @param {Object} statChanges - 属性变化
+   */
+  showEquipmentNotification(equipName, unequipName, statChanges) {
+    // 构建通知消息
+    let messages = [];
+    
+    if (unequipName) {
+      messages.push(`卸下了 ${unequipName}`);
+    }
+    
+    // 添加属性变化
+    const changeTexts = [];
+    for (const stat in statChanges) {
+      const change = statChanges[stat];
+      if (change.value > 0) {
+        changeTexts.push(`${change.name} +${change.value}`);
+      } else {
+        changeTexts.push(`${change.name} ${change.value}`);
+      }
+    }
+    
+    if (changeTexts.length > 0) {
+      messages.push(changeTexts.join(' '));
+    }
+    
+    // 输出到控制台
+    console.log('装备变化:', messages.join(' | '));
+    
+    // 触发通知回调
+    if (this.onEquipmentChange) {
+      this.onEquipmentChange(messages);
+    }
   }
 }

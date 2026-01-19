@@ -87,11 +87,8 @@ export class GameEngine {
             throw new Error('Failed to get 2D context');
         }
 
-        // 设置Canvas尺寸
+        // 设置Canvas尺寸（处理高DPI屏幕）
         this.handleResize();
-
-        // 禁用图像平滑以获得像素风格
-        this.ctx.imageSmoothingEnabled = false;
 
         console.log('GameEngine: Canvas initialized');
     }
@@ -100,6 +97,9 @@ export class GameEngine {
      * 处理窗口大小变化
      */
     handleResize() {
+        // 获取设备像素比
+        const dpr = window.devicePixelRatio || 1;
+        
         // 获取窗口尺寸
         const windowWidth = window.innerWidth;
         const windowHeight = window.innerHeight;
@@ -109,15 +109,21 @@ export class GameEngine {
         const scaleY = windowHeight / this.gameHeight;
         const scale = Math.min(scaleX, scaleY);
 
-        // 设置Canvas显示尺寸
+        // 设置Canvas显示尺寸（CSS尺寸）
         this.canvas.style.width = `${this.gameWidth * scale}px`;
         this.canvas.style.height = `${this.gameHeight * scale}px`;
 
-        // 设置Canvas实际尺寸
-        this.canvas.width = this.gameWidth;
-        this.canvas.height = this.gameHeight;
+        // 设置Canvas实际尺寸（考虑设备像素比，使字体清晰）
+        this.canvas.width = this.gameWidth * dpr;
+        this.canvas.height = this.gameHeight * dpr;
 
-        console.log(`GameEngine: Canvas resized to ${this.canvas.width}x${this.canvas.height}`);
+        // 缩放上下文以匹配设备像素比
+        this.ctx.scale(dpr, dpr);
+        
+        // 设置字体渲染优化
+        this.ctx.textRendering = 'optimizeLegibility';
+
+        console.log(`GameEngine: Canvas resized to ${this.canvas.width}x${this.canvas.height} (DPR: ${dpr})`);
     }
 
     /**

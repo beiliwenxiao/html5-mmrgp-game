@@ -346,11 +346,11 @@ export class Act2Scene extends BaseGameScene {
   renderBackground(ctx) {
     // 绘制粥棚背景
     ctx.fillStyle = '#8B4513';
-    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
     
     // 绘制地面
     ctx.fillStyle = '#654321';
-    ctx.fillRect(0, ctx.canvas.height - 100, ctx.canvas.width, 100);
+    ctx.fillRect(0, this.logicalHeight - 100, this.logicalWidth, 100);
     
     // 绘制粥棚结构
     ctx.fillStyle = '#A0522D';
@@ -398,12 +398,12 @@ export class Act2Scene extends BaseGameScene {
     ctx.save();
     
     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(0, 0, ctx.canvas.width, 80);
+    ctx.fillRect(0, 0, this.logicalWidth, 80);
     
     ctx.fillStyle = '#FFD700';
     ctx.font = 'bold 32px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('第二幕：符水救灾', ctx.canvas.width / 2, 50);
+    ctx.fillText('第二幕：符水救灾', this.logicalWidth / 2, 50);
     
     ctx.restore();
   }
@@ -453,12 +453,12 @@ export class Act2Scene extends BaseGameScene {
     // 渲染提示
     if (hints.length > 0) {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      ctx.fillRect(ctx.canvas.width / 2 - 150, ctx.canvas.height - 60, 300, 40);
+      ctx.fillRect(this.logicalWidth / 2 - 150, this.logicalHeight - 60, 300, 40);
       
       ctx.fillStyle = '#FFFFFF';
       ctx.font = '16px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText(hints[0], ctx.canvas.width / 2, ctx.canvas.height - 35);
+      ctx.fillText(hints[0], this.logicalWidth / 2, this.logicalHeight - 35);
     }
     
     ctx.restore();

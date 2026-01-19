@@ -220,9 +220,29 @@
     <script type="module">
         import { Act2Scene } from '../src/prologue/scenes/Act2Scene.js';
 
-        // 初始化Canvas
+        // 初始化Canvas（处理高DPI屏幕）
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        
+        // 获取设备像素比
+        const dpr = window.devicePixelRatio || 1;
+        
+        // 设置Canvas的逻辑尺寸
+        const logicalWidth = 800;
+        const logicalHeight = 600;
+        
+        // 设置Canvas的实际尺寸（考虑设备像素比）
+        canvas.width = logicalWidth * dpr;
+        canvas.height = logicalHeight * dpr;
+        
+        // 设置Canvas的CSS显示尺寸
+        canvas.style.width = logicalWidth + 'px';
+        canvas.style.height = logicalHeight + 'px';
+        
+        // 缩放上下文以匹配设备像素比
+        ctx.scale(dpr, dpr);
+        
+        console.log(`Canvas initialized: ${canvas.width}x${canvas.height} (DPR: ${dpr})`);
 
         // 创建模拟玩家
         const mockPlayer = {

@@ -45,6 +45,10 @@ export class BaseGameScene extends PrologueScene {
     this.entityFactory = new EntityFactory();
     this.entities = [];
     
+    // 逻辑尺寸（用于渲染计算，不受 devicePixelRatio 影响）
+    this.logicalWidth = 800;
+    this.logicalHeight = 600;
+    
     // 核心系统
     this.inputManager = null;
     this.camera = null;
@@ -185,7 +189,10 @@ export class BaseGameScene extends PrologueScene {
       y: 340,
       width: 280,
       height: 250,
-      visible: false
+      visible: false,
+      onEquipmentChange: (messages) => {
+        this.onEquipmentChanged(messages);
+      }
     });
     
     // 背包面板
@@ -197,6 +204,9 @@ export class BaseGameScene extends PrologueScene {
       visible: false,
       onItemUse: (item, healAmount, manaAmount) => {
         this.onItemUsed(item, healAmount, manaAmount);
+      },
+      onEquipmentChange: (messages) => {
+        this.onEquipmentChanged(messages);
       }
     });
     
@@ -221,6 +231,33 @@ export class BaseGameScene extends PrologueScene {
         }
       }
     }
+  }
+
+  /**
+   * 装备变化回调
+   * @param {Array} messages - 消息数组
+   */
+  onEquipmentChanged(messages) {
+    if (!messages || messages.length === 0) return;
+    
+    if (this.playerEntity) {
+      const transform = this.playerEntity.getComponent('transform');
+      if (transform) {
+        // 显示每条消息
+        let yOffset = -30;
+        for (const message of messages) {
+          this.floatingTextManager.addText(
+            transform.position.x, 
+            transform.position.y + yOffset, 
+            message,
+            message.includes('+') ? '#00ff00' : (message.includes('-') ? '#ff6666' : '#ffff00')
+          );
+          yOffset -= 25;
+        }
+      }
+    }
+    
+    console.log('BaseGameScene: 装备变化', messages);
   }
 
   /**
@@ -448,17 +485,17 @@ export class BaseGameScene extends PrologueScene {
   renderTransition(ctx) {
     ctx.save();
     ctx.fillStyle = `rgba(0, 0, 0, ${this.transitionAlpha})`;
-    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
     
     if (this.transitionPhase === 'show_text') {
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 48px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText(this.transitionText.main, ctx.canvas.width / 2, ctx.canvas.height / 2 - 30);
+      ctx.fillText(this.transitionText.main, this.logicalWidth / 2, this.logicalHeight / 2 - 30);
       
       if (this.transitionText.sub) {
         ctx.font = '24px Arial';
-        ctx.fillText(this.transitionText.sub, ctx.canvas.width / 2, ctx.canvas.height / 2 + 30);
+        ctx.fillText(this.transitionText.sub, this.logicalWidth / 2, this.logicalHeight / 2 + 30);
       }
     }
     
@@ -782,7 +819,7 @@ export class BaseGameScene extends PrologueScene {
   render(ctx) {
     // 清空Canvas
     ctx.fillStyle = '#1a1a2e';
-    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
     
     // 保存上下文状态
     ctx.save();
@@ -874,7 +911,7 @@ export class BaseGameScene extends PrologueScene {
    */
   renderBackground(ctx) {
     ctx.fillStyle = '#2a2a2a';
-    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
   }
 
   /**
