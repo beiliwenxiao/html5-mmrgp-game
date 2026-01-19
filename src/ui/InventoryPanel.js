@@ -816,6 +816,7 @@ export class InventoryPanel extends UIElement {
     
     const inventoryComponent = this.entity.getComponent('inventory');
     const equipmentComponent = this.entity.getComponent('equipment');
+    const statsComponent = this.entity.getComponent('stats');
     
     if (!inventoryComponent) return;
     
@@ -841,6 +842,11 @@ export class InventoryPanel extends UIElement {
       if (oldItem) {
         inventoryComponent.addItem(oldItem);
         console.log(`旧装备 ${oldItem.name} 已放回背包`);
+      }
+      
+      // 更新玩家属性（应用装备加成）
+      if (statsComponent) {
+        this.updateEntityStats(equipmentComponent, statsComponent);
       }
       
       console.log(`成功装备物品: ${item.name} 到 ${subType} 槽位`);
@@ -997,5 +1003,50 @@ export class InventoryPanel extends UIElement {
   hide() {
     this.visible = false;
     this.contextMenu.visible = false;
+  }
+
+  /**
+   * 更新实体属性（应用装备加成）
+   * @param {Object} equipmentComponent - 装备组件
+   * @param {Object} statsComponent - 属性组件
+   */
+  updateEntityStats(equipmentComponent, statsComponent) {
+    if (!equipmentComponent || !statsComponent) return;
+
+    // 先重置到基础属性
+    statsComponent.resetToBaseStats();
+
+    // 获取装备属性加成
+    const bonusStats = equipmentComponent.getBonusStats();
+    
+    // 保存当前HP/MP比例
+    const hpRatio = statsComponent.maxHp > 0 ? statsComponent.hp / statsComponent.maxHp : 1;
+    const mpRatio = statsComponent.maxMp > 0 ? statsComponent.mp / statsComponent.maxMp : 1;
+    
+    // 应用装备加成
+    if (bonusStats.attack) {
+      statsComponent.attack += bonusStats.attack;
+    }
+    if (bonusStats.defense) {
+      statsComponent.defense += bonusStats.defense;
+    }
+    if (bonusStats.maxHp) {
+      statsComponent.maxHp += bonusStats.maxHp;
+      statsComponent.hp = Math.floor(statsComponent.maxHp * hpRatio);
+    }
+    if (bonusStats.maxMp) {
+      statsComponent.maxMp += bonusStats.maxMp;
+      statsComponent.mp = Math.floor(statsComponent.maxMp * mpRatio);
+    }
+    if (bonusStats.speed) {
+      statsComponent.speed += bonusStats.speed;
+    }
+    
+    console.log('InventoryPanel: 更新实体属性', {
+      attack: statsComponent.attack,
+      defense: statsComponent.defense,
+      maxHp: statsComponent.maxHp,
+      speed: statsComponent.speed
+    });
   }
 }

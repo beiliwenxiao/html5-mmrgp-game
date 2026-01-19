@@ -92,15 +92,56 @@ export class EquipmentSystem {
     
     if (!statsComponent || !equipmentComponent) return;
 
+    // 先重置到基础属性
+    statsComponent.resetToBaseStats();
+
     // 获取装备属性加成
     const bonusStats = equipmentComponent.getBonusStats();
     
-    // 这里需要保存基础属性，然后应用装备加成
-    // 为了简化，我们直接重新计算（实际项目中应该分离基础属性和加成属性）
+    // 保存当前HP/MP比例
+    const hpRatio = statsComponent.maxHp > 0 ? statsComponent.hp / statsComponent.maxHp : 1;
+    const mpRatio = statsComponent.maxMp > 0 ? statsComponent.mp / statsComponent.maxMp : 1;
     
-    // 应用装备加成到属性组件
-    // 注意：这里需要确保不会重复应用加成
-    // 实际实现中应该有基础属性和总属性的分离
+    // 应用装备加成
+    if (bonusStats.attack) {
+      statsComponent.attack += bonusStats.attack;
+    }
+    if (bonusStats.defense) {
+      statsComponent.defense += bonusStats.defense;
+    }
+    if (bonusStats.maxHp) {
+      statsComponent.maxHp += bonusStats.maxHp;
+      statsComponent.hp = Math.floor(statsComponent.maxHp * hpRatio);
+    }
+    if (bonusStats.maxMp) {
+      statsComponent.maxMp += bonusStats.maxMp;
+      statsComponent.mp = Math.floor(statsComponent.maxMp * mpRatio);
+    }
+    if (bonusStats.speed) {
+      statsComponent.speed += bonusStats.speed;
+    }
+    
+    // 应用元素攻击加成
+    if (bonusStats.elementAttack) {
+      for (const elementType in bonusStats.elementAttack) {
+        statsComponent.addElementAttack(elementType, bonusStats.elementAttack[elementType]);
+      }
+    }
+    
+    // 应用元素防御加成
+    if (bonusStats.elementDefense) {
+      for (const elementType in bonusStats.elementDefense) {
+        statsComponent.addElementDefense(elementType, bonusStats.elementDefense[elementType]);
+      }
+    }
+    
+    console.log('EquipmentSystem: 更新实体属性', {
+      attack: statsComponent.attack,
+      defense: statsComponent.defense,
+      maxHp: statsComponent.maxHp,
+      maxMp: statsComponent.maxMp,
+      speed: statsComponent.speed
+    });
   }
 
   /**
