@@ -91,32 +91,41 @@ export class Particle {
     const viewBounds = camera.getViewBounds();
     const screenX = this.position.x - viewBounds.left;
     const screenY = this.position.y - viewBounds.top;
+    
+    // 确保所有值都是有效的数字
+    if (!isFinite(screenX) || !isFinite(screenY)) {
+      console.warn('Particle: Invalid screen position', { screenX, screenY, position: this.position, viewBounds });
+      return;
+    }
 
     ctx.save();
     ctx.globalAlpha = this.alpha;
     
+    // 确保 size 是有效的正数
+    const safeSize = Math.max(0.1, this.size || 1);
+    
     // 为火焰粒子添加发光效果
-    if (this.color.startsWith('#ff')) {
+    if (this.color && this.color.startsWith('#ff')) {
       // 外层发光
-      const glowGradient = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, this.size * 1.5);
+      const glowGradient = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, safeSize * 1.5);
       glowGradient.addColorStop(0, this.color);
       glowGradient.addColorStop(0.5, this.color + '80'); // 50%透明
       glowGradient.addColorStop(1, this.color + '00'); // 完全透明
       ctx.fillStyle = glowGradient;
       ctx.beginPath();
-      ctx.arc(screenX, screenY, this.size * 1.5, 0, Math.PI * 2);
+      ctx.arc(screenX, screenY, safeSize * 1.5, 0, Math.PI * 2);
       ctx.fill();
       
       // 核心
       ctx.fillStyle = this.color;
       ctx.beginPath();
-      ctx.arc(screenX, screenY, this.size * 0.6, 0, Math.PI * 2);
+      ctx.arc(screenX, screenY, safeSize * 0.6, 0, Math.PI * 2);
       ctx.fill();
     } else {
       // 非火焰粒子（如烟雾）使用普通渲染
-      ctx.fillStyle = this.color;
+      ctx.fillStyle = this.color || '#ffffff';
       ctx.beginPath();
-      ctx.arc(screenX, screenY, this.size, 0, Math.PI * 2);
+      ctx.arc(screenX, screenY, safeSize, 0, Math.PI * 2);
       ctx.fill();
     }
     

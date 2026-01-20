@@ -18,6 +18,7 @@ export class CombatSystem {
    * @param {MockDataService} config.dataService - 数据服务（可选）
    * @param {SkillEffects} config.skillEffects - 技能特效系统（可选）
    * @param {StatusEffectSystem} config.statusEffectSystem - 状态效果系统（可选）
+   * @param {WeaponRenderer} config.weaponRenderer - 武器渲染器（可选）
    */
   constructor(config = {}) {
     this.inputManager = config.inputManager;
@@ -25,6 +26,7 @@ export class CombatSystem {
     this.dataService = config.dataService;
     this.skillEffects = config.skillEffects;
     this.statusEffectSystem = config.statusEffectSystem;
+    this.weaponRenderer = config.weaponRenderer;
     
     // 初始化元素系统
     this.elementSystem = new ElementSystem();
@@ -300,10 +302,10 @@ export class CombatSystem {
       this.renderBattleSituation(ctx);
     }
     
-    // 渲染目标高亮
-    if (this.selectedTarget) {
-      this.renderTargetHighlight(ctx, this.selectedTarget);
-    }
+    // 渲染目标高亮 - 已禁用
+    // if (this.selectedTarget) {
+    //   this.renderTargetHighlight(ctx, this.selectedTarget);
+    // }
     
     // 渲染目标框架UI
     if (this.selectedTarget) {
@@ -455,37 +457,12 @@ export class CombatSystem {
   }
 
   /**
-   * 处理自动攻击
+   * 处理自动攻击 - 已移除自动攻击逻辑
    * @param {number} currentTime - 当前时间（毫秒）
    * @param {Array<Entity>} entities - 实体列表
    */
   handleAutoAttack(currentTime, entities) {
-    if (!this.playerEntity) return;
-    
-    const combat = this.playerEntity.getComponent('combat');
-    if (!combat || !combat.hasTarget()) return;
-    
-    const target = combat.target;
-    
-    // 检查目标是否有效
-    const targetStats = target.getComponent('stats');
-    if (!targetStats || targetStats.hp <= 0) {
-      this.clearTarget();
-      return;
-    }
-    
-    // 检查是否在攻击范围内
-    if (!this.isInRange(this.playerEntity, target, combat.attackRange)) {
-      return;
-    }
-    
-    // 检查攻击冷却
-    if (!combat.canAttack(currentTime)) {
-      return;
-    }
-    
-    // 执行攻击
-    this.performAttack(this.playerEntity, target, currentTime);
+    // 自动攻击已移除，玩家需要按1键手动攻击
   }
 
   /**
@@ -616,15 +593,18 @@ export class CombatSystem {
    * 应用伤害
    * @param {Entity} target - 目标
    * @param {number} damage - 伤害值
+   * @param {Object} knockbackDir - 击退方向（可选）{x, y}
    */
-  applyDamage(target, damage) {
+  applyDamage(target, damage, knockbackDir = null) {
     const stats = target.getComponent('stats');
     const transform = target.getComponent('transform');
     
     if (!stats) return;
     
     // 扣除生命值
+    const wasDead = stats.hp <= 0;
     stats.takeDamage(damage);
+    const isDead = stats.hp <= 0;
     
     // 显示伤害数字
     if (transform) {
@@ -636,6 +616,185 @@ export class CombatSystem {
     if (sprite) {
       // 可以添加受击闪烁效果
       this.playHitEffect(target);
+    }
+    
+    // 如果有击退方向且目标未死亡，应用击退效果
+    if (knockbackDir && !isDead && transform) {
+      this.applyKnockback(target, knockbackDir);
+    }
+    
+    // 如果刚刚死亡，先生成掉落物，再触发死亡特效
+    if (!wasDead && isDead) {
+      // 立即生成掉落物（在死亡特效之前）
+      this.spawnLoot(target);
+      
+      // 然后触发死亡特效
+      this.triggerDeathEffect(target);
+    }
+  }
+  
+  /**
+   * 应用击退效果
+   * @param {Entity} target - 目标
+   * @param {Object} direction - 击退方向 {x, y}（已归一化）
+   */
+  applyKnockback(target, direction) {
+    const transform = target.getComponent('transform');
+    if (!transform) return;
+    
+    // 击退距离（像素）
+    const knockbackDistance = 20;
+    
+    // 应用击退
+    transform.position.x += direction.x * knockbackDistance;
+    transform.position.y += direction.y * knockbackDistance;
+    
+    // 创建击退粒子效果
+    if (this.skillEffects && this.skillEffects.particleSystem) {
+      const particleSystem = this.skillEffects.particleSystem;
+      
+      // 在目标位置创建冲击波粒子
+      for (let i = 0; i < 5; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 50 + Math.random() * 50;
+        
+        particleSystem.emit({
+          position: { x: transform.position.x, y: transform.position.y },
+          velocity: { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed },
+          life: 0.3,
+          size: 3 + Math.random() * 3,
+          color: '#ffaa00',
+          alpha: 0.8
+        });
+      }
+    }
+  }
+  
+  /**
+   * 触发死亡特效
+   * @param {Entity} target - 目标
+   */
+  triggerDeathEffect(target) {
+    const transform = target.getComponent('transform');
+    if (!transform) return;
+    
+    // 立即标记为正在死亡，停止AI行为
+    target.isDying = true;
+    
+    // 随机选择死亡特效类型
+    const effectType = Math.random() < 0.5 ? 'explode' : 'slice';
+    
+    if (effectType === 'explode') {
+      // 爆炸特效
+      this.createExplosionEffect(transform.position);
+    } else {
+      // 切割特效
+      this.createSliceEffect(transform.position);
+    }
+    
+    // 延迟很短时间后标记为已死亡（让特效播放）
+    setTimeout(() => {
+      target.isDead = true;
+    }, 100);
+  }
+  
+  /**
+   * 创建爆炸特效
+   * @param {Object} position - 位置 {x, y}
+   */
+  createExplosionEffect(position) {
+    if (!this.skillEffects || !this.skillEffects.particleSystem) return;
+    
+    const particleSystem = this.skillEffects.particleSystem;
+    
+    // 爆炸粒子
+    for (let i = 0; i < 30; i++) {
+      const angle = (i / 30) * Math.PI * 2;
+      const speed = 100 + Math.random() * 100;
+      
+      particleSystem.emit({
+        position: { x: position.x, y: position.y },
+        velocity: { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed },
+        life: 0.5 + Math.random() * 0.3,
+        size: 4 + Math.random() * 4,
+        color: Math.random() < 0.5 ? '#ff4444' : '#ffaa00',
+        alpha: 1.0,
+        gravity: 200
+      });
+    }
+    
+    // 中心闪光
+    for (let i = 0; i < 10; i++) {
+      particleSystem.emit({
+        position: { x: position.x, y: position.y },
+        velocity: { x: (Math.random() - 0.5) * 50, y: (Math.random() - 0.5) * 50 },
+        life: 0.3,
+        size: 8 + Math.random() * 8,
+        color: '#ffffff',
+        alpha: 1.0
+      });
+    }
+  }
+  
+  /**
+   * 创建切割特效
+   * @param {Object} position - 位置 {x, y}
+   */
+  createSliceEffect(position) {
+    if (!this.skillEffects || !this.skillEffects.particleSystem) return;
+    
+    const particleSystem = this.skillEffects.particleSystem;
+    
+    // 随机切割角度
+    const sliceAngle = Math.random() * Math.PI * 2;
+    
+    // 创建2-3块碎片
+    const numPieces = 2 + Math.floor(Math.random() * 2); // 2或3块
+    
+    for (let i = 0; i < numPieces; i++) {
+      // 碎片飞出方向（垂直于切割线）
+      const pieceAngle = sliceAngle + (i - numPieces / 2) * 0.5;
+      const speed = 80 + Math.random() * 60;
+      
+      // 创建多个粒子组成一块碎片
+      for (let j = 0; j < 8; j++) {
+        const offsetAngle = pieceAngle + (Math.random() - 0.5) * 0.3;
+        const offsetSpeed = speed + (Math.random() - 0.5) * 40;
+        
+        particleSystem.emit({
+          position: { 
+            x: position.x + (Math.random() - 0.5) * 10,
+            y: position.y + (Math.random() - 0.5) * 10
+          },
+          velocity: { 
+            x: Math.cos(offsetAngle) * offsetSpeed,
+            y: Math.sin(offsetAngle) * offsetSpeed
+          },
+          life: 0.6 + Math.random() * 0.3,
+          size: 5 + Math.random() * 5,
+          color: '#ff4444',
+          alpha: 1.0,
+          gravity: 250,
+          rotation: Math.random() * Math.PI * 2,
+          rotationSpeed: (Math.random() - 0.5) * 10
+        });
+      }
+    }
+    
+    // 血液飞溅效果
+    for (let i = 0; i < 15; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 60 + Math.random() * 80;
+      
+      particleSystem.emit({
+        position: { x: position.x, y: position.y },
+        velocity: { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed },
+        life: 0.4 + Math.random() * 0.2,
+        size: 2 + Math.random() * 3,
+        color: '#aa0000',
+        alpha: 0.8,
+        gravity: 300
+      });
     }
   }
 
@@ -749,11 +908,11 @@ export class CombatSystem {
         if (index < combat.skills.length) {
           const skill = combat.skills[index];
           
-          // 普通攻击需要目标，其他技能使用鼠标位置
-          if (skill.isAutoAttack) {
-            // 普通攻击：需要选中目标
+          // 技能1（普通攻击）：使用武器攻击
+          if (skill.id === 'basic_attack' || skill.isAutoAttack) {
+            // 需要选中目标
             if (this.selectedTarget) {
-              this.tryUseSkill(this.playerEntity, skill, currentTime, entities);
+              this.tryUseWeaponAttack(this.playerEntity, skill, currentTime, entities);
             } else {
               console.log('普通攻击需要选择目标');
             }
@@ -765,6 +924,81 @@ export class CombatSystem {
         }
       }
     }
+  }
+
+  /**
+   * 尝试使用武器攻击
+   * @param {Entity} caster - 施法者
+   * @param {Object} skill - 技能数据
+   * @param {number} currentTime - 当前时间（毫秒）
+   * @param {Array<Entity>} entities - 实体列表
+   * @returns {boolean} 是否成功使用
+   */
+  tryUseWeaponAttack(caster, skill, currentTime, entities) {
+    const combat = caster.getComponent('combat');
+    const stats = caster.getComponent('stats');
+    const casterTransform = caster.getComponent('transform');
+    
+    if (!combat || !stats || !casterTransform) return false;
+    
+    // 检查冷却
+    if (!combat.canUseSkill(skill.id, currentTime)) {
+      console.log(`技能 ${skill.name} 冷却中`);
+      return false;
+    }
+    
+    // 获取攻击范围（从武器渲染器）
+    const attackRange = this.weaponRenderer ? this.weaponRenderer.getAttackRange(caster) : 150;
+    
+    // 获取攻击范围内的所有敌人
+    const enemiesInRange = this.weaponRenderer ? 
+      this.weaponRenderer.getEnemiesInRange(casterTransform.position, entities, attackRange) : [];
+    
+    if (enemiesInRange.length === 0) {
+      console.log('攻击范围内没有敌人');
+      return false;
+    }
+    
+    // 使用技能
+    const usedSkill = combat.useSkill(skill.id, currentTime);
+    if (!usedSkill) return false;
+    
+    // 触发武器攻击动画
+    if (this.weaponRenderer) {
+      this.weaponRenderer.startAttack();
+    }
+    
+    // 获取滑动伤害倍率
+    const damageMultiplier = this.weaponRenderer ? this.weaponRenderer.getSwipeDamageMultiplier() : 1.0;
+    
+    // 对范围内的所有敌人造成伤害
+    for (const enemy of enemiesInRange) {
+      // 计算基础伤害
+      let baseDamage = this.calculateSkillDamage(caster, enemy, skill);
+      
+      // 应用滑动倍率
+      const finalDamage = Math.floor(baseDamage * damageMultiplier);
+      
+      this.applyDamage(enemy, finalDamage);
+      
+      // 创建攻击特效
+      if (this.skillEffects) {
+        const enemyTransform = enemy.getComponent('transform');
+        if (enemyTransform) {
+          this.skillEffects.createSkillEffect('basic_attack', casterTransform.position, enemyTransform.position);
+        }
+      }
+    }
+    
+    // 显示伤害倍率提示
+    if (this.weaponRenderer && damageMultiplier !== 1.0) {
+      const swipes = this.weaponRenderer.swipeDetection.swipesPerSecond;
+      const multiplierPercent = Math.floor(damageMultiplier * 100);
+      console.log(`滑动攻击 - ${swipes}次/秒，${multiplierPercent}% 伤害`);
+    }
+    
+    console.log(`${caster.name || caster.id} 使用武器攻击，命中 ${enemiesInRange.length} 个敌人，伤害倍率: ${damageMultiplier.toFixed(2)}x`);
+    return true;
   }
 
   /**

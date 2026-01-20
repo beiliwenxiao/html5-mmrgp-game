@@ -84,8 +84,8 @@ export class MovementSystem {
     // 处理键盘移动输入
     this.handleKeyboardInput(entities);
     
-    // 处理点击移动输入
-    this.handleClickMovement(entities);
+    // 移除点击移动功能
+    // this.handleClickMovement(entities);
     
     // 更新所有实体的移动
     for (const entity of entities) {
@@ -248,6 +248,17 @@ export class MovementSystem {
     const sprite = entity.getComponent('sprite');
     
     if (!transform || !movement) return;
+    
+    // 如果实体被武器钉住，不能移动
+    if (entity.pinnedByWeapon) {
+      movement.velocity.x = 0;
+      movement.velocity.y = 0;
+      movement.clearPath();
+      if (sprite && sprite.currentAnimation !== 'idle') {
+        sprite.playAnimation('idle');
+      }
+      return;
+    }
     
     // 如果实体正在移动
     if (movement.isCurrentlyMoving()) {

@@ -89,9 +89,6 @@ export class Act2Scene extends BaseGameScene {
       if (this.playerInfoPanel) {
         this.playerInfoPanel.setPlayer(this.playerEntity);
       }
-      if (this.equipmentPanel) {
-        this.equipmentPanel.setEntity(this.playerEntity);
-      }
       if (this.bottomControlBar) {
         this.bottomControlBar.setEntity(this.playerEntity);
       }

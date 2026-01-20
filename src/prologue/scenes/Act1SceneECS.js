@@ -87,6 +87,9 @@ export class Act1SceneECS extends BaseGameScene {
     // 调用父类的 enter，初始化所有基础系统
     super.enter(data);
     
+    // 初始化教程阶段配置
+    this.initTutorialPhases();
+    
     // 第一幕特有：注册渐进式教程
     this.registerTutorials();
     
@@ -129,7 +132,7 @@ export class Act1SceneECS extends BaseGameScene {
         mpRegen: 1.0
       },
       skills: [
-        { id: 'basic_attack', name: '普通攻击', type: 'physical', damage: 15, manaCost: 0, cooldown: 1.0, range: 150, effectType: 'melee', description: '靠近自动攻击', hotkey: '1', isAutoAttack: true },
+        { id: 'basic_attack', name: '普通攻击', type: 'physical', damage: 15, manaCost: 0, cooldown: 1.0, range: 150, effectType: 'melee', description: '按1键攻击', hotkey: '1' },
         { id: 'fireball', name: '火球术', type: 'magic', damage: 45, manaCost: 15, cooldown: 2.0, range: 500, aoeRadius: 100, effectType: 'fireball', projectileSpeed: 450, description: '发射炽热的火球', hotkey: '2' },
         { id: 'ice_lance', name: '寒冰箭', type: 'magic', damage: 40, manaCost: 12, cooldown: 1.8, range: 550, aoeRadius: 80, effectType: 'ice_lance', projectileSpeed: 500, description: '发射寒冰箭', hotkey: '3' },
         { id: 'flame_burst', name: '烈焰爆发', type: 'magic', damage: 65, manaCost: 25, cooldown: 4.0, range: 450, aoeRadius: 150, effectType: 'flame_burst', projectileSpeed: 400, description: '释放强大的火焰能量', hotkey: '4' }
@@ -151,7 +154,6 @@ export class Act1SceneECS extends BaseGameScene {
     this.movementSystem.setPlayerEntity(this.playerEntity);
     this.inventoryPanel.setEntity(this.playerEntity);
     this.playerInfoPanel.setPlayer(this.playerEntity);
-    this.equipmentPanel.setEntity(this.playerEntity);
     this.bottomControlBar.setEntity(this.playerEntity);
     
     console.log('Act1SceneECS: 创建玩家实体', this.playerEntity);
@@ -345,7 +347,7 @@ export class Act1SceneECS extends BaseGameScene {
         id: 'wooden_stick', 
         name: '树棍', 
         type: 'equipment',
-        subType: 'weapon',
+        subType: 'mainhand',  // 改为 mainhand，直接对应装备槽位
         x: 300, 
         y: 250,
         stats: {
@@ -590,189 +592,188 @@ export class Act1SceneECS extends BaseGameScene {
     }
   }
   /**
-   * 更新教程阶段
+   * 初始化教程阶段配置
    */
-  updateTutorialPhase(deltaTime) {
-    // 阶段1: 按任意键继续
-    if (this.tutorialPhase === 'character_creation') {
-      // 检测任意键按下
-      if (this.inputManager.isAnyKeyPressed()) {
-        if (!this.tutorialsCompleted.progressive_tip_1) {
+  initTutorialPhases() {
+    this.tutorialPhaseHandlers = {
+      'character_creation': {
+        check: () => this.inputManager.isAnyKeyPressed(),
+        onComplete: () => {
           this.completeTutorial('progressive_tip_1');
           console.log('Act1SceneECS: 完成tip_1，进入移动阶段');
-          // 进入移动阶段，tip_2会自动触发
           this.startMovementTutorial();
         }
-      }
-    }
-    // 阶段2: 移动教程
-    else if (this.tutorialPhase === 'movement') {
-      const transform = this.playerEntity.getComponent('transform');
-      if (transform && this.lastPlayerPosition) {
-        const dx = transform.position.x - this.lastPlayerPosition.x;
-        const dy = transform.position.y - this.lastPlayerPosition.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        this.playerMovedDistance += distance;
-        this.lastPlayerPosition = { x: transform.position.x, y: transform.position.y };
-        
-        // 完成tip_2: 移动
-        if (this.playerMovedDistance >= 10 && !this.tutorialsCompleted.progressive_tip_2) {
-          this.completeTutorial('progressive_tip_2');
-          console.log('Act1SceneECS: 完成tip_2 - 移动');
-        }
-      }
+      },
       
-      if (this.playerMovedDistance >= 100 && !this.tutorialsCompleted.movement) {
-        this.completeTutorial('movement');
-        this.tutorialPhase = 'campfire';
-        console.log('Act1SceneECS: 等待点燃火堆');
-      }
-    }
-    // 阶段3: 火堆阶段
-    else if (this.tutorialPhase === 'campfire') {
-      if (this.campfire.lit && !this.tutorialsCompleted.campfire) {
-        this.tutorialsCompleted.campfire = true;
-        console.log('Act1SceneECS: 火堆已点燃');
-        
-        // 完成tip_3: 点燃火堆
-        if (!this.tutorialsCompleted.progressive_tip_3) {
-          this.completeTutorial('progressive_tip_3');
-          console.log('Act1SceneECS: 完成tip_3 - 点燃火堆');
+      'movement': {
+        update: (deltaTime) => {
+          const transform = this.playerEntity.getComponent('transform');
+          if (transform && this.lastPlayerPosition) {
+            const dx = transform.position.x - this.lastPlayerPosition.x;
+            const dy = transform.position.y - this.lastPlayerPosition.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            this.playerMovedDistance += distance;
+            this.lastPlayerPosition = { x: transform.position.x, y: transform.position.y };
+            
+            if (this.playerMovedDistance >= 10 && !this.tutorialsCompleted.progressive_tip_2) {
+              this.completeTutorial('progressive_tip_2');
+              console.log('Act1SceneECS: 完成tip_2 - 移动');
+            }
+          }
+        },
+        check: () => this.playerMovedDistance >= 100 && !this.tutorialsCompleted.movement,
+        onComplete: () => {
+          this.completeTutorial('movement');
+          this.tutorialPhase = 'campfire';
+          console.log('Act1SceneECS: 等待点燃火堆');
         }
-        
-        // 生成第一批物品（残羹）
-        this.startPickupTutorial();
-      }
-    }
-    // 阶段4: 拾取教程（第一批：残羹）
-    else if (this.tutorialPhase === 'pickup') {
-      const pickedCount = this.pickupItems.filter(item => item.picked).length;
-      if (pickedCount >= 1 && !this.tutorialsCompleted.pickup) {
-        this.completeTutorial('pickup');
-        
-        // 完成tip_4: 拾取物品
-        if (!this.tutorialsCompleted.progressive_tip_4) {
-          this.completeTutorial('progressive_tip_4');
-          console.log('Act1SceneECS: 完成tip_4 - 拾取物品');
-        }
-        
-        // tip_5会自动触发，不在这里手动完成
-        // 进入背包查看阶段
-        this.tutorialPhase = 'view_inventory';
-        console.log('Act1SceneECS: 进入背包查看阶段');
-      }
-    }
-    // 阶段4.5: 背包查看阶段
-    else if (this.tutorialPhase === 'view_inventory') {
-      // 等待玩家打开背包后进入查看属性阶段
-      if (this.tutorialsCompleted.progressive_tip_5) {
-        this.tutorialPhase = 'view_stats';
-        console.log('Act1SceneECS: 进入查看属性阶段');
-      }
-    }
-    // 阶段5: 查看属性阶段
-    else if (this.tutorialPhase === 'view_stats') {
-      // 等待玩家查看属性后进入消耗品使用阶段
-      if (this.tutorialsCompleted.progressive_tip_6) {
-        this.tutorialPhase = 'consumable';
-        console.log('Act1SceneECS: 进入消耗品使用阶段');
-      }
-    }
-    // 阶段6: 消耗品使用阶段
-    else if (this.tutorialPhase === 'consumable') {
-      const inventory = this.playerEntity.getComponent('inventory');
+      },
       
-      // 检查背包中是否还有残羹
-      let hasConsumable = false;
-      if (inventory) {
-        const items = inventory.getAllItems();
-        hasConsumable = items.some(({ slot }) => 
-          slot.item.type === 'consumable' && slot.item.id === 'leftover_food'
-        );
-      }
-      
-      // 如果残羹用完了，进入关闭面板阶段
-      if (!hasConsumable && !this.tutorialsCompleted.consumable) {
-        this.tutorialsCompleted.consumable = true;
-        console.log('Act1SceneECS: 完成消耗品使用阶段');
-        
-        // 完成tip_7: 使用消耗品
-        if (!this.tutorialsCompleted.progressive_tip_7) {
-          this.completeTutorial('progressive_tip_7');
-          console.log('Act1SceneECS: 完成tip_7 - 使用消耗品');
+      'campfire': {
+        check: () => this.campfire.lit && !this.tutorialsCompleted.campfire,
+        onComplete: () => {
+          this.tutorialsCompleted.campfire = true;
+          console.log('Act1SceneECS: 火堆已点燃');
+          
+          if (!this.tutorialsCompleted.progressive_tip_3) {
+            this.completeTutorial('progressive_tip_3');
+            console.log('Act1SceneECS: 完成tip_3 - 点燃火堆');
+          }
+          
+          this.startPickupTutorial();
         }
-        
-        // 进入关闭面板阶段，等待 tip_7_1 完成
-        this.tutorialPhase = 'close_panels';
-        console.log('Act1SceneECS: 进入关闭面板阶段');
+      },
+      
+      'pickup': {
+        check: () => {
+          const pickedCount = this.pickupItems.filter(item => item.picked).length;
+          return pickedCount >= 1 && !this.tutorialsCompleted.pickup;
+        },
+        onComplete: () => {
+          this.completeTutorial('pickup');
+          
+          if (!this.tutorialsCompleted.progressive_tip_4) {
+            this.completeTutorial('progressive_tip_4');
+            console.log('Act1SceneECS: 完成tip_4 - 拾取物品');
+          }
+          
+          this.tutorialPhase = 'view_inventory';
+          console.log('Act1SceneECS: 进入背包查看阶段');
+        }
+      },
+      
+      'view_inventory': {
+        check: () => this.tutorialsCompleted.progressive_tip_5,
+        onComplete: () => {
+          this.tutorialPhase = 'consumable';
+          console.log('Act1SceneECS: 进入消耗品使用阶段');
+        }
+      },
+      
+      'consumable': {
+        check: () => {
+          const inventory = this.playerEntity.getComponent('inventory');
+          if (!inventory) return false;
+          
+          const items = inventory.getAllItems();
+          const hasConsumable = items.some(({ slot }) => 
+            slot.item.type === 'consumable' && slot.item.id === 'leftover_food'
+          );
+          
+          return !hasConsumable && !this.tutorialsCompleted.consumable;
+        },
+        onComplete: () => {
+          this.tutorialsCompleted.consumable = true;
+          console.log('Act1SceneECS: 完成消耗品使用阶段');
+          
+          if (!this.tutorialsCompleted.progressive_tip_7) {
+            this.completeTutorial('progressive_tip_7');
+            console.log('Act1SceneECS: 完成tip_7 - 使用消耗品');
+          }
+          
+          this.tutorialPhase = 'close_panels';
+          console.log('Act1SceneECS: 进入关闭面板阶段');
+        }
+      },
+      
+      'close_panels': {
+        update: (deltaTime) => {
+          const bothPanelsClosed = !this.playerInfoPanel?.visible && !this.inventoryPanel?.visible;
+          
+          if (bothPanelsClosed && !this.tutorialsCompleted.progressive_tip_7_1) {
+            this.completeTutorial('progressive_tip_7_1');
+            console.log('Act1SceneECS: 完成tip_7.1 - 关闭面板');
+          }
+        },
+        check: () => this.tutorialsCompleted.progressive_tip_7_1,
+        onComplete: () => {
+          if (this.equipmentItems.length === 0) {
+            this.spawnEquipmentItems();
+            console.log('Act1SceneECS: 生成第二批物品（装备）');
+          }
+          
+          this.tutorialPhase = 'pickup_equipment';
+          console.log('Act1SceneECS: 进入装备拾取阶段');
+        }
+      },
+      
+      'pickup_equipment': {
+        check: () => {
+          const pickedCount = this.equipmentItems.filter(item => item.picked).length;
+          return pickedCount >= 2;
+        },
+        onComplete: () => {
+          if (!this.tutorialsCompleted.progressive_tip_8) {
+            this.completeTutorial('progressive_tip_8');
+            console.log('Act1SceneECS: 完成tip_8 - 拾取装备');
+          }
+          
+          this.startEquipmentTutorial();
+        }
+      },
+      
+      'equipment': {
+        check: () => {
+          const equipment = this.playerEntity.getComponent('equipment');
+          const equippedCount = equipment && equipment.slots ? 
+            Object.keys(equipment.slots).filter(slot => equipment.slots[slot]).length : 0;
+          
+          return equippedCount >= 2 && !this.tutorialsCompleted.equipment;
+        },
+        onComplete: () => {
+          this.completeTutorial('equipment');
+          
+          if (!this.tutorialsCompleted.progressive_tip_9) {
+            this.completeTutorial('progressive_tip_9');
+            console.log('Act1SceneECS: 完成tip_9 - 装备物品');
+          }
+          
+          if (!this.tutorialsCompleted.progressive_tip_10) {
+            this.completeTutorial('progressive_tip_10');
+            console.log('Act1SceneECS: 完成tip_10 - 查看装备');
+          }
+          
+          this.startCombatTutorial();
+        }
       }
+    };
+  }
+
+  /**
+   * 更新教程阶段 - 使用配置驱动
+   */
+  updateTutorialPhase(deltaTime) {
+    const handler = this.tutorialPhaseHandlers[this.tutorialPhase];
+    if (!handler) return;
+    
+    // 执行阶段特定的更新逻辑
+    if (handler.update) {
+      handler.update(deltaTime);
     }
-    // 阶段6.5: 关闭面板阶段
-    else if (this.tutorialPhase === 'close_panels') {
-      // 检查两个面板是否都已关闭
-      const bothPanelsClosed = !this.playerInfoPanel?.visible && !this.inventoryPanel?.visible;
-      
-      // 如果两个面板都关闭了，完成 tip_7.1
-      if (bothPanelsClosed && !this.tutorialsCompleted.progressive_tip_7_1) {
-        this.completeTutorial('progressive_tip_7_1');
-        console.log('Act1SceneECS: 完成tip_7.1 - 关闭面板');
-      }
-      
-      // 等待玩家完成 tip_7_1（关闭两个面板）后生成装备物品
-      if (this.tutorialsCompleted.progressive_tip_7_1) {
-        // 生成第二批物品（装备）
-        if (this.equipmentItems.length === 0) {
-          this.spawnEquipmentItems();
-          console.log('Act1SceneECS: 生成第二批物品（装备）');
-        }
-        
-        // tip_8会自动触发，不在这里手动完成
-        // 进入装备拾取阶段
-        this.tutorialPhase = 'pickup_equipment';
-        console.log('Act1SceneECS: 进入装备拾取阶段');
-      }
-    }
-    // 阶段7: 装备拾取阶段
-    else if (this.tutorialPhase === 'pickup_equipment') {
-      // 等待玩家拾取装备后进入装备教程
-      const pickedCount = this.equipmentItems.filter(item => item.picked).length;
-      if (pickedCount >= 2) {
-        // 完成tip_8: 发现装备
-        if (!this.tutorialsCompleted.progressive_tip_8) {
-          this.completeTutorial('progressive_tip_8');
-          console.log('Act1SceneECS: 完成tip_8 - 拾取装备');
-        }
-        
-        // 进入装备教程
-        this.startEquipmentTutorial();
-      }
-    }
-    // 阶段8: 装备教程
-    else if (this.tutorialPhase === 'equipment') {
-      const equipment = this.playerEntity.getComponent('equipment');
-      
-      // 检查是否装备了2件物品（武器和护甲）
-      const equippedCount = equipment && equipment.slots ? 
-        Object.keys(equipment.slots).filter(slot => equipment.slots[slot]).length : 0;
-      
-      if (equippedCount >= 2 && !this.tutorialsCompleted.equipment) {
-        this.completeTutorial('equipment');
-        
-        // 完成tip_9: 装备物品
-        if (!this.tutorialsCompleted.progressive_tip_9) {
-          this.completeTutorial('progressive_tip_9');
-          console.log('Act1SceneECS: 完成tip_9 - 装备物品');
-        }
-        
-        // 完成tip_10: 查看装备
-        if (!this.tutorialsCompleted.progressive_tip_10) {
-          this.completeTutorial('progressive_tip_10');
-          console.log('Act1SceneECS: 完成tip_10 - 查看装备');
-        }
-        
-        // 进入战斗教程
-        this.startCombatTutorial();
-      }
+    
+    // 检查阶段完成条件
+    if (handler.check && handler.check()) {
+      handler.onComplete();
     }
   }
 

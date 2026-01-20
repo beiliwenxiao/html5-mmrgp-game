@@ -16,16 +16,20 @@ export class EquipmentComponent extends Component {
   constructor(options = {}) {
     super('equipment');
     
-    // 装备槽位
+    // 装备槽位（与 PlayerInfoPanel 保持一致）
     this.slots = {
-      weapon: null,      // 武器
-      armor: null,       // 护甲
-      helmet: null,      // 头盔
-      boots: null,       // 靴子
-      gloves: null,      // 手套
-      accessory1: null,  // 饰品1
-      accessory2: null,  // 饰品2
-      accessory3: null   // 饰品3
+      accessory: null,    // 饰品
+      helmet: null,       // 头盔
+      necklace: null,     // 项链
+      mainhand: null,     // 主手武器
+      armor: null,        // 胸甲
+      offhand: null,      // 副手武器
+      ring1: null,        // 戒指1
+      belt: null,         // 腰带
+      ring2: null,        // 戒指2
+      instrument: null,   // 器械
+      boots: null,        // 鞋子
+      mount: null         // 坐骑
     };
     
     // 装备属性加成缓存
@@ -126,14 +130,18 @@ export class EquipmentComponent extends Component {
     if (!equipment || !equipment.subType) return false;
     
     const validTypes = {
-      weapon: ['weapon'],
-      armor: ['armor'],
+      accessory: ['accessory'],
       helmet: ['helmet'],
+      necklace: ['necklace'],
+      mainhand: ['mainhand', 'weapon'],  // 兼容旧的 weapon 类型
+      armor: ['armor'],
+      offhand: ['offhand', 'shield'],
+      ring1: ['ring'],
+      belt: ['belt'],
+      ring2: ['ring'],
+      instrument: ['instrument'],
       boots: ['boots'],
-      gloves: ['gloves'],
-      accessory1: ['accessory'],
-      accessory2: ['accessory'],
-      accessory3: ['accessory']
+      mount: ['mount']
     };
     
     return validTypes[slotType] && validTypes[slotType].includes(equipment.subType);

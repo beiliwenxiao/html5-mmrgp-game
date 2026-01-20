@@ -29,10 +29,10 @@ import { CombatEffects } from '../../rendering/CombatEffects.js';
 import { SkillEffects } from '../../rendering/SkillEffects.js';
 import { InventoryPanel } from '../../ui/InventoryPanel.js';
 import { PlayerInfoPanel } from '../../ui/PlayerInfoPanel.js';
-import { EquipmentPanel } from '../../ui/EquipmentPanel.js';
 import { BottomControlBar } from '../../ui/BottomControlBar.js';
 import { FloatingTextManager } from '../../ui/FloatingText.js';
 import { ParticleSystem } from '../../rendering/ParticleSystem.js';
+import { WeaponRenderer } from '../../rendering/WeaponRenderer.js';
 import { Entity } from '../../ecs/Entity.js';
 import { TransformComponent } from '../../ecs/components/TransformComponent.js';
 import { SpriteComponent } from '../../ecs/components/SpriteComponent.js';
@@ -60,6 +60,7 @@ export class BaseGameScene extends PrologueScene {
     this.renderSystem = null;
     this.combatEffects = null;
     this.skillEffects = null;
+    this.weaponRenderer = null;
     this.uiClickHandler = new UIClickHandler();
     
     // 序章系统
@@ -70,7 +71,6 @@ export class BaseGameScene extends PrologueScene {
     // UI 面板
     this.inventoryPanel = null;
     this.playerInfoPanel = null;
-    this.equipmentPanel = null;
     this.bottomControlBar = null;
     
     // 飘动文字管理器
@@ -95,7 +95,6 @@ export class BaseGameScene extends PrologueScene {
     // 面板切换冷却时间
     this.lastPlayerInfoToggleTime = 0;
     this.lastInventoryToggleTime = 0;
-    this.lastEquipmentToggleTime = 0;
     this.lastPickupTime = 0;
     
     // 场景过渡状态
@@ -137,11 +136,15 @@ export class BaseGameScene extends PrologueScene {
     // 初始化技能特效
     this.skillEffects = new SkillEffects(this.particleSystem);
     
+    // 初始化武器渲染器
+    this.weaponRenderer = new WeaponRenderer();
+    
     // 初始化游戏系统
     this.combatSystem = new CombatSystem({
       inputManager: this.inputManager,
       camera: this.camera,
-      skillEffects: this.skillEffects
+      skillEffects: this.skillEffects,
+      weaponRenderer: this.weaponRenderer
     });
     
     // 设置掉落回调
@@ -173,27 +176,35 @@ export class BaseGameScene extends PrologueScene {
    * 初始化 UI 面板
    */
   initializeUIPanels() {
-    // 角色信息面板
+    // 角色信息面板（包含装备）
     this.playerInfoPanel = new PlayerInfoPanel({
       x: 10,
       y: 10,
-      width: 280,
-      height: 320,
+      width: 320,
+      height: 580,
       visible: false,
       onAttributeAllocate: (player) => {
         console.log('BaseGameScene: 属性加点按钮被点击');
-      }
-    });
-    
-    // 装备面板
-    this.equipmentPanel = new EquipmentPanel({
-      x: 10,
-      y: 340,
-      width: 280,
-      height: 250,
-      visible: false,
-      onEquipmentChange: (messages) => {
-        this.onEquipmentChanged(messages);
+      },
+      onEquipmentClick: (slotType, button) => {
+        console.log('BaseGameScene: 装备槽被点击', slotType, button);
+        // 右键点击卸下装备
+        if (button === 'right' && this.playerEntity) {
+          const equipment = this.playerEntity.getComponent('equipment');
+          if (equipment && equipment.slots[slotType]) {
+            this.equipmentSystem.unequip(this.playerEntity, slotType);
+            // 显示卸下装备的提示
+            const transform = this.playerEntity.getComponent('transform');
+            if (transform) {
+              this.floatingTextManager.addText(
+                transform.position.x,
+                transform.position.y - 30,
+                `卸下 ${equipment.slots[slotType].name}`,
+                '#ffff00'
+              );
+            }
+          }
+        }
       }
     });
     
@@ -226,7 +237,6 @@ export class BaseGameScene extends PrologueScene {
     
     // 注册 UI 元素到 UIClickHandler
     this.uiClickHandler.registerElement(this.inventoryPanel);
-    this.uiClickHandler.registerElement(this.equipmentPanel);
     this.uiClickHandler.registerElement(this.playerInfoPanel);
     this.uiClickHandler.registerElement(this.bottomControlBar);
   }
@@ -307,7 +317,7 @@ export class BaseGameScene extends PrologueScene {
         speed: 120
       },
       skills: [
-        { id: 'basic_attack', name: '普通攻击', type: 'physical', damage: 15, manaCost: 0, cooldown: 1.0, range: 150, effectType: 'melee', hotkey: '1', isAutoAttack: true },
+        { id: 'basic_attack', name: '普通攻击', type: 'physical', damage: 15, manaCost: 0, cooldown: 1.0, range: 150, effectType: 'melee', hotkey: '1' },
         { id: 'fireball', name: '火球术', type: 'magic', damage: 45, manaCost: 15, cooldown: 2.0, range: 500, aoeRadius: 100, effectType: 'fireball', projectileSpeed: 450, hotkey: '2' },
         { id: 'ice_lance', name: '寒冰箭', type: 'magic', damage: 40, manaCost: 12, cooldown: 1.8, range: 550, aoeRadius: 80, effectType: 'ice_lance', projectileSpeed: 500, hotkey: '3' },
         { id: 'flame_burst', name: '烈焰爆发', type: 'magic', damage: 65, manaCost: 25, cooldown: 4.0, range: 450, aoeRadius: 150, effectType: 'flame_burst', projectileSpeed: 400, hotkey: '4' }
@@ -329,7 +339,6 @@ export class BaseGameScene extends PrologueScene {
     this.movementSystem.setPlayerEntity(this.playerEntity);
     this.inventoryPanel.setEntity(this.playerEntity);
     this.playerInfoPanel.setPlayer(this.playerEntity);
-    this.equipmentPanel.setEntity(this.playerEntity);
     this.bottomControlBar.setEntity(this.playerEntity);
     
     console.log('BaseGameScene: 创建玩家实体', this.playerEntity);
@@ -353,6 +362,21 @@ export class BaseGameScene extends PrologueScene {
     
     // 更新相机
     this.camera.update(deltaTime);
+    
+    // 更新武器渲染器的鼠标角度
+    if (this.weaponRenderer && this.playerEntity && this.inputManager) {
+      const mouseWorldPos = this.inputManager.getMouseWorldPosition(this.camera);
+      const transform = this.playerEntity.getComponent('transform');
+      if (transform) {
+        const currentTime = performance.now() / 1000; // 转换为秒
+        this.weaponRenderer.updateMouseAngle(mouseWorldPos, transform.position, currentTime);
+        
+        // 检测自动攻击（鼠标移动时）
+        if (this.weaponRenderer.canAutoAttack(currentTime)) {
+          this.handleAutoAttack(currentTime);
+        }
+      }
+    }
     
     // 更新所有实体
     for (const entity of this.entities) {
@@ -394,14 +418,66 @@ export class BaseGameScene extends PrologueScene {
     this.floatingTextManager.update(deltaTime);
     this.particleSystem.update(deltaTime);
     
+    // 更新武器渲染器
+    if (this.weaponRenderer) {
+      const currentTime = performance.now() / 1000; // 转换为秒
+      this.weaponRenderer.update(deltaTime, currentTime);
+      
+      // 检查武器飞行路径上的碰撞
+      if (this.weaponRenderer.thrownWeapon.flying) {
+        this.weaponRenderer.checkThrowPathCollision(this.entities, (enemy, isFinalTarget) => {
+          // 计算伤害
+          const stats = this.playerEntity.getComponent('stats');
+          if (!stats) return;
+          
+          const baseDamage = stats.attack || 15;
+          let damageMultiplier = 0.3; // 路径上的敌人30%伤害
+          let damageText = '投掷伤害 30%';
+          let damageColor = '#ffaa00';
+          
+          if (isFinalTarget) {
+            damageMultiplier = 3.0; // 最终目标300%伤害
+            damageText = '投掷伤害 300%';
+            damageColor = '#ff0000';
+          }
+          
+          const finalDamage = Math.floor(baseDamage * damageMultiplier);
+          
+          // 计算击退方向
+          const playerTransform = this.playerEntity.getComponent('transform');
+          const enemyTransform = enemy.getComponent('transform');
+          if (playerTransform && enemyTransform) {
+            const dx = enemyTransform.position.x - playerTransform.position.x;
+            const dy = enemyTransform.position.y - playerTransform.position.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const knockbackDir = distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 1, y: 0 };
+            
+            // 应用伤害
+            this.combatSystem.applyDamage(enemy, finalDamage, knockbackDir);
+            
+            // 显示伤害提示
+            this.floatingTextManager.addText(
+              enemyTransform.position.x,
+              enemyTransform.position.y - 60,
+              damageText,
+              damageColor
+            );
+          }
+        });
+      }
+      
+      // 检查武器拾取
+      if (this.weaponRenderer.isWeaponThrown() && !this.weaponRenderer.thrownWeapon.flying) {
+        this.checkWeaponPickup();
+      }
+    }
+    
     // 检查面板切换
     this.checkPlayerInfoToggle();
     this.checkInventoryToggle();
-    this.checkEquipmentToggle();
     
     // 更新面板
     this.inventoryPanel.update(deltaTime);
-    this.equipmentPanel.update(deltaTime);
     this.playerInfoPanel.update(deltaTime);
     this.bottomControlBar.update(deltaTime);
     
@@ -544,7 +620,61 @@ export class BaseGameScene extends PrologueScene {
       
       if (uiHandled) {
         this.inputManager.markMouseClickHandled();
+      } else if (button === 'left') {
+        // UI 没有处理点击，检查是否点击武器投掷
+        this.handleWeaponThrow();
       }
+    }
+  }
+  
+  /**
+   * 处理武器投掷
+   */
+  handleWeaponThrow() {
+    if (!this.weaponRenderer || !this.playerEntity) return;
+    
+    // 检查是否已经投掷了武器
+    if (this.weaponRenderer.isWeaponThrown()) {
+      return;
+    }
+    
+    // 检查是否有主手武器
+    const equipment = this.playerEntity.getComponent('equipment');
+    if (!equipment || !equipment.slots.mainhand) {
+      return;
+    }
+    
+    // 获取鼠标世界坐标
+    const mouseWorldPos = this.inputManager.getMouseWorldPosition(this.camera);
+    
+    // 查找点击位置的敌人（作为最终目标）
+    const clickedEnemy = this.combatSystem.findEnemyAtPosition(mouseWorldPos, this.entities);
+    
+    // 获取玩家位置
+    const playerTransform = this.playerEntity.getComponent('transform');
+    if (!playerTransform) return;
+    
+    // 确定投掷目标位置
+    let targetPos = mouseWorldPos;
+    if (clickedEnemy) {
+      const targetTransform = clickedEnemy.getComponent('transform');
+      if (targetTransform) {
+        targetPos = targetTransform.position;
+      }
+    }
+    
+    // 投掷武器
+    const success = this.weaponRenderer.throwWeapon(
+      this.playerEntity,
+      clickedEnemy, // 可能为null
+      playerTransform.position,
+      targetPos,
+      performance.now() / 1000 // 当前时间（秒）
+    );
+    
+    if (success) {
+      console.log('BaseGameScene: 武器投掷成功', clickedEnemy ? '目标敌人' : '自由投掷');
+      this.inputManager.markMouseClickHandled();
     }
   }
 
@@ -565,21 +695,79 @@ export class BaseGameScene extends PrologueScene {
   }
 
   /**
-   * 处理自动攻击
+   * 处理自动攻击（鼠标移动时）
+   * @param {number} currentTime - 当前时间（秒）
    */
-  handleAutoAttack() {
-    if (this.combatSystem.selectedTarget && this.playerEntity) {
-      const skills = this.playerEntity.getComponent('skills');
-      if (skills) {
-        const autoAttackSkill = skills.skills.find(s => s.isAutoAttack);
-        if (autoAttackSkill) {
-          const cooldownRemaining = skills.getCooldownRemaining(autoAttackSkill.id);
-          if (cooldownRemaining <= 0) {
-            this.combatSystem.useSkill(this.playerEntity, autoAttackSkill.id, this.combatSystem.selectedTarget);
-          }
+  handleAutoAttack(currentTime) {
+    if (!this.combatSystem || !this.playerEntity || !this.weaponRenderer) return;
+    
+    // 如果武器被投掷出去，不能进行自动攻击
+    if (this.weaponRenderer.isWeaponThrown()) {
+      return;
+    }
+    
+    // 获取攻击范围
+    const attackRange = this.weaponRenderer.getAttackRange(this.playerEntity);
+    
+    // 获取玩家位置
+    const transform = this.playerEntity.getComponent('transform');
+    if (!transform) return;
+    
+    // 获取攻击范围内的所有敌人
+    const enemiesInRange = this.weaponRenderer.getEnemiesInRange(
+      transform.position, 
+      this.entities, 
+      attackRange
+    );
+    
+    if (enemiesInRange.length === 0) return;
+    
+    // 记录攻击并触发动画
+    this.weaponRenderer.recordAttack(currentTime);
+    
+    // 获取伤害倍率（基于移动速度）
+    const damageMultiplier = this.weaponRenderer.getSwipeDamageMultiplier();
+    
+    // 获取攻击类型名称
+    const attackTypeName = this.weaponRenderer.getAttackTypeName();
+    
+    // 计算击退方向（武器指向的方向）
+    const weaponAngle = this.weaponRenderer.currentMouseAngle;
+    const knockbackDir = {
+      x: Math.cos(weaponAngle),
+      y: Math.sin(weaponAngle)
+    };
+    
+    // 对范围内的所有敌人造成伤害
+    for (const enemy of enemiesInRange) {
+      const stats = this.playerEntity.getComponent('stats');
+      if (!stats) continue;
+      
+      // 计算基础伤害（使用玩家攻击力）
+      const baseDamage = stats.attack || 15;
+      const finalDamage = Math.floor(baseDamage * damageMultiplier);
+      
+      // 应用伤害和击退效果
+      this.combatSystem.applyDamage(enemy, finalDamage, knockbackDir);
+      
+      // 创建攻击特效
+      if (this.skillEffects) {
+        const enemyTransform = enemy.getComponent('transform');
+        if (enemyTransform) {
+          this.skillEffects.createSkillEffect('basic_attack', transform.position, enemyTransform.position);
         }
       }
     }
+    
+    // 显示攻击类型和伤害倍率提示
+    const movements = this.weaponRenderer.mouseMovement.movementsPerSecond;
+    const multiplierPercent = Math.floor(damageMultiplier * 100);
+    this.floatingTextManager.addText(
+      transform.position.x,
+      transform.position.y - 60,
+      `${attackTypeName}伤害 ${movements.toFixed(1)}次/秒 - ${multiplierPercent}%`,
+      attackTypeName === '刺击' ? '#ff9900' : '#00ffff'
+    );
   }
 
   /**
@@ -609,19 +797,6 @@ export class BaseGameScene extends PrologueScene {
   }
 
   /**
-   * 检查装备面板切换
-   */
-  checkEquipmentToggle() {
-    if (this.inputManager.isKeyDown('v') || this.inputManager.isKeyDown('V')) {
-      const now = Date.now();
-      if (!this.lastEquipmentToggleTime || now - this.lastEquipmentToggleTime > 300) {
-        this.equipmentPanel.toggle();
-        this.lastEquipmentToggleTime = now;
-      }
-    }
-  }
-
-  /**
    * 更新面板悬停状态
    */
   updatePanelHover() {
@@ -629,9 +804,6 @@ export class BaseGameScene extends PrologueScene {
     
     if (this.inventoryPanel.visible) {
       this.inventoryPanel.handleMouseMove(mousePos.x, mousePos.y);
-    }
-    if (this.equipmentPanel.visible) {
-      this.equipmentPanel.handleMouseMove(mousePos.x, mousePos.y);
     }
     if (this.playerInfoPanel.visible) {
       this.playerInfoPanel.handleMouseMove(mousePos.x, mousePos.y);
@@ -817,12 +989,46 @@ export class BaseGameScene extends PrologueScene {
   }
 
   /**
+   * 检查武器拾取
+   */
+  checkWeaponPickup() {
+    if (!this.weaponRenderer || !this.playerEntity) return;
+    
+    const playerTransform = this.playerEntity.getComponent('transform');
+    if (!playerTransform) return;
+    
+    // 尝试拾取武器
+    const picked = this.weaponRenderer.retrieveWeapon(this.playerEntity);
+    
+    if (picked) {
+      // 显示拾取提示
+      this.floatingTextManager.addText(
+        playerTransform.position.x,
+        playerTransform.position.y - 30,
+        '拾取武器',
+        '#00ff00'
+      );
+      console.log('BaseGameScene: 拾取武器成功');
+    }
+  }
+  
+  /**
    * 移除死亡实体
    */
   removeDeadEntities() {
+    // 找出所有已死亡的实体（isDead = true）
     const deadEntities = this.entities.filter(entity => entity.isDead);
     
     for (const entity of deadEntities) {
+      // 如果死亡的敌人身上插着武器，解除钉住状态但不收回武器
+      if (entity.pinnedByWeapon && this.weaponRenderer) {
+        entity.pinnedByWeapon = false;
+        // 武器留在原地，玩家需要自己去拾取
+        if (this.weaponRenderer.thrownWeapon.targetEntity === entity) {
+          this.weaponRenderer.thrownWeapon.targetEntity = null;
+        }
+      }
+      
       const index = this.entities.indexOf(entity);
       if (index > -1) {
         this.entities.splice(index, 1);
@@ -870,6 +1076,11 @@ export class BaseGameScene extends PrologueScene {
     // 渲染世界对象 - 子类可覆盖以添加自定义渲染
     this.renderWorldObjects(ctx);
     
+    // 渲染武器（在实体之后，特效之前）
+    if (this.weaponRenderer && this.playerEntity) {
+      this.weaponRenderer.render(ctx, this.playerEntity, this.camera);
+    }
+    
     // 恢复上下文状态
     ctx.restore();
     
@@ -903,11 +1114,6 @@ export class BaseGameScene extends PrologueScene {
     // 渲染人物信息面板
     if (this.playerInfoPanel) {
       this.playerInfoPanel.render(ctx);
-    }
-    
-    // 渲染装备面板
-    if (this.equipmentPanel) {
-      this.equipmentPanel.render(ctx);
     }
     
     // 渲染背包面板

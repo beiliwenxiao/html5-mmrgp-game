@@ -2,7 +2,7 @@ import { UIElement } from './UIElement.js';
 
 /**
  * 玩家信息面板
- * 显示玩家的姓名、职业、等级、属性和技能列表
+ * 显示玩家的姓名、职业、等级、装备和属性
  */
 export class PlayerInfoPanel extends UIElement {
   /**
@@ -12,19 +12,20 @@ export class PlayerInfoPanel extends UIElement {
    * @param {string} [options.borderColor='#4a9eff'] - 边框颜色
    * @param {string} [options.textColor='#ffffff'] - 文字颜色
    * @param {Function} [options.onAttributeAllocate] - 属性加点按钮点击回调
+   * @param {Function} [options.onEquipmentClick] - 装备点击回调
    */
   constructor(options = {}) {
     super({
       x: options.x || 10,
       y: options.y || 10,
-      width: options.width || 280,
-      height: options.height || 320,
+      width: options.width || 320,
+      height: options.height || 580,
       visible: options.visible !== undefined ? options.visible : true,
       zIndex: options.zIndex || 100
     });
     
     this.player = options.player || null;
-    this.backgroundColor = options.backgroundColor || 'rgba(0, 0, 0, 0.7)';
+    this.backgroundColor = options.backgroundColor || 'rgba(0, 0, 0, 0.85)';
     this.borderColor = options.borderColor || '#4a9eff';
     this.textColor = options.textColor || '#ffffff';
     this.labelColor = options.labelColor || '#aaaaaa';
@@ -33,25 +34,54 @@ export class PlayerInfoPanel extends UIElement {
     this.padding = 15;
     this.lineHeight = 20;
     
+    // 装备槽尺寸
+    this.equipSlotSize = 50;
+    this.equipSlotPadding = 8;
+    
     // 属性加点按钮回调
     this.onAttributeAllocate = options.onAttributeAllocate || null;
+    
+    // 装备点击回调
+    this.onEquipmentClick = options.onEquipmentClick || null;
     
     // 属性加点按钮状态
     this.attributeButtonHovered = false;
     this.attributeButtonRect = null;
     
+    // 装备槽悬停状态
+    this.hoveredEquipSlot = null;
+    this.equipSlots = {};
+    
     // 职业颜色映射
     this.classColors = {
       'warrior': '#ff6b6b',
       'mage': '#4a9eff',
-      'archer': '#51cf66'
+      'archer': '#51cf66',
+      'refugee': '#888888'
     };
     
     // 职业中文名映射
     this.classNames = {
       'warrior': '战士',
       'mage': '法师',
-      'archer': '弓箭手'
+      'archer': '弓箭手',
+      'refugee': '灾民'
+    };
+    
+    // 装备槽位置定义（3列4行布局）
+    this.equipSlotPositions = {
+      'accessory': { row: 0, col: 0, label: '饰品' },
+      'helmet': { row: 0, col: 1, label: '头盔' },
+      'necklace': { row: 0, col: 2, label: '项链' },
+      'mainhand': { row: 1, col: 0, label: '主手武器' },
+      'armor': { row: 1, col: 1, label: '胸甲' },
+      'offhand': { row: 1, col: 2, label: '副手武器' },
+      'ring1': { row: 2, col: 0, label: '戒指' },
+      'belt': { row: 2, col: 1, label: '腰带' },
+      'ring2': { row: 2, col: 2, label: '戒指' },
+      'instrument': { row: 3, col: 0, label: '器械' },
+      'boots': { row: 3, col: 1, label: '鞋子' },
+      'mount': { row: 3, col: 2, label: '坐骑' }
     };
   }
 
@@ -69,6 +99,14 @@ export class PlayerInfoPanel extends UIElement {
    */
   setOnAttributeAllocate(callback) {
     this.onAttributeAllocate = callback;
+  }
+  
+  /**
+   * 设置装备点击回调
+   * @param {Function} callback - 回调函数
+   */
+  setOnEquipmentClick(callback) {
+    this.onEquipmentClick = callback;
   }
 
   /**
@@ -97,7 +135,7 @@ export class PlayerInfoPanel extends UIElement {
 
     // 获取玩家数据
     const stats = this.player.getComponent('stats');
-    const combat = this.player.getComponent('combat');
+    const equipment = this.player.getComponent('equipment');
     
     if (!stats) return;
 
@@ -120,13 +158,14 @@ export class PlayerInfoPanel extends UIElement {
     currentY += 10;
 
     // 绘制角色名称
+    const className = this.classNames[this.player.class] || this.player.class;
     ctx.fillStyle = this.textColor;
     ctx.font = 'bold 16px Arial';
-    ctx.fillText(`${this.player.name}`, this.x + this.padding, currentY);
-    currentY += this.lineHeight + 3;
+    ctx.fillText(`${className}`, this.x + this.padding, currentY + 5);
+    
+    currentY += this.lineHeight + 5;
 
     // 绘制职业和等级
-    const className = this.classNames[this.player.class] || this.player.class;
     const classColor = this.classColors[this.player.class] || '#ffffff';
     
     ctx.fillStyle = this.labelColor;
@@ -138,11 +177,21 @@ export class PlayerInfoPanel extends UIElement {
     ctx.fillText(className, this.x + this.padding + 50, currentY);
     
     ctx.fillStyle = this.labelColor;
-    ctx.fillText('等级:', this.x + this.padding + 130, currentY);
+    ctx.fillText('等级:', this.x + this.padding + 150, currentY);
     
     ctx.fillStyle = this.textColor;
-    ctx.fillText(`${stats.level}`, this.x + this.padding + 180, currentY);
-    currentY += this.lineHeight + 8;
+    ctx.fillText(`${stats.level}`, this.x + this.padding + 190, currentY);
+    currentY += this.lineHeight + 10;
+
+    // 绘制装备区域标题
+    ctx.fillStyle = this.borderColor;
+    ctx.font = 'bold 14px Arial';
+    ctx.fillText('装备', this.x + this.padding, currentY);
+    currentY += this.lineHeight + 5;
+
+    // 绘制装备槽
+    this.renderEquipmentSlots(ctx, currentY, equipment);
+    currentY += (this.equipSlotSize + this.equipSlotPadding) * 4 + 10;
 
     // 绘制属性标题和加点按钮
     ctx.fillStyle = this.borderColor;
@@ -201,42 +250,71 @@ export class PlayerInfoPanel extends UIElement {
       ctx.fillText(attr.value.toString(), this.x + this.padding + 60, currentY);
       currentY += this.lineHeight;
     }
+  }
 
-    currentY += 5;
-
-    // 绘制技能标题
-    ctx.fillStyle = this.borderColor;
-    ctx.font = 'bold 14px Arial';
-    ctx.fillText('技能', this.x + this.padding, currentY);
-    currentY += this.lineHeight;
-
-    // 绘制技能列表
-    if (combat && combat.skills && combat.skills.length > 0) {
-      ctx.font = '12px Arial';
+  /**
+   * 渲染装备槽
+   */
+  renderEquipmentSlots(ctx, startY, equipment) {
+    this.equipSlots = {};
+    
+    const slotsPerRow = 3; // 改为3列
+    const slotWidth = this.equipSlotSize;
+    const slotHeight = this.equipSlotSize;
+    const totalWidth = slotsPerRow * slotWidth + (slotsPerRow - 1) * this.equipSlotPadding;
+    const startX = this.x + (this.width - totalWidth) / 2;
+    
+    for (const [slotType, position] of Object.entries(this.equipSlotPositions)) {
+      const slotX = startX + position.col * (slotWidth + this.equipSlotPadding);
+      const slotY = startY + position.row * (slotHeight + this.equipSlotPadding);
       
-      for (let i = 0; i < Math.min(combat.skills.length, 6); i++) {
-        const skill = combat.skills[i];
+      // 保存槽位置用于点击检测
+      this.equipSlots[slotType] = {
+        x: slotX,
+        y: slotY,
+        width: slotWidth,
+        height: slotHeight
+      };
+      
+      const isHovered = this.hoveredEquipSlot === slotType;
+      const equippedItem = equipment?.slots[slotType] || null;
+      
+      // 绘制槽背景
+      ctx.fillStyle = isHovered ? 'rgba(74, 158, 255, 0.3)' : 'rgba(50, 50, 50, 0.8)';
+      ctx.fillRect(slotX, slotY, slotWidth, slotHeight);
+      
+      // 绘制槽边框
+      ctx.strokeStyle = isHovered ? '#4a9eff' : '#666666';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(slotX, slotY, slotWidth, slotHeight);
+      
+      if (equippedItem) {
+        // 绘制装备图标（简化为颜色块）
+        const rarityColors = {
+          0: '#888888', // 普通
+          1: '#00ff00', // 优秀
+          2: '#0088ff', // 精良
+          3: '#aa00ff', // 史诗
+          4: '#ff8800'  // 传说
+        };
         
-        // 技能快捷键
-        ctx.fillStyle = this.borderColor;
-        ctx.fillText(`[${i + 1}]`, this.x + this.padding, currentY);
+        ctx.fillStyle = rarityColors[equippedItem.rarity] || '#888888';
+        ctx.fillRect(slotX + 5, slotY + 5, slotWidth - 10, slotHeight - 10);
         
-        // 技能名称
-        ctx.fillStyle = this.textColor;
-        ctx.fillText(skill.name, this.x + this.padding + 30, currentY);
-        
-        // 技能消耗
-        if (skill.manaCost > 0) {
-          ctx.fillStyle = '#4444ff';
-          ctx.fillText(`${skill.manaCost}MP`, this.x + this.padding + 180, currentY);
-        }
-        
-        currentY += this.lineHeight - 2;
+        // 绘制装备名称首字
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 16px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(equippedItem.name.charAt(0), slotX + slotWidth / 2, slotY + slotHeight / 2);
+      } else {
+        // 绘制空槽提示
+        ctx.fillStyle = '#666666';
+        ctx.font = '10px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(position.label, slotX + slotWidth / 2, slotY + slotHeight / 2);
       }
-    } else {
-      ctx.fillStyle = this.labelColor;
-      ctx.font = '12px Arial';
-      ctx.fillText('无技能', this.x + this.padding, currentY);
     }
   }
 
@@ -255,6 +333,16 @@ export class PlayerInfoPanel extends UIElement {
         x >= btn.x && x <= btn.x + btn.width &&
         y >= btn.y && y <= btn.y + btn.height
       );
+    }
+    
+    // 检查是否悬停在装备槽上
+    this.hoveredEquipSlot = null;
+    for (const [slotType, slot] of Object.entries(this.equipSlots)) {
+      if (x >= slot.x && x <= slot.x + slot.width &&
+          y >= slot.y && y <= slot.y + slot.height) {
+        this.hoveredEquipSlot = slotType;
+        break;
+      }
     }
   }
 
@@ -279,6 +367,18 @@ export class PlayerInfoPanel extends UIElement {
         console.log('PlayerInfoPanel: 点击属性加点按钮');
         if (this.onAttributeAllocate) {
           this.onAttributeAllocate(this.player);
+        }
+        return true;
+      }
+    }
+    
+    // 检查是否点击了装备槽
+    for (const [slotType, slot] of Object.entries(this.equipSlots)) {
+      if (x >= slot.x && x <= slot.x + slot.width &&
+          y >= slot.y && y <= slot.y + slot.height) {
+        console.log('PlayerInfoPanel: 点击装备槽', slotType);
+        if (this.onEquipmentClick) {
+          this.onEquipmentClick(slotType, button);
         }
         return true;
       }
