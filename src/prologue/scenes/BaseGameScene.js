@@ -30,6 +30,7 @@ import { SkillEffects } from '../../rendering/SkillEffects.js';
 import { InventoryPanel } from '../../ui/InventoryPanel.js';
 import { PlayerInfoPanel } from '../../ui/PlayerInfoPanel.js';
 import { EquipmentPanel } from '../../ui/EquipmentPanel.js';
+import { BottomControlBar } from '../../ui/BottomControlBar.js';
 import { FloatingTextManager } from '../../ui/FloatingText.js';
 import { ParticleSystem } from '../../rendering/ParticleSystem.js';
 import { Entity } from '../../ecs/Entity.js';
@@ -70,6 +71,7 @@ export class BaseGameScene extends PrologueScene {
     this.inventoryPanel = null;
     this.playerInfoPanel = null;
     this.equipmentPanel = null;
+    this.bottomControlBar = null;
     
     // 飘动文字管理器
     this.floatingTextManager = new FloatingTextManager();
@@ -210,10 +212,23 @@ export class BaseGameScene extends PrologueScene {
       }
     });
     
+    // 底部控制栏
+    this.bottomControlBar = new BottomControlBar({
+      x: 0,
+      y: this.logicalHeight - 100,
+      width: this.logicalWidth,
+      height: 100,
+      visible: true,
+      onSkillClick: (skill) => {
+        this.onSkillClicked(skill);
+      }
+    });
+    
     // 注册 UI 元素到 UIClickHandler
     this.uiClickHandler.registerElement(this.inventoryPanel);
     this.uiClickHandler.registerElement(this.equipmentPanel);
     this.uiClickHandler.registerElement(this.playerInfoPanel);
+    this.uiClickHandler.registerElement(this.bottomControlBar);
   }
 
   /**
@@ -261,6 +276,19 @@ export class BaseGameScene extends PrologueScene {
   }
 
   /**
+   * 技能点击回调
+   * @param {Object} skill - 技能对象
+   */
+  onSkillClicked(skill) {
+    console.log('BaseGameScene: 技能点击', skill);
+    
+    // 如果有选中的目标，使用技能
+    if (this.combatSystem && this.combatSystem.selectedTarget && this.playerEntity) {
+      this.combatSystem.useSkill(this.playerEntity, skill.id, this.combatSystem.selectedTarget);
+    }
+  }
+
+  /**
    * 创建玩家实体 - 子类可覆盖
    */
   createPlayerEntity() {
@@ -302,6 +330,7 @@ export class BaseGameScene extends PrologueScene {
     this.inventoryPanel.setEntity(this.playerEntity);
     this.playerInfoPanel.setPlayer(this.playerEntity);
     this.equipmentPanel.setEntity(this.playerEntity);
+    this.bottomControlBar.setEntity(this.playerEntity);
     
     console.log('BaseGameScene: 创建玩家实体', this.playerEntity);
   }
@@ -374,6 +403,7 @@ export class BaseGameScene extends PrologueScene {
     this.inventoryPanel.update(deltaTime);
     this.equipmentPanel.update(deltaTime);
     this.playerInfoPanel.update(deltaTime);
+    this.bottomControlBar.update(deltaTime);
     
     // 更新鼠标悬停状态
     this.updatePanelHover();
@@ -605,6 +635,9 @@ export class BaseGameScene extends PrologueScene {
     }
     if (this.playerInfoPanel.visible) {
       this.playerInfoPanel.handleMouseMove(mousePos.x, mousePos.y);
+    }
+    if (this.bottomControlBar.visible) {
+      this.bottomControlBar.handleMouseMove(mousePos.x, mousePos.y);
     }
   }
 
@@ -880,6 +913,11 @@ export class BaseGameScene extends PrologueScene {
     // 渲染背包面板
     if (this.inventoryPanel) {
       this.inventoryPanel.render(ctx);
+    }
+    
+    // 渲染底部控制栏
+    if (this.bottomControlBar) {
+      this.bottomControlBar.render(ctx);
     }
     
     // 渲染场景过渡

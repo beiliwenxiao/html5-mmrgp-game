@@ -75,22 +75,22 @@ export const ProgressiveTipsConfig = {
     position: 'center',
     priority: 96,
     triggerConditionId: 'progressive_tip_5_trigger',
-    prerequisites: ['progressive_tip_6'],
+    prerequisites: ['progressive_tip_4'],
     nextTip: 'progressive_tip_7'
   },
 
   // 6. 查看属性（打开背包后）
-  progressive_tip_6: {
-    id: 'progressive_tip_6',
-    title: '提示',
-    description: '查看属性',
-    text: '按 <span class="key">C</span> 查看属性',
-    position: 'center',
-    priority: 95,
-    triggerConditionId: 'progressive_tip_6_trigger',
-    prerequisites: ['progressive_tip_4'],
-    nextTip: 'progressive_tip_5'
-  },
+  // progressive_tip_6: {
+  //   id: 'progressive_tip_6',
+  //   title: '提示',
+  //   description: '查看属性',
+  //   text: '按 <span class="key">C</span> 查看属性',
+  //   position: 'center',
+  //   priority: 95,
+  //   triggerConditionId: 'progressive_tip_6_trigger',
+  //   prerequisites: ['progressive_tip_4'],
+  //   nextTip: 'progressive_tip_5'
+  // },
 
   // 7. 使用消耗品（查看属性后）
   progressive_tip_7: {
@@ -101,22 +101,22 @@ export const ProgressiveTipsConfig = {
     position: 'center',
     priority: 94,
     triggerConditionId: 'progressive_tip_7_trigger',
-    prerequisites: ['progressive_tip_6'],
-    nextTip: 'progressive_tip_7_1'
+    prerequisites: ['progressive_tip_5'],
+    nextTip: 'progressive_tip_8'
   },
 
   // 7.1 关闭属性，关闭背包
-  progressive_tip_7_1: {
-    id: 'progressive_tip_7_1',
-    title: '提示',
-    description: '关闭属性和背包',
-    text: '再次按 <span class="key">C</span>关闭属性。再次按 <span class="key">B</span> 关闭背包',
-    position: 'center',
-    priority: 93,
-    triggerConditionId: 'progressive_tip_7_1_trigger',
-    prerequisites: ['progressive_tip_7'],
-    nextTip: 'progressive_tip_8'
-  },
+  // progressive_tip_7_1: {
+  //   id: 'progressive_tip_7_1',
+  //   title: '提示',
+  //   description: '关闭属性和背包',
+  //   text: '再次按 <span class="key">C</span>关闭属性。再次按 <span class="key">B</span> 关闭背包',
+  //   position: 'center',
+  //   priority: 93,
+  //   triggerConditionId: 'progressive_tip_7_1_trigger',
+  //   prerequisites: ['progressive_tip_7'],
+  //   nextTip: 'progressive_tip_8'
+  // },
 
   // 8. 又发现物品（关闭面板后，2个装备）
   progressive_tip_8: {
@@ -127,7 +127,7 @@ export const ProgressiveTipsConfig = {
     position: 'center',
     priority: 90,
     triggerConditionId: 'progressive_tip_8_trigger',
-    prerequisites: ['progressive_tip_7_1'],
+    prerequisites: ['progressive_tip_7'],
     nextTip: 'progressive_tip_9'
   },
 

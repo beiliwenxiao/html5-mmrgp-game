@@ -92,17 +92,20 @@ export class Act2Scene extends BaseGameScene {
       if (this.equipmentPanel) {
         this.equipmentPanel.setEntity(this.playerEntity);
       }
+      if (this.bottomControlBar) {
+        this.bottomControlBar.setEntity(this.playerEntity);
+      }
       
       console.log('Act2Scene: 继承玩家实体', this.playerEntity);
     }
     
-    // 恢复玩家生命值（第二幕开始时满血）
+    // 设置玩家濒死状态（第二幕开始时生命值1点，魔法值1点）
     if (this.playerEntity) {
       const stats = this.playerEntity.getComponent('stats');
       if (stats) {
-        stats.hp = stats.maxHp;
-        stats.mp = stats.maxMp;
-        console.log('Act2Scene: 玩家生命值和魔法值已恢复');
+        stats.hp = 1;
+        stats.mp = 1;
+        console.log('Act2Scene: 玩家处于濒死状态 - HP: 1, MP: 1');
       }
     }
     
@@ -153,11 +156,11 @@ export class Act2Scene extends BaseGameScene {
       title: '觉醒',
       startNode: 'start',
       nodes: {
-        start: { speaker: '张角', text: '你醒了。你在荒野中昏倒了，我们把你救了回来。', nextNode: 'player_response' },
-        player_response: { speaker: '你', text: '这里是...？', nextNode: 'zhangjiao_explain' },
-        zhangjiao_explain: { speaker: '张角', text: '这里是我们的粥棚。乱世之中，百姓流离失所，我们在这里施粥救济灾民。', nextNode: 'player_thanks' },
-        player_thanks: { speaker: '你', text: '多谢救命之恩。', nextNode: 'zhangjiao_invite' },
-        zhangjiao_invite: { speaker: '张角', text: '不必客气。如果你愿意，可以留下来帮忙。这乱世，需要更多有志之士。', nextNode: null }
+        start: { speaker: '张角', portrait: 'zhangjiao', text: '你醒了。你在荒野中昏倒了，我们把你救了回来。', nextNode: 'player_response' },
+        player_response: { speaker: '你', portrait: 'player', text: '这里是...？', nextNode: 'zhangjiao_explain' },
+        zhangjiao_explain: { speaker: '张角', portrait: 'zhangjiao', text: '这里是我们的粥棚。乱世之中，百姓流离失所，我们在这里施粥救济灾民。', nextNode: 'player_thanks' },
+        player_thanks: { speaker: '你', portrait: 'player', text: '多谢救命之恩。', nextNode: 'zhangjiao_invite' },
+        zhangjiao_invite: { speaker: '张角', portrait: 'zhangjiao', text: '不必客气。如果你愿意，可以留下来帮忙。这乱世，需要更多有志之士。', nextNode: null }
       }
     });
 
@@ -166,11 +169,11 @@ export class Act2Scene extends BaseGameScene {
       title: '符水的真相',
       startNode: 'start',
       nodes: {
-        start: { speaker: '张角', text: '来，喝碗符水吧。', nextNode: 'player_question' },
-        player_question: { speaker: '你', text: '符水？', nextNode: 'zhangjiao_explain' },
-        zhangjiao_explain: { speaker: '张角', text: '官府不允许私人施粥，但如果说这是"仙家符水"，就合法了。', nextNode: 'player_understand' },
-        player_understand: { speaker: '你', text: '原来如此...这是智慧啊。', nextNode: 'zhangjiao_smile' },
-        zhangjiao_smile: { speaker: '张角', text: '乱世求生，需要智慧。来，喝吧，这符水能恢复你的体力。', nextNode: null }
+        start: { speaker: '张角', portrait: 'zhangjiao', text: '来，喝碗符水吧。', nextNode: 'player_question' },
+        player_question: { speaker: '你', portrait: 'player', text: '符水？', nextNode: 'zhangjiao_explain' },
+        zhangjiao_explain: { speaker: '张角', portrait: 'zhangjiao', text: '官府不允许私人施粥，但如果说这是"仙家符水"，就合法了。', nextNode: 'player_understand' },
+        player_understand: { speaker: '你', portrait: 'player', text: '原来如此...这是智慧啊。', nextNode: 'zhangjiao_smile' },
+        zhangjiao_smile: { speaker: '张角', portrait: 'zhangjiao', text: '乱世求生，需要智慧。来，喝吧，这符水能恢复你的体力。', nextNode: null }
       }
     });
 
@@ -179,9 +182,9 @@ export class Act2Scene extends BaseGameScene {
       title: '装备升级',
       startNode: 'start',
       nodes: {
-        start: { speaker: '张角', text: '你需要更好的装备来保护自己。这些给你。', nextNode: 'player_receive' },
-        player_receive: { speaker: '你', text: '这些装备...太好了！', nextNode: 'zhangjiao_advice' },
-        zhangjiao_advice: { speaker: '张角', text: '装备只是外物，真正的力量来自于你自己。', nextNode: null }
+        start: { speaker: '张角', portrait: 'zhangjiao', text: '你需要更好的装备来保护自己。这些给你。', nextNode: 'player_receive' },
+        player_receive: { speaker: '你', portrait: 'player', text: '这些装备...太好了！', nextNode: 'zhangjiao_advice' },
+        zhangjiao_advice: { speaker: '张角', portrait: 'zhangjiao', text: '装备只是外物，真正的力量来自于你自己。', nextNode: null }
       }
     });
   }

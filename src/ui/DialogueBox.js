@@ -158,16 +158,196 @@ export class DialogueBox extends UIElement {
   renderPortrait(ctx, portraitKey) {
     const portraitX = this.x + this.padding;
     const portraitY = this.y + this.padding + 40;
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+    
+    // 绘制头像背景
+    ctx.fillStyle = 'rgba(30, 30, 30, 0.9)';
     ctx.fillRect(portraitX, portraitY, this.portraitSize, this.portraitSize);
+    
+    // 绘制头像边框
     ctx.strokeStyle = this.borderColor;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 3;
     ctx.strokeRect(portraitX, portraitY, this.portraitSize, this.portraitSize);
-    ctx.fillStyle = '#666';
-    ctx.font = '14px Arial, sans-serif';
+    
+    // 根据 portraitKey 绘制不同的头像
+    ctx.save();
+    ctx.translate(portraitX + this.portraitSize / 2, portraitY + this.portraitSize / 2);
+    
+    if (portraitKey === 'zhangjiao') {
+      // 张角头像 - 道士形象
+      this.drawZhangjiaoPortrait(ctx);
+    } else if (portraitKey === 'player') {
+      // 玩家头像 - 灾民形象
+      this.drawPlayerPortrait(ctx);
+    } else {
+      // 默认头像
+      ctx.fillStyle = '#666';
+      ctx.font = '14px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('头像', 0, 0);
+    }
+    
+    ctx.restore();
+  }
+
+  /**
+   * 绘制张角头像
+   */
+  drawZhangjiaoPortrait(ctx) {
+    // 脸部（圆形）
+    ctx.fillStyle = '#f4d4a8';
+    ctx.beginPath();
+    ctx.arc(0, 0, 35, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 道士帽（黄色）
+    ctx.fillStyle = '#ffd700';
+    ctx.beginPath();
+    ctx.moveTo(-40, -10);
+    ctx.lineTo(40, -10);
+    ctx.lineTo(35, -35);
+    ctx.lineTo(-35, -35);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#b8860b';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // 帽子装饰（红色符文）
+    ctx.fillStyle = '#ff0000';
+    ctx.font = 'bold 16px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('头像', portraitX + this.portraitSize / 2, portraitY + this.portraitSize / 2);
+    ctx.fillText('太', 0, -22);
+    
+    // 眼睛
+    ctx.fillStyle = '#000000';
+    ctx.beginPath();
+    ctx.arc(-12, -5, 3, 0, Math.PI * 2);
+    ctx.arc(12, -5, 3, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 眉毛
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-18, -12);
+    ctx.lineTo(-8, -10);
+    ctx.moveTo(8, -10);
+    ctx.lineTo(18, -12);
+    ctx.stroke();
+    
+    // 胡须
+    ctx.strokeStyle = '#333333';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    // 左胡须
+    ctx.moveTo(-15, 15);
+    ctx.lineTo(-25, 25);
+    ctx.moveTo(-12, 18);
+    ctx.lineTo(-22, 30);
+    ctx.moveTo(-10, 20);
+    ctx.lineTo(-18, 32);
+    // 右胡须
+    ctx.moveTo(15, 15);
+    ctx.lineTo(25, 25);
+    ctx.moveTo(12, 18);
+    ctx.lineTo(22, 30);
+    ctx.moveTo(10, 20);
+    ctx.lineTo(18, 32);
+    ctx.stroke();
+    
+    // 嘴巴（微笑）
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 5, 8, 0.2, Math.PI - 0.2);
+    ctx.stroke();
+    
+    // 道袍领口
+    ctx.fillStyle = '#8b7355';
+    ctx.beginPath();
+    ctx.moveTo(-30, 35);
+    ctx.lineTo(-15, 45);
+    ctx.lineTo(15, 45);
+    ctx.lineTo(30, 35);
+    ctx.lineTo(0, 35);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  /**
+   * 绘制玩家头像
+   */
+  drawPlayerPortrait(ctx) {
+    // 脸部（圆形，略显憔悴）
+    ctx.fillStyle = '#e8c4a0';
+    ctx.beginPath();
+    ctx.arc(0, 0, 35, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 头发（凌乱的黑发）
+    ctx.fillStyle = '#2c2c2c';
+    ctx.beginPath();
+    ctx.arc(-20, -20, 15, 0, Math.PI * 2);
+    ctx.arc(0, -25, 18, 0, Math.PI * 2);
+    ctx.arc(20, -20, 15, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 眼睛（疲惫的眼神）
+    ctx.fillStyle = '#000000';
+    ctx.beginPath();
+    ctx.arc(-12, -3, 2, 0, Math.PI * 2);
+    ctx.arc(12, -3, 2, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 眼袋
+    ctx.strokeStyle = '#c4a080';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(-12, 0, 5, 0, Math.PI);
+    ctx.arc(12, 0, 5, 0, Math.PI);
+    ctx.stroke();
+    
+    // 眉毛（皱眉）
+    ctx.strokeStyle = '#2c2c2c';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-18, -10);
+    ctx.lineTo(-8, -8);
+    ctx.moveTo(8, -8);
+    ctx.lineTo(18, -10);
+    ctx.stroke();
+    
+    // 嘴巴（紧闭）
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-8, 12);
+    ctx.lineTo(8, 12);
+    ctx.stroke();
+    
+    // 破旧衣服
+    ctx.fillStyle = '#6b5d4f';
+    ctx.beginPath();
+    ctx.moveTo(-30, 35);
+    ctx.lineTo(-20, 45);
+    ctx.lineTo(20, 45);
+    ctx.lineTo(30, 35);
+    ctx.lineTo(0, 35);
+    ctx.closePath();
+    ctx.fill();
+    
+    // 衣服补丁
+    ctx.strokeStyle = '#4a3f35';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-15, 38);
+    ctx.lineTo(-10, 38);
+    ctx.lineTo(-10, 42);
+    ctx.lineTo(-15, 42);
+    ctx.closePath();
+    ctx.stroke();
   }
 
   renderSpeaker(ctx, speaker) {
