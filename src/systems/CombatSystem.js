@@ -321,6 +321,8 @@ export class CombatSystem {
    * @param {CanvasRenderingContext2D} ctx - 渲染上下文
    */
   renderDamageNumbers(ctx) {
+    if (this.damageNumbers.length === 0) return;
+    
     ctx.save();
     
     for (const dn of this.damageNumbers) {
@@ -330,15 +332,18 @@ export class CombatSystem {
       // 计算透明度（根据生命周期）
       const alpha = dn.life / dn.maxLife;
       
+      // 计算缩放（开始时放大，然后缩小）
+      const scale = alpha > 0.8 ? 1.0 + (1.0 - alpha) * 2 : 1.0;
+      
       // 绘制数字
       ctx.globalAlpha = alpha;
-      ctx.fillStyle = dn.isHeal ? '#00ff00' : '#ff0000'; // 治疗为绿色，伤害为红色
+      ctx.fillStyle = dn.isHeal ? '#00ff00' : '#ffff00'; // 治疗为绿色，伤害为黄色
       ctx.strokeStyle = '#000000';
-      ctx.font = 'bold 20px Arial';
+      ctx.font = `bold ${Math.floor(24 * scale)}px Arial`;
       ctx.textAlign = 'center';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 4;
       
-      const text = dn.isHeal ? `+${dn.damage}` : dn.damage.toString();
+      const text = dn.isHeal ? `+${dn.damage}` : `-${dn.damage}`;
       
       // 描边
       ctx.strokeText(text, screenPos.x, screenPos.y);

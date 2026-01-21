@@ -824,8 +824,6 @@ export class Act1SceneECS extends BaseGameScene {
     const ePressed = this.inputManager.isKeyDown('e') || this.inputManager.isKeyDown('E');
     if (!ePressed) return;
     
-    console.log('Act1SceneECS: E键被按下，检查火堆距离');
-    
     const transform = this.playerEntity.getComponent('transform');
     if (!transform) return;
     
@@ -840,6 +838,7 @@ export class Act1SceneECS extends BaseGameScene {
     // 如果玩家靠近火堆（距离小于60），点燃火堆
     if (distance <= 60) {
       this.lightCampfire();
+      console.log('Act1SceneECS: 点燃火堆');
     }
   }
 

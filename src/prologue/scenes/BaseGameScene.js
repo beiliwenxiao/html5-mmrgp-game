@@ -371,8 +371,8 @@ export class BaseGameScene extends PrologueScene {
         const currentTime = performance.now() / 1000; // 转换为秒
         this.weaponRenderer.updateMouseAngle(mouseWorldPos, transform.position, currentTime);
         
-        // 检测自动攻击（鼠标移动时）
-        if (this.weaponRenderer.canAutoAttack(currentTime)) {
+        // 检测攻击（鼠标移动时自动攻击）
+        if (this.weaponRenderer.canAutoAttack(currentTime, this.playerEntity)) {
           this.handleAutoAttack(currentTime);
         }
       }
@@ -394,9 +394,6 @@ export class BaseGameScene extends PrologueScene {
     
     // 处理敌人选中
     this.handleEnemySelection();
-    
-    // 自动攻击逻辑
-    this.handleAutoAttack();
     
     // 更新AI系统
     this.aiSystem.update(deltaTime, this.entities, this.combatSystem);
@@ -722,11 +719,14 @@ export class BaseGameScene extends PrologueScene {
     
     if (enemiesInRange.length === 0) return;
     
+    // 检查武器是否就绪
+    const isWeaponReady = this.weaponRenderer.weaponCooldown.isReady;
+    
     // 记录攻击并触发动画
     this.weaponRenderer.recordAttack(currentTime);
     
-    // 获取伤害倍率（基于移动速度）
-    const damageMultiplier = this.weaponRenderer.getSwipeDamageMultiplier();
+    // 获取伤害倍率（基于武器就绪状态和移动速度）
+    const damageMultiplier = this.weaponRenderer.getSwipeDamageMultiplier(isWeaponReady);
     
     // 获取攻击类型名称
     const attackTypeName = this.weaponRenderer.getAttackTypeName();
@@ -743,9 +743,15 @@ export class BaseGameScene extends PrologueScene {
       const stats = this.playerEntity.getComponent('stats');
       if (!stats) continue;
       
-      // 计算基础伤害（使用玩家攻击力）
-      const baseDamage = stats.attack || 15;
-      const finalDamage = Math.floor(baseDamage * damageMultiplier);
+      let finalDamage;
+      if (!isWeaponReady) {
+        // 冷却中：damageMultiplier 是固定伤害值（0-5）
+        finalDamage = Math.floor(damageMultiplier);
+      } else {
+        // 就绪：damageMultiplier 是倍率，需要乘以基础攻击力
+        const baseDamage = stats.attack || 15;
+        finalDamage = Math.floor(baseDamage * damageMultiplier);
+      }
       
       // 应用伤害和击退效果
       this.combatSystem.applyDamage(enemy, finalDamage, knockbackDir);
@@ -759,14 +765,29 @@ export class BaseGameScene extends PrologueScene {
       }
     }
     
-    // 显示攻击类型和伤害倍率提示
-    const movements = this.weaponRenderer.mouseMovement.movementsPerSecond;
-    const multiplierPercent = Math.floor(damageMultiplier * 100);
+    // 显示攻击类型和伤害提示
+    const speedKmh = this.weaponRenderer.mouseMovement.speedKmh;
+    
+    // 根据武器状态显示不同内容和颜色
+    let displayText;
+    let textColor;
+    if (!isWeaponReady) {
+      // 冷却中：显示灰色，只显示伤害数值（damageMultiplier就是伤害值0-5）
+      const actualDamage = Math.floor(damageMultiplier);
+      displayText = `${attackTypeName} [冷却] ${actualDamage}`;
+      textColor = '#888888'; // 灰色
+    } else {
+      // 就绪：显示正常颜色和详细信息
+      const multiplierPercent = Math.floor(damageMultiplier * 100);
+      displayText = `${attackTypeName} 速度${speedKmh.toFixed(1)}km/h 伤害${multiplierPercent}%`;
+      textColor = attackTypeName === '刺击' ? '#ff9900' : '#00ffff';
+    }
+    
     this.floatingTextManager.addText(
       transform.position.x,
       transform.position.y - 60,
-      `${attackTypeName}伤害 ${movements.toFixed(1)}次/秒 - ${multiplierPercent}%`,
-      attackTypeName === '刺击' ? '#ff9900' : '#00ffff'
+      displayText,
+      textColor
     );
   }
 

@@ -13,7 +13,8 @@ export class WeaponRenderer {
         color: '#8B4513',
         type: 'melee',
         attackRange: 1,  // 攻击范围倍率（武器长度的1倍）
-        throwRange: 10   // 投掷范围倍率（武器长度的10倍）
+        throwRange: 10,  // 投掷范围倍率（武器长度的10倍）
+        attackSpeed: 1.0 // 每秒攻击1次
       },
       'default': {
         length: 48,
@@ -21,8 +22,15 @@ export class WeaponRenderer {
         color: '#888888',
         type: 'melee',
         attackRange: 3,  // 攻击范围倍率
-        throwRange: 10   // 投掷范围倍率
+        throwRange: 10,  // 投掷范围倍率
+        attackSpeed: 1.0 // 每秒攻击1次
       }
+    };
+    
+    // 武器冷却状态
+    this.weaponCooldown = {
+      lastAttackTime: 0,  // 上次攻击时间（秒）
+      isReady: true       // 武器是否就绪
     };
     
     // 攻击动画状态
@@ -50,7 +58,11 @@ export class WeaponRenderer {
       thrustMovements: 0, // 刺击移动次数
       sweepMovements: 0, // 扫击移动次数
       lastMouseDistance: 0, // 上次鼠标到玩家的距离
-      playerRadius: 20 // 玩家半径
+      playerRadius: 20, // 玩家半径
+      totalDistance: 0, // 总滑动距离（像素）
+      totalTime: 0, // 总滑动时间（秒）
+      averageSpeed: 0, // 平均速度（像素/秒）
+      speedKmh: 0 // 速度（公里/小时）
     };
     
     // 武器投掷状态
@@ -217,12 +229,23 @@ export class WeaponRenderer {
         movementType = 'thrust'; // 刺击：上下移动（靠近或远离玩家）
       }
       
+      // 计算实际移动距离（像素）
+      // 对于扫击：弧长 = 角度变化 × 距离
+      // 对于刺击：直线距离 = 距离变化
+      let actualDistance = 0;
+      if (movementType === 'sweep') {
+        actualDistance = angleChangeAbs * currentDistance;
+      } else {
+        actualDistance = distanceChangeAbs;
+      }
+      
       // 添加新的移动记录
       this.mouseMovement.movements.push({
         time: currentTime,
         angleChange: angleDiff,
         distanceChange: distanceChange,
-        type: movementType
+        type: movementType,
+        distance: actualDistance
       });
       
       // 记录最后的移动类型
@@ -236,6 +259,16 @@ export class WeaponRenderer {
     this.mouseMovement.movementsPerSecond = this.mouseMovement.movements.length;
     this.mouseMovement.thrustMovements = this.mouseMovement.movements.filter(m => m.type === 'thrust').length;
     this.mouseMovement.sweepMovements = this.mouseMovement.movements.filter(m => m.type === 'sweep').length;
+    
+    // 计算总滑动距离和平均速度
+    this.mouseMovement.totalDistance = this.mouseMovement.movements.reduce((sum, m) => sum + (m.distance || 0), 0);
+    this.mouseMovement.totalTime = this.mouseMovement.timeWindow;
+    this.mouseMovement.averageSpeed = this.mouseMovement.totalDistance / this.mouseMovement.totalTime;
+    
+    // 转换为公里/小时（1像素 ≈ 1厘米，假设游戏世界比例）
+    // 像素/秒 → 厘米/秒 → 米/秒 → 公里/小时
+    // 速度(km/h) = 速度(像素/秒) × 0.01(米/像素) × 3.6(km/h / m/s)
+    this.mouseMovement.speedKmh = this.mouseMovement.averageSpeed * 0.036;
     
     this.lastMouseAngle = this.currentMouseAngle;
     this.currentMouseAngle = newAngle;
@@ -253,45 +286,83 @@ export class WeaponRenderer {
   }
 
   /**
-   * 获取攻击伤害倍率（基于移动速度）
-   * @returns {number} 伤害倍率 (0.5 - 2.0)
+   * 获取攻击伤害倍率（基于鼠标移动速度）
+   * 如果武器冷却中，返回固定的低伤害值（0-5）
+   * @param {boolean} isWeaponReady - 武器是否就绪（冷却完成）
+   * @returns {number} 伤害倍率或固定伤害值
    */
-  getSwipeDamageMultiplier() {
-    const movements = this.mouseMovement.movementsPerSecond;
-    
-    // 根据每秒移动次数计算伤害倍率
-    // 1次/秒 = 50%, 3次/秒 = 80%, 5次/秒 = 100%, 10次/秒 = 200%
-    if (movements <= 0) {
-      return 0.5; // 最低50%
-    } else if (movements <= 1) {
-      return 0.5; // 1次/秒 = 50%
-    } else if (movements <= 3) {
-      // 1-3次/秒：50% -> 80%
-      return 0.5 + (movements - 1) * 0.15;
-    } else if (movements <= 5) {
-      // 3-5次/秒：80% -> 100%
-      return 0.8 + (movements - 3) * 0.1;
-    } else if (movements <= 10) {
-      // 5-10次/秒：100% -> 200%
-      return 1.0 + (movements - 5) * 0.2;
-    } else {
-      return 2.0; // 最高200%
+  getSwipeDamageMultiplier(isWeaponReady = true) {
+    // 如果武器在冷却中，返回随机0-5的固定伤害（不是倍率）
+    if (!isWeaponReady) {
+      return Math.random() * 5; // 0-5的随机数
     }
+    
+    const speedKmh = this.mouseMovement.speedKmh;
+    
+    // 如果没有移动，返回最低倍率
+    if (speedKmh <= 0) {
+      return 0.5;
+    }
+    
+    // 基于速度的线性计算伤害倍率
+    // 100 km/h → 110% (1.1倍)
+    // 1000 km/h → 300% (3.0倍)
+    // 
+    // 线性公式：y = kx + b
+    // 已知两点：(100, 1.1) 和 (1000, 3.0)
+    // 斜率 k = (3.0 - 1.1) / (1000 - 100) = 1.9 / 900 ≈ 0.00211
+    // 截距 b = 1.1 - 0.00211 × 100 = 1.1 - 0.211 = 0.889
+    // 
+    // 公式：multiplier = 0.00211 × speedKmh + 0.889
+    
+    const multiplier = 0.00211 * speedKmh + 0.889;
+    
+    // 限制范围：最低50%，最高300%
+    return Math.max(0.5, Math.min(3.0, multiplier));
+  }
+
+  /**
+   * 检查武器是否就绪（冷却完成）
+   * @param {number} currentTime - 当前时间（秒）
+   * @param {Entity} entity - 实体（用于获取武器配置）
+   * @returns {boolean}
+   */
+  isWeaponReady(currentTime, entity) {
+    // 获取武器配置
+    const equipment = entity?.getComponent('equipment');
+    const mainhandWeapon = equipment?.slots?.mainhand;
+    const config = mainhandWeapon 
+      ? (this.weaponConfigs[mainhandWeapon.id] || this.weaponConfigs.default)
+      : this.weaponConfigs.default;
+    
+    // 计算冷却时间（攻击速度的倒数）
+    const cooldownTime = 1.0 / config.attackSpeed;
+    
+    // 检查是否冷却完成
+    const timeSinceLastAttack = currentTime - this.weaponCooldown.lastAttackTime;
+    this.weaponCooldown.isReady = timeSinceLastAttack >= cooldownTime;
+    
+    return this.weaponCooldown.isReady;
   }
 
   /**
    * 检查是否可以进行自动攻击
    * @param {number} currentTime - 当前时间（秒）
+   * @param {Entity} entity - 实体（用于获取武器配置）
    * @returns {boolean}
    */
-  canAutoAttack(currentTime) {
-    // 检查冷却时间
-    if (currentTime - this.mouseMovement.lastAttackTime < this.mouseMovement.attackCooldown) {
+  canAutoAttack(currentTime, entity) {
+    // 更新武器冷却状态
+    this.isWeaponReady(currentTime, entity);
+    
+    // 检查最小攻击间隔（防止攻击过于频繁）
+    const timeSinceLastAttack = currentTime - this.mouseMovement.lastAttackTime;
+    if (timeSinceLastAttack < this.mouseMovement.attackCooldown) {
       return false;
     }
     
-    // 检查是否有移动
-    return this.mouseMovement.movementsPerSecond > 0;
+    // 只要有鼠标移动就可以攻击（不管武器是否冷却完成）
+    return this.mouseMovement.movementsPerSecond > 0 && this.mouseMovement.totalDistance > 0;
   }
 
   /**
@@ -299,7 +370,19 @@ export class WeaponRenderer {
    * @param {number} currentTime - 当前时间（秒）
    */
   recordAttack(currentTime) {
+    // 更新最后攻击时间（用于最小攻击间隔检查）
     this.mouseMovement.lastAttackTime = currentTime;
+    
+    // 只有在武器就绪时才重置武器冷却时间
+    if (this.weaponCooldown.isReady) {
+      this.weaponCooldown.lastAttackTime = currentTime;
+      this.weaponCooldown.isReady = false;
+    }
+    
+    // 如果没有移动类型，不触发攻击
+    if (!this.mouseMovement.lastMovementType) {
+      return;
+    }
     
     // 根据最后的移动类型决定攻击类型
     if (this.mouseMovement.lastMovementType === 'thrust') {
