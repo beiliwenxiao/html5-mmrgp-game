@@ -1172,7 +1172,7 @@ export class Act1SceneECS extends BaseGameScene {
     }
     
     // 使用父类的过渡方法
-    setTimeout(() => this.startTransition('你累昏了过去...'), 1000);
+    setTimeout(() => this.startTransition('眼前一黑，你晕了过去...'), 1000);
   }
 
   /**
