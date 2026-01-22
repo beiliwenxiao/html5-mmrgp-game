@@ -166,8 +166,8 @@ export class BaseGameScene extends PrologueScene {
       inputManager: this.inputManager,
       camera: this.camera
     });
-    // 不限制地图边界，允许玩家和相机自由移动
-    // this.movementSystem.setMapBounds(0, 0, 800, 600);
+    // 设置无限地图边界，允许玩家和相机自由移动
+    this.movementSystem.setMapBounds(-Infinity, -Infinity, Infinity, Infinity);
     
     this.equipmentSystem = new EquipmentSystem();
     

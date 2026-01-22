@@ -29,8 +29,11 @@ export class Camera {
     
     // 跟随目标
     this.target = null;
-    this.followSpeed = 0.1; // 平滑跟随速度 (0-1)
-    this.deadzone = { x: 100, y: 100 }; // 死区大小
+    this.followSpeed = 0.15; // 平滑跟随速度 (0-1)，提高到0.15减少延迟
+    this.deadzone = { x: 50, y: 50 }; // 死区大小，减小到50减少抖动
+    
+    // 外部控制标志（用于飞行等特殊情况）
+    this.externalControl = false;
   }
 
   /**
@@ -106,26 +109,16 @@ export class Camera {
   update(deltaTime) {
     if (!this.target) return;
     
+    // 如果相机被外部控制（如飞行系统），跳过自动跟随
+    if (this.externalControl) return;
+    
     // 获取目标位置
     const targetPos = this.target.position || this.target;
     
-    // 计算目标与相机中心的距离
-    const dx = targetPos.x - this.position.x;
-    const dy = targetPos.y - this.position.y;
-    
-    // 死区检测 - 只有当目标离开死区时才移动相机
-    const absDx = Math.abs(dx);
-    const absDy = Math.abs(dy);
-    
-    if (absDx > this.deadzone.x || absDy > this.deadzone.y) {
-      console.log('相机update: 目标位置', targetPos.x, targetPos.y, '相机位置', this.position.x, this.position.y, '距离', dx, dy);
-      // 平滑跟随
-      this.position.x += dx * this.followSpeed;
-      this.position.y += dy * this.followSpeed;
-      console.log('相机update后: 新位置', this.position.x, this.position.y);
-      // 不再限制相机边界，允许自由移动
-      // this.clampToBounds();
-    }
+    // 直接让相机跟随目标，不使用死区和平滑
+    // 对坐标取整，避免浮点数导致的像素抖动
+    this.position.x = Math.round(targetPos.x);
+    this.position.y = Math.round(targetPos.y);
   }
 
   /**
@@ -203,11 +196,12 @@ export class Camera {
     const halfWidth = this.width / 2;
     const halfHeight = this.height / 2;
     
+    // 对边界坐标取整，避免浮点数导致的渲染抖动
     return {
-      left: this.position.x - halfWidth,
-      right: this.position.x + halfWidth,
-      top: this.position.y - halfHeight,
-      bottom: this.position.y + halfHeight
+      left: Math.round(this.position.x - halfWidth),
+      right: Math.round(this.position.x + halfWidth),
+      top: Math.round(this.position.y - halfHeight),
+      bottom: Math.round(this.position.y + halfHeight)
     };
   }
 }
