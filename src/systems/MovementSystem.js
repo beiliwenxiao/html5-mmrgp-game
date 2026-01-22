@@ -84,8 +84,8 @@ export class MovementSystem {
     // 处理键盘移动输入
     this.handleKeyboardInput(entities);
     
-    // 移除点击移动功能
-    // this.handleClickMovement(entities);
+    // 处理点击移动
+    this.handleClickMovement(entities);
     
     // 更新所有实体的移动
     for (const entity of entities) {
@@ -178,6 +178,14 @@ export class MovementSystem {
     if (this.inputManager.isMouseClicked() && 
         this.inputManager.getMouseButton() === 0 &&
         !this.inputManager.isMouseClickHandled()) {
+      
+      // 如果按住了Shift键或Ctrl键，不处理点击移动（这些是特殊操作）
+      const shiftPressed = this.inputManager.isKeyDown('shift');
+      const ctrlPressed = this.inputManager.isKeyDown('ctrl');
+      if (shiftPressed || ctrlPressed) {
+        return;
+      }
+      
       // 只处理玩家实体的点击移动
       const playerEntity = this.playerEntity || entities.find(e => e.type === 'player');
       if (!playerEntity) return;
@@ -208,6 +216,9 @@ export class MovementSystem {
       if (sprite && sprite.currentAnimation !== 'walk') {
         sprite.playAnimation('walk');
       }
+      
+      // 标记点击已处理
+      this.inputManager.markMouseClickHandled();
     }
   }
   

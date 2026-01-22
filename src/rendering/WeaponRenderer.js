@@ -435,20 +435,20 @@ export class WeaponRenderer {
     
     if (!transform || !equipment) return;
     
-    const viewBounds = camera.getViewBounds();
-    const screenX = transform.position.x - viewBounds.left;
-    const screenY = transform.position.y - viewBounds.top;
+    // 直接使用世界坐标（因为ctx已经应用了相机变换）
+    const worldX = Math.round(transform.position.x);
+    const worldY = Math.round(transform.position.y);
     
     // 渲染主手武器
     const mainhandWeapon = equipment.slots.mainhand;
     if (mainhandWeapon) {
-      this.renderWeapon(ctx, mainhandWeapon, screenX, screenY, 'mainhand');
+      this.renderWeapon(ctx, mainhandWeapon, worldX, worldY, 'mainhand');
     }
     
     // 渲染副手武器
     const offhandWeapon = equipment.slots.offhand;
     if (offhandWeapon) {
-      this.renderWeapon(ctx, offhandWeapon, screenX, screenY, 'offhand');
+      this.renderWeapon(ctx, offhandWeapon, worldX, worldY, 'offhand');
     }
   }
   
@@ -461,12 +461,13 @@ export class WeaponRenderer {
     if (!this.thrownWeapon.position) return;
     
     const config = this.weaponConfigs[this.thrownWeapon.weaponId] || this.weaponConfigs.default;
-    const viewBounds = camera.getViewBounds();
-    const screenX = this.thrownWeapon.position.x - viewBounds.left;
-    const screenY = this.thrownWeapon.position.y - viewBounds.top;
+    
+    // 直接使用世界坐标（因为ctx已经应用了相机变换）
+    const worldX = Math.round(this.thrownWeapon.position.x);
+    const worldY = Math.round(this.thrownWeapon.position.y);
     
     ctx.save();
-    ctx.translate(screenX, screenY);
+    ctx.translate(worldX, worldY);
     ctx.rotate(this.thrownWeapon.angle);
     
     // 绘制武器（插在目标身上，所以从中心点开始）
@@ -480,14 +481,14 @@ export class WeaponRenderer {
       ctx.fillStyle = '#ffff00';
       ctx.font = 'bold 14px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText('按E拾取', screenX, screenY - 30);
+      ctx.fillText('按E拾取', worldX, worldY - 30);
       
       // 绘制拾取范围圆圈
       ctx.strokeStyle = '#ffff00';
       ctx.lineWidth = 2;
       ctx.setLineDash([5, 5]);
       ctx.beginPath();
-      ctx.arc(screenX, screenY, 50, 0, Math.PI * 2);
+      ctx.arc(worldX, worldY, 50, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }

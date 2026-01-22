@@ -692,8 +692,13 @@ export class BaseGameScene extends PrologueScene {
       if (uiHandled) {
         this.inputManager.markMouseClickHandled();
       } else if (button === 'left') {
-        // UI 没有处理点击，检查是否点击武器投掷
-        this.handleWeaponThrow();
+        // UI 没有处理点击
+        // 检查是否按住Shift键 - 如果是，则投掷武器
+        const shiftPressed = this.inputManager.isKeyDown('shift');
+        if (shiftPressed) {
+          this.handleWeaponThrow();
+        }
+        // 否则，点击移动由 MovementSystem 处理（不需要在这里处理）
       }
     }
   }
