@@ -25,3 +25,4 @@ export { ProgressManager } from './ProgressManager.js';
 export { ClassSystem, ClassType, ClassNames, ClassInstructors, ClassData, SpecializationData } from './ClassSystem.js';
 export { AISystem } from './AISystem.js';
 export { NPCRecruitmentSystem } from './NPCRecruitmentSystem.js';
+export { FlightSystem } from './FlightSystem.js';

@@ -33,6 +33,7 @@ import { BottomControlBar } from '../../ui/BottomControlBar.js';
 import { FloatingTextManager } from '../../ui/FloatingText.js';
 import { ParticleSystem } from '../../rendering/ParticleSystem.js';
 import { WeaponRenderer } from '../../rendering/WeaponRenderer.js';
+import { FlightSystem } from '../../systems/FlightSystem.js';
 import { Entity } from '../../ecs/Entity.js';
 import { TransformComponent } from '../../ecs/components/TransformComponent.js';
 import { SpriteComponent } from '../../ecs/components/SpriteComponent.js';
@@ -61,6 +62,7 @@ export class BaseGameScene extends PrologueScene {
     this.combatEffects = null;
     this.skillEffects = null;
     this.weaponRenderer = null;
+    this.flightSystem = null;
     this.uiClickHandler = new UIClickHandler();
     
     // 序章系统
@@ -96,10 +98,6 @@ export class BaseGameScene extends PrologueScene {
     this.lastPlayerInfoToggleTime = 0;
     this.lastInventoryToggleTime = 0;
     this.lastPickupTime = 0;
-    
-    // 轻功飞行状态
-    this.isFlying = false;
-    this.flyingData = null;
     
     // 场景过渡状态
     this.isTransitioning = false;
@@ -143,6 +141,13 @@ export class BaseGameScene extends PrologueScene {
     
     // 初始化武器渲染器
     this.weaponRenderer = new WeaponRenderer();
+    
+    // 初始化轻功飞行系统
+    this.flightSystem = new FlightSystem({
+      particleSystem: this.particleSystem,
+      floatingTextManager: this.floatingTextManager,
+      camera: this.camera
+    });
     
     // 初始化游戏系统
     this.combatSystem = new CombatSystem({
@@ -447,9 +452,12 @@ export class BaseGameScene extends PrologueScene {
     // 处理Ctrl+鼠标左键瞬移
     this.handleTeleport();
     
-    // 更新轻功飞行
-    if (this.isFlying) {
-      this.updateFlying(deltaTime);
+    // 更新轻功飞行系统
+    if (this.flightSystem && this.playerEntity) {
+      const transform = this.playerEntity.getComponent('transform');
+      if (transform) {
+        this.flightSystem.update(deltaTime, transform);
+      }
     }
     
     // 更新移动系统
@@ -699,7 +707,7 @@ export class BaseGameScene extends PrologueScene {
     }
     
     // 如果正在飞行中，不允许再次触发
-    if (this.isFlying) {
+    if (this.flightSystem && this.flightSystem.isPlayerFlying()) {
       this.inputManager.markMouseClickHandled();
       return;
     }
@@ -718,32 +726,14 @@ export class BaseGameScene extends PrologueScene {
       // 使用相机的screenToWorld方法转换坐标
       const mouseWorld = this.camera.screenToWorld(mouseScreenPos.x, mouseScreenPos.y);
       
-      // 计算距离
-      const dx = mouseWorld.x - transform.position.x;
-      const dy = mouseWorld.y - transform.position.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      
-      // 最大轻功距离：20个身位 = 20 × 32像素 = 640像素
-      const maxTeleportDistance = 640;
-      
-      let targetX, targetY;
-      
-      if (distance <= maxTeleportDistance) {
-        // 距离在范围内，直接飞到目标位置
-        targetX = mouseWorld.x;
-        targetY = mouseWorld.y;
-      } else {
-        // 距离超出范围，飞到最大距离处
-        const ratio = maxTeleportDistance / distance;
-        targetX = transform.position.x + dx * ratio;
-        targetY = transform.position.y + dy * ratio;
+      // 使用飞行系统开始飞行
+      if (this.flightSystem) {
+        const success = this.flightSystem.startFlight(transform, mouseWorld.x, mouseWorld.y);
+        if (success) {
+          // 标记点击已处理
+          this.inputManager.markMouseClickHandled();
+        }
       }
-      
-      // 开始飞行动画
-      this.startFlying(transform.position.x, transform.position.y, targetX, targetY);
-      
-      // 标记点击已处理
-      this.inputManager.markMouseClickHandled();
       
     } catch (error) {
       console.error('轻功过程中发生错误:', error);
@@ -1482,6 +1472,10 @@ export class BaseGameScene extends PrologueScene {
       this.inputManager.destroy();
     }
     
+    if (this.flightSystem) {
+      this.flightSystem.cleanup();
+    }
+    
     this.tutorialSystem.cleanup();
     
     for (const entity of this.entities) {
@@ -1490,171 +1484,6 @@ export class BaseGameScene extends PrologueScene {
     this.entities = [];
     
     console.log(`BaseGameScene: 退出场景 ${this.name}`);
-  }
-
-  /**
-   * 开始飞行动画
-   */
-  startFlying(startX, startY, targetX, targetY) {
-    this.isFlying = true;
-    this.flyingData = {
-      startX: startX,
-      startY: startY,
-      targetX: targetX,
-      targetY: targetY,
-      progress: 0,
-      phase: 'charge', // 阶段：charge(蓄力) -> fly(飞行) -> land(落地)
-      chargeTime: 0,
-      chargeDuration: 0.3, // 蓄力0.3秒
-      flyDuration: 0.5, // 飞行0.5秒
-      landDuration: 0.2 // 落地0.2秒
-    };
-    
-    // 创建起飞烟雾特效
-    this.createTakeoffSmoke(startX, startY);
-    
-    console.log('开始轻功飞行:', { startX, startY, targetX, targetY });
-  }
-  
-  /**
-   * 更新飞行动画
-   */
-  updateFlying(deltaTime) {
-    if (!this.isFlying || !this.flyingData) return;
-    
-    const data = this.flyingData;
-    const transform = this.playerEntity.getComponent('transform');
-    if (!transform) return;
-    
-    if (data.phase === 'charge') {
-      // 蓄力阶段：玩家轻微下蹲
-      data.chargeTime += deltaTime;
-      const chargeProgress = Math.min(1, data.chargeTime / data.chargeDuration);
-      
-      // 轻微下蹲效果（Y轴偏移）
-      const squatOffset = Math.sin(chargeProgress * Math.PI) * 5;
-      transform.position.y = data.startY + squatOffset;
-      
-      if (chargeProgress >= 1) {
-        // 蓄力完成，进入飞行阶段
-        data.phase = 'fly';
-        data.progress = 0;
-      }
-    } else if (data.phase === 'fly') {
-      // 飞行阶段：平滑移动到目标点
-      data.progress += deltaTime / data.flyDuration;
-      
-      if (data.progress >= 1) {
-        // 飞行完成，进入落地阶段
-        data.phase = 'land';
-        data.progress = 0;
-        transform.position.x = data.targetX;
-        transform.position.y = data.targetY;
-        
-        // 创建落地烟雾特效
-        this.createLandingSmoke(data.targetX, data.targetY);
-        
-        // 显示轻功飘字
-        this.floatingTextManager.addText(
-          data.targetX,
-          data.targetY - 40,
-          '轻功',
-          '#cccccc'
-        );
-      } else {
-        // 使用缓动函数实现平滑飞行
-        const easeProgress = this.easeInOutQuad(data.progress);
-        
-        // 计算当前位置
-        const currentX = data.startX + (data.targetX - data.startX) * easeProgress;
-        const currentY = data.startY + (data.targetY - data.startY) * easeProgress;
-        
-        // 添加抛物线效果（向上的弧线）
-        const arcHeight = 50; // 飞行弧线高度
-        const arcOffset = Math.sin(easeProgress * Math.PI) * arcHeight;
-        
-        transform.position.x = currentX;
-        transform.position.y = currentY - arcOffset;
-        
-        // 相机跟随玩家
-        this.camera.position.x = transform.position.x;
-        this.camera.position.y = transform.position.y;
-      }
-    } else if (data.phase === 'land') {
-      // 落地阶段：轻微缓冲
-      data.progress += deltaTime / data.landDuration;
-      
-      if (data.progress >= 1) {
-        // 落地完成，结束飞行
-        this.isFlying = false;
-        this.flyingData = null;
-        console.log('=== 轻功完成 ===');
-      } else {
-        // 落地缓冲效果（轻微下蹲再恢复）
-        const landProgress = data.progress;
-        const bounceOffset = Math.sin(landProgress * Math.PI) * 3;
-        transform.position.y = data.targetY + bounceOffset;
-      }
-    }
-  }
-  
-  /**
-   * 缓动函数：ease-in-out-quad
-   */
-  easeInOutQuad(t) {
-    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-  }
-  
-  /**
-   * 创建起飞烟雾
-   */
-  createTakeoffSmoke(x, y) {
-    const startRadius = 16;
-    for (let i = 0; i < 12; i++) {
-      const angle = Math.PI * (i / 12);
-      const offsetX = Math.cos(angle) * startRadius;
-      const offsetY = Math.sin(angle) * startRadius;
-      
-      this.particleSystem.emit({
-        position: { x: x + offsetX, y: y + offsetY },
-        velocity: { 
-          x: Math.cos(angle) * 50,
-          y: Math.sin(angle) * 25 - 30
-        },
-        life: 600,
-        size: 6 + Math.random() * 4,
-        color: '#e0e0e0',
-        alpha: 0.5,
-        friction: 0.96,
-        gravity: -50
-      });
-    }
-  }
-  
-  /**
-   * 创建落地烟雾
-   */
-  createLandingSmoke(x, y) {
-    const startRadius = 16;
-    for (let i = 0; i < 12; i++) {
-      const angle = Math.PI * (i / 12);
-      const offsetX = Math.cos(angle) * startRadius;
-      const offsetY = Math.sin(angle) * startRadius;
-      
-      this.particleSystem.emit({
-        position: { x: x + offsetX, y: y + offsetY },
-        velocity: { 
-          x: Math.cos(angle) * 50,
-          y: Math.sin(angle) * 25 + 10
-        },
-        life: 600,
-        size: 6 + Math.random() * 4,
-        color: '#e0e0e0',
-        alpha: 0.5,
-        friction: 0.96,
-        gravity: 30
-      });
-    }
   }
 }
 
