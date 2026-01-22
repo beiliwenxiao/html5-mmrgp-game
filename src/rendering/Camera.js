@@ -41,7 +41,8 @@ export class Camera {
   setPosition(x, y) {
     this.position.x = x;
     this.position.y = y;
-    this.clampToBounds();
+    // 不再限制相机边界，允许自由移动
+    // this.clampToBounds();
   }
 
   /**
@@ -52,7 +53,8 @@ export class Camera {
   move(dx, dy) {
     this.position.x += dx;
     this.position.y += dy;
-    this.clampToBounds();
+    // 不再限制相机边界，允许自由移动
+    // this.clampToBounds();
   }
 
   /**
@@ -116,10 +118,13 @@ export class Camera {
     const absDy = Math.abs(dy);
     
     if (absDx > this.deadzone.x || absDy > this.deadzone.y) {
+      console.log('相机update: 目标位置', targetPos.x, targetPos.y, '相机位置', this.position.x, this.position.y, '距离', dx, dy);
       // 平滑跟随
       this.position.x += dx * this.followSpeed;
       this.position.y += dy * this.followSpeed;
-      this.clampToBounds();
+      console.log('相机update后: 新位置', this.position.x, this.position.y);
+      // 不再限制相机边界，允许自由移动
+      // this.clampToBounds();
     }
   }
 

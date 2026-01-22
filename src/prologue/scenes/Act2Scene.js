@@ -51,53 +51,20 @@ export class Act2Scene extends BaseGameScene {
    */
   enter(data = null) {
     // 调用父类的 enter，初始化所有基础系统
+    // 父类会自动处理玩家实体的继承
     super.enter(data);
     
     console.log('Act2Scene: 进入第二幕场景', data);
     
-    // 从第一幕继承玩家实体
-    if (data && data.playerEntity) {
-      // 移除父类创建的玩家实体
-      this.entities = this.entities.filter(e => e !== this.playerEntity);
-      
-      // 使用传递过来的玩家实体
-      this.playerEntity = data.playerEntity;
-      
-      // 重置玩家位置
+    // 重置玩家位置
+    if (this.playerEntity) {
       const transform = this.playerEntity.getComponent('transform');
       if (transform) {
         transform.position.x = 200;
         transform.position.y = 300;
       }
       
-      // 添加到实体列表
-      this.entities.push(this.playerEntity);
-      
-      // 更新各系统的玩家实体引用
-      if (this.camera) {
-        this.camera.setTarget(transform);
-      }
-      if (this.combatSystem) {
-        this.combatSystem.setPlayerEntity(this.playerEntity);
-      }
-      if (this.movementSystem) {
-        this.movementSystem.setPlayerEntity(this.playerEntity);
-      }
-      if (this.inventoryPanel) {
-        this.inventoryPanel.setEntity(this.playerEntity);
-      }
-      if (this.playerInfoPanel) {
-        this.playerInfoPanel.setPlayer(this.playerEntity);
-      }
-      if (this.bottomControlBar) {
-        this.bottomControlBar.setEntity(this.playerEntity);
-      }
-      
-      console.log('Act2Scene: 继承玩家实体', this.playerEntity);
-    }
-    
-    // 设置玩家濒死状态（第二幕开始时生命值1点，魔法值1点）
-    if (this.playerEntity) {
+      // 设置玩家濒死状态（第二幕开始时生命值1点，魔法值1点）
       const stats = this.playerEntity.getComponent('stats');
       if (stats) {
         stats.hp = 1;

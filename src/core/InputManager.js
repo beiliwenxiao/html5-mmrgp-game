@@ -125,6 +125,7 @@ export class InputManager {
         this.mouse.isDown = true;
         this.mouse.button = event.button;
         this.mouse.clicked = true;
+        this.mouse.ctrlKey = event.ctrlKey; // 记录Ctrl键状态
     }
 
     /**
@@ -274,6 +275,14 @@ export class InputManager {
      */
     isMouseClicked() {
         return this.mouse.clicked;
+    }
+
+    /**
+     * 检查是否是Ctrl+鼠标左键点击
+     * @returns {boolean}
+     */
+    isCtrlClick() {
+        return this.mouse.clicked && this.mouse.ctrlKey && this.mouse.button === 0;
     }
 
     /**

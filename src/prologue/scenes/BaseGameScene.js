@@ -125,7 +125,8 @@ export class BaseGameScene extends PrologueScene {
     // 初始化渲染系统（包含 Camera）
     this.renderSystem = new RenderSystem(ctx, null, 800, 600);
     this.camera = this.renderSystem.getCamera();
-    this.camera.setBounds(0, 0, 800, 600);
+    // 不设置相机边界，允许相机自由移动跟随玩家
+    // this.camera.setBounds(0, 0, 800, 600);
     
     // 初始化输入管理器
     this.inputManager = new InputManager(canvas);
@@ -156,7 +157,8 @@ export class BaseGameScene extends PrologueScene {
       inputManager: this.inputManager,
       camera: this.camera
     });
-    this.movementSystem.setMapBounds(0, 0, 800, 600);
+    // 不限制地图边界，允许玩家和相机自由移动
+    // this.movementSystem.setMapBounds(0, 0, 800, 600);
     
     this.equipmentSystem = new EquipmentSystem();
     
@@ -166,8 +168,20 @@ export class BaseGameScene extends PrologueScene {
     // 初始化 UI 面板
     this.initializeUIPanels();
     
-    // 创建玩家实体
-    this.createPlayerEntity();
+    // 创建或继承玩家实体
+    // 如果data中有playerEntity，则使用传入的实体（场景切换时）
+    // 否则创建新的玩家实体
+    if (data && data.playerEntity) {
+      this.playerEntity = data.playerEntity;
+      this.entities.push(this.playerEntity);
+      console.log(`BaseGameScene: 继承玩家实体`, this.playerEntity);
+      
+      // 重新绑定UI面板到继承的玩家实体
+      this.bindUIPanelsToPlayer();
+    } else {
+      this.createPlayerEntity();
+      console.log(`BaseGameScene: 创建新玩家实体`);
+    }
     
     console.log(`BaseGameScene: 进入场景 ${this.name}`);
   }
@@ -344,12 +358,52 @@ export class BaseGameScene extends PrologueScene {
     console.log('BaseGameScene: 创建玩家实体', this.playerEntity);
   }
 
+  /**
+   * 绑定UI面板到玩家实体
+   */
+  bindUIPanelsToPlayer() {
+    if (!this.playerEntity) return;
+    
+    // 设置相机跟随玩家
+    const transform = this.playerEntity.getComponent('transform');
+    if (transform && this.camera) {
+      this.camera.setTarget(transform);
+      // 立即设置相机位置到玩家位置，避免初始时的视野偏移
+      this.camera.setPosition(transform.position.x, transform.position.y);
+    }
+    
+    // 设置各系统的玩家实体
+    if (this.combatSystem) {
+      this.combatSystem.setPlayerEntity(this.playerEntity);
+    }
+    if (this.movementSystem) {
+      this.movementSystem.setPlayerEntity(this.playerEntity);
+    }
+    if (this.inventoryPanel) {
+      this.inventoryPanel.setEntity(this.playerEntity);
+    }
+    if (this.playerInfoPanel) {
+      this.playerInfoPanel.setPlayer(this.playerEntity);
+    }
+    if (this.bottomControlBar) {
+      this.bottomControlBar.setEntity(this.playerEntity);
+    }
+    
+    console.log('BaseGameScene: UI面板已绑定到玩家实体');
+  }
+
 
   /**
    * 更新场景
    */
   update(deltaTime) {
     if (!this.isActive || this.isPaused) return;
+    
+    // 调试：输出update调用
+    if (this._debugNextUpdate) {
+      console.log('【更新】update方法被调用, deltaTime=', deltaTime);
+      this._debugNextUpdate = false;
+    }
     
     // 更新场景过渡
     if (this.isTransitioning) {
@@ -385,6 +439,9 @@ export class BaseGameScene extends PrologueScene {
     
     // UI 点击处理
     this.handleUIClick();
+    
+    // 处理Ctrl+鼠标左键瞬移
+    this.handleTeleport();
     
     // 更新移动系统
     this.movementSystem.update(deltaTime, this.entities);
@@ -621,6 +678,203 @@ export class BaseGameScene extends PrologueScene {
         // UI 没有处理点击，检查是否点击武器投掷
         this.handleWeaponThrow();
       }
+    }
+  }
+
+  /**
+   * 处理Ctrl+鼠标左键瞬移
+   */
+  handleTeleport() {
+    if (!this.inputManager.isCtrlClick() || this.inputManager.isMouseClickHandled()) {
+      return;
+    }
+    
+    if (!this.playerEntity || !this.camera) return;
+    
+    const transform = this.playerEntity.getComponent('transform');
+    if (!transform) return;
+    
+    try {
+      console.log('=== 轻功开始 ===');
+      console.log('玩家位置:', transform.position.x, transform.position.y);
+      console.log('相机位置:', this.camera.position.x, this.camera.position.y);
+      console.log('相机目标:', this.camera.target);
+      console.log('相机followSpeed:', this.camera.followSpeed);
+      console.log('相机deadzone:', this.camera.deadzone);
+      console.log('相机尺寸:', this.camera.width, this.camera.height);
+      
+      // 获取鼠标屏幕坐标
+      const mouseScreenPos = this.inputManager.getMousePosition();
+      console.log('鼠标屏幕坐标:', mouseScreenPos.x, mouseScreenPos.y);
+      
+      // 使用相机的screenToWorld方法转换坐标
+      const mouseWorld = this.camera.screenToWorld(mouseScreenPos.x, mouseScreenPos.y);
+      console.log('鼠标世界坐标:', mouseWorld.x, mouseWorld.y);
+      
+      // 计算距离
+      const dx = mouseWorld.x - transform.position.x;
+      const dy = mouseWorld.y - transform.position.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      console.log('距离:', distance);
+      
+      // 最大瞬移距离：20个身位 = 20 × 32像素 = 640像素
+      const maxTeleportDistance = 640;
+      
+      let targetX, targetY;
+      
+      if (distance <= maxTeleportDistance) {
+        // 距离在范围内，直接瞬移到目标位置
+        targetX = mouseWorld.x;
+        targetY = mouseWorld.y;
+        console.log('距离在范围内，直接瞬移');
+      } else {
+        // 距离超出范围，瞬移到最大距离处
+        const ratio = maxTeleportDistance / distance;
+        targetX = transform.position.x + dx * ratio;
+        targetY = transform.position.y + dy * ratio;
+        console.log('距离超出范围，限制到最大距离，比例:', ratio);
+      }
+      
+      console.log('目标位置:', targetX, targetY);
+      
+      // 执行瞬移
+      const oldPlayerX = transform.position.x;
+      const oldPlayerY = transform.position.y;
+      const oldCameraX = this.camera.position.x;
+      const oldCameraY = this.camera.position.y;
+      
+      // 同时移动玩家和相机
+      transform.position.x = targetX;
+      transform.position.y = targetY;
+      this.camera.position.x = targetX;
+      this.camera.position.y = targetY;
+      
+      console.log('玩家瞬移: (', oldPlayerX, oldPlayerY, ') -> (', transform.position.x, transform.position.y, ')');
+      console.log('相机移动: (', oldCameraX, oldCameraY, ') -> (', this.camera.position.x, this.camera.position.y, ')');
+      console.log('瞬移后玩家和相机距离:', Math.abs(transform.position.x - this.camera.position.x), Math.abs(transform.position.y - this.camera.position.y));
+      
+      // 标记需要在下一帧输出渲染调试信息
+      this._debugNextRender = true;
+      
+      console.log('场景状态: isActive=', this.isActive, 'isPaused=', this.isPaused);
+      
+      // 标记需要在下一帧输出update和render调试信息
+      this._debugNextUpdate = true;
+      this._debugNextRender = true;
+      
+      // 获取相机视野边界
+      const viewBounds = this.camera.getViewBounds();
+      console.log('相机视野边界:', viewBounds);
+      
+      // 检查火焰是否在视野内
+      const campfireX = 350;
+      const campfireY = 250;
+      const inView = campfireX >= viewBounds.left && campfireX <= viewBounds.right &&
+                     campfireY >= viewBounds.top && campfireY <= viewBounds.bottom;
+      console.log('火焰位置:', campfireX, campfireY, '是否在视野内:', inView);
+      
+      // 检查所有敌人是否在视野内
+      console.log('敌人数量:', this.enemyEntities.length);
+      this.enemyEntities.forEach((enemy, index) => {
+        const enemyTransform = enemy.getComponent('transform');
+        if (enemyTransform) {
+          const enemyInView = enemyTransform.position.x >= viewBounds.left && 
+                             enemyTransform.position.x <= viewBounds.right &&
+                             enemyTransform.position.y >= viewBounds.top && 
+                             enemyTransform.position.y <= viewBounds.bottom;
+          console.log(`敌人${index} 位置:`, enemyTransform.position.x, enemyTransform.position.y, '是否在视野内:', enemyInView);
+        }
+      });
+      
+      // 创建瞬移特效（起点和终点）
+      if (this.particleSystem) {
+        try {
+          console.log('粒子系统存在，准备创建特效');
+          console.log('粒子系统状态:', {
+            maxParticles: this.particleSystem.maxParticles,
+            activeParticles: this.particleSystem.particles ? this.particleSystem.particles.length : 0
+          });
+          
+          // 起点特效 - 轻功起飞（先向外扩散，再向上飘）
+          // 在玩家下半部分周围一圈生成粒子
+          const startRadius = 16; // 半个玩家身位（32像素的1/2 = 16像素）
+          for (let i = 0; i < 12; i++) {
+            // 只在下半圆生成粒子（从0度到180度，即右侧到左侧的下半圆）
+            const angle = Math.PI * (i / 12); // 0到π，即下半圆
+            const offsetX = Math.cos(angle) * startRadius;
+            const offsetY = Math.sin(angle) * startRadius; // 正值表示向下
+            
+            this.particleSystem.emit({
+              position: { x: oldPlayerX + offsetX, y: oldPlayerY + offsetY },
+              velocity: { 
+                x: Math.cos(angle) * 50, // 更快向外扩散
+                y: Math.sin(angle) * 25 - 30 // 向外下方，然后重力会让它向上
+              },
+              life: 600, // 600毫秒，更快消失
+              size: 6 + Math.random() * 4, // 更大的粒子（6-10）
+              color: '#e0e0e0',
+              alpha: 0.5,
+              friction: 0.96,
+              gravity: -50 // 较强的向上重力，让粒子先外后上
+            });
+          }
+          
+          // 终点特效 - 轻功落地（先向外扩散，再向下沉）
+          // 在玩家下半部分周围一圈生成粒子
+          for (let i = 0; i < 12; i++) {
+            // 只在下半圆生成粒子（从0度到180度，即右侧到左侧的下半圆）
+            const angle = Math.PI * (i / 12); // 0到π，即下半圆
+            const offsetX = Math.cos(angle) * startRadius;
+            const offsetY = Math.sin(angle) * startRadius; // 正值表示向下
+            
+            this.particleSystem.emit({
+              position: { x: targetX + offsetX, y: targetY + offsetY },
+              velocity: { 
+                x: Math.cos(angle) * 50, // 更快向外扩散
+                y: Math.sin(angle) * 25 + 10 // 向外下方
+              },
+              life: 600, // 600毫秒，更快消失
+              size: 6 + Math.random() * 4, // 更大的粒子（6-10）
+              color: '#e0e0e0',
+              alpha: 0.5,
+              friction: 0.96,
+              gravity: 30 // 向下的重力，让粒子先外后下
+            });
+          }
+          console.log('瞬移特效创建完成');
+          
+          // 设置调试帧数，连续输出5帧的粒子状态
+          this._debugParticleFrames = 5;
+        } catch (effectError) {
+          console.error('创建瞬移特效失败:', effectError);
+          console.error('错误堆栈:', effectError.stack);
+        }
+      } else {
+        console.error('粒子系统不存在！');
+      }
+      
+      // 显示轻功提示
+      try {
+        this.floatingTextManager.addText(
+          targetX,
+          targetY - 40,
+          '轻功',
+          '#cccccc'
+        );
+        console.log('轻功飘字创建成功');
+      } catch (textError) {
+        console.error('创建轻功飘字失败:', textError);
+      }
+      
+      // 标记点击已处理
+      this.inputManager.markMouseClickHandled();
+      
+      console.log('=== 轻功完成 ===');
+    } catch (error) {
+      console.error('瞬移过程中发生错误:', error);
+      console.error('错误堆栈:', error.stack);
+      // 即使出错也要标记点击已处理，避免重复触发
+      this.inputManager.markMouseClickHandled();
     }
   }
   
@@ -1037,8 +1291,10 @@ export class BaseGameScene extends PrologueScene {
    * 移除死亡实体
    */
   removeDeadEntities() {
-    // 找出所有已死亡的实体（isDead = true）
-    const deadEntities = this.entities.filter(entity => entity.isDead);
+    // 找出所有已死亡的实体（isDead = true），但不包括玩家
+    const deadEntities = this.entities.filter(entity => 
+      entity.isDead && entity !== this.playerEntity
+    );
     
     for (const entity of deadEntities) {
       // 如果死亡的敌人身上插着武器，解除钉住状态但不收回武器
@@ -1077,6 +1333,11 @@ export class BaseGameScene extends PrologueScene {
    * 渲染场景
    */
   render(ctx) {
+    // 调试：输出渲染调用
+    if (this._debugNextRender) {
+      console.log('【渲染】render方法被调用, isActive=', this.isActive, 'isPaused=', this.isPaused);
+    }
+    
     // 清空Canvas
     ctx.fillStyle = '#1a1a2e';
     ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
@@ -1086,6 +1347,14 @@ export class BaseGameScene extends PrologueScene {
     
     // 应用相机变换
     const viewBounds = this.camera.getViewBounds();
+    
+    // 调试：输出相机信息
+    if (this._debugNextRender) {
+      console.log('【渲染】相机位置:', this.camera.position.x, this.camera.position.y, '视野边界:', viewBounds);
+      console.log('【渲染】玩家位置:', this.playerEntity ? this.playerEntity.getComponent('transform')?.position : 'no player');
+      this._debugNextRender = false;
+    }
+    
     ctx.translate(-viewBounds.left, -viewBounds.top);
     
     // 渲染背景 - 子类覆盖
@@ -1102,11 +1371,17 @@ export class BaseGameScene extends PrologueScene {
       this.weaponRenderer.render(ctx, this.playerEntity, this.camera);
     }
     
+    // 渲染粒子系统（在世界坐标系中，相机变换生效时）
+    this.particleSystem.render(ctx, this.camera);
+    
+    // 调试：输出粒子系统状态（连续输出几帧）
+    if (this._debugParticleFrames > 0) {
+      console.log('【渲染】粒子系统活跃粒子数:', this.particleSystem.getActiveCount());
+      this._debugParticleFrames--;
+    }
+    
     // 恢复上下文状态
     ctx.restore();
-    
-    // 渲染粒子系统
-    this.particleSystem.render(ctx, this.camera);
     
     // 渲染技能特效
     this.skillEffects.render(ctx, this.camera);

@@ -82,19 +82,17 @@ export class Particle {
   /**
    * 渲染粒子
    * @param {CanvasRenderingContext2D} ctx - Canvas 渲染上下文
-   * @param {Object} camera - 相机对象
+   * @param {Object} camera - 相机对象（用于视锥剔除，但不用于坐标转换）
    */
   render(ctx, camera) {
     if (!this.active) return;
 
-    // 获取视野边界
-    const viewBounds = camera.getViewBounds();
-    const screenX = this.position.x - viewBounds.left;
-    const screenY = this.position.y - viewBounds.top;
+    // 直接使用世界坐标，因为相机变换已经在ctx中应用了
+    const screenX = this.position.x;
+    const screenY = this.position.y;
     
     // 确保所有值都是有效的数字
     if (!isFinite(screenX) || !isFinite(screenY)) {
-      console.warn('Particle: Invalid screen position', { screenX, screenY, position: this.position, viewBounds });
       return;
     }
 
@@ -122,7 +120,7 @@ export class Particle {
       ctx.arc(screenX, screenY, safeSize * 0.6, 0, Math.PI * 2);
       ctx.fill();
     } else {
-      // 非火焰粒子（如烟雾）使用普通渲染
+      // 非火焰粒子（如烟雾、瞬移特效）使用普通渲染
       ctx.fillStyle = this.color || '#ffffff';
       ctx.beginPath();
       ctx.arc(screenX, screenY, safeSize, 0, Math.PI * 2);

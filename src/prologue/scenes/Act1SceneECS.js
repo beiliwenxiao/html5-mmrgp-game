@@ -552,6 +552,22 @@ export class Act1SceneECS extends BaseGameScene {
     
     // 第一幕特有：检查波次完成
     this.checkWaveCompletion();
+    
+    // 第一幕特有：检查玩家是否死亡
+    this.checkPlayerDeath();
+  }
+
+  /**
+   * 检查玩家是否死亡
+   */
+  checkPlayerDeath() {
+    if (this.playerDied || this.isTransitioning) return;
+    
+    const stats = this.playerEntity?.getComponent('stats');
+    if (stats && stats.hp <= 0) {
+      console.log('Act1SceneECS: 检测到玩家死亡');
+      this.triggerPlayerDeath();
+    }
   }
 
   /**
