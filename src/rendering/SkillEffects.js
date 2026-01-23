@@ -177,8 +177,11 @@ export class SkillEffects {
       case 'flame_palm':
         this.createFlamePalmEffect(position, target, onHit);
         break;
-      case 'ice_finger':
+      case 'one_yang_finger':
         this.createOneYangFingerEffect(position, target, onHit);
+        break;
+      case 'ice_finger':
+        this.createIceFingerEffect(position, target, onHit);
         break;
       case 'inferno_palm':
         this.createInfernoPalmEffect(position, target, onHit);
@@ -552,42 +555,42 @@ export class SkillEffects {
   }
 
   /**
-   * 创建治疗特效
+   * 创建治疗特效（从玩家位置向上飘）
    * @param {Object} position - 位置
    */
   createHealEffect(position) {
-    // 创建向上飘动的治疗粒子
+    // 创建少量向上飘动的治疗粒子（从玩家位置开始）
     const emitter = this.particleSystem.createEmitter({
       position: { ...position },
       particleConfig: {
         position: { ...position },
-        velocity: { x: 0, y: -50 },
-        life: 1500, // 毫秒
-        size: 6,
+        velocity: { x: 0, y: -40 },
+        life: 1200, // 毫秒
+        size: 8,
         color: '#00ff88',
-        gravity: -20 // 负重力，向上飘
+        gravity: -15 // 负重力，向上飘
       },
-      rate: 20,
-      duration: 1.0
+      rate: 8, // 减少发射率：从20降到8
+      duration: 0.8 // 缩短持续时间
     });
     
     this.activeEmitters.push(emitter);
     
-    // 额外的光环效果
+    // 简化的初始爆发效果（从玩家位置）
     this.particleSystem.emitBurst(
       {
         position: { ...position },
-        velocity: { x: 0, y: 0 },
-        life: 1000, // 毫秒
-        size: 8,
+        velocity: { x: 0, y: -30 },
+        life: 800, // 毫秒
+        size: 10,
         color: '#00ff88',
-        gravity: 0
+        gravity: -10
       },
-      15,
+      6, // 减少粒子数：从15降到6
       {
-        velocityRange: { min: 30, max: 60 },
-        angleRange: { min: 0, max: Math.PI * 2 },
-        sizeRange: { min: 6, max: 10 }
+        velocityRange: { min: 20, max: 50 },
+        angleRange: { min: -Math.PI / 3, max: -Math.PI * 2 / 3 }, // 向上的扇形范围
+        sizeRange: { min: 8, max: 12 }
       }
     );
   }
@@ -948,6 +951,94 @@ export class SkillEffects {
   }
 
   /**
+   * 创建寒冰指特效（冰蓝色直线攻击）
+   * @param {Object} position - 起始位置
+   * @param {Object} target - 目标位置
+   * @param {Function} onHit - 命中回调
+   */
+  createIceFingerEffect(position, target, onHit) {
+    if (!target) return;
+    
+    // 计算方向
+    const dx = target.x - position.x;
+    const dy = target.y - position.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // 防止除以零
+    if (distance < 1) {
+      if (onHit) onHit(position);
+      return;
+    }
+    
+    const speed = 600; // 快速
+    
+    // 创建冰蓝色光束
+    const projectile = {
+      position: { ...position },
+      velocity: {
+        x: (dx / distance) * speed,
+        y: (dy / distance) * speed
+      },
+      target: { ...target },
+      elapsed: 0,
+      maxLife: distance / speed,
+      size: 6,
+      color: '#00ccff',
+      shape: 'rect',
+      trailConfig: {
+        position: { ...position },
+        velocity: { x: 0, y: 0 },
+        life: 300,
+        size: 5,
+        color: '#88ddff',
+        gravity: 0
+      },
+      onHit: (hitPos) => {
+        // 终点冰晶爆炸效果
+        this.particleSystem.emitBurst(
+          {
+            position: { ...hitPos },
+            velocity: { x: 0, y: 0 },
+            life: 600,
+            size: 12,
+            color: '#00ccff',
+            gravity: 0
+          },
+          30,
+          {
+            velocityRange: { min: 100, max: 200 },
+            angleRange: { min: 0, max: Math.PI * 2 },
+            sizeRange: { min: 8, max: 14 }
+          }
+        );
+        
+        // 额外的冰晶碎片
+        this.particleSystem.emitBurst(
+          {
+            position: { ...hitPos },
+            velocity: { x: 0, y: 0 },
+            life: 400,
+            size: 6,
+            color: '#ffffff',
+            gravity: 50
+          },
+          15,
+          {
+            velocityRange: { min: 80, max: 150 },
+            angleRange: { min: 0, max: Math.PI * 2 },
+            sizeRange: { min: 4, max: 8 }
+          }
+        );
+        
+        if (onHit) onHit(hitPos);
+      },
+      completed: false
+    };
+    
+    this.projectiles.push(projectile);
+  }
+
+  /**
    * 创建烈焰掌特效（5大坨火焰）
    * @param {Object} position - 起始位置
    * @param {Object} target - 目标位置
@@ -1029,22 +1120,22 @@ export class SkillEffects {
   }
 
   /**
-   * 创建打坐特效（头顶滚动烟雾）
+   * 创建打坐特效（头顶缓慢飘动的烟雾）
    * @param {Object} position - 位置
    */
   createMeditationEffect(position) {
     // 保存打坐发射器引用
     this.meditationEmitter = this.particleSystem.createEmitter({
-      position: { x: position.x, y: position.y - 40 }, // 头顶位置
+      position: { x: position.x, y: position.y - 50 }, // 头顶位置
       particleConfig: {
-        position: { x: position.x, y: position.y - 40 },
-        velocity: { x: 0, y: -30 }, // 向上飘
-        life: 2000, // 2秒生命周期
-        size: 8,
-        color: '#88ccff',
-        gravity: -15 // 负重力，继续向上
+        position: { x: position.x, y: position.y - 50 },
+        velocity: { x: 0, y: -8 }, // 缓慢向上飘
+        life: 800, // 较短的生命周期（0.8秒）
+        size: 6,
+        color: '#aaddff',
+        gravity: -5 // 轻微负重力
       },
-      rate: 10, // 每秒10个粒子
+      rate: 4, // 每秒4个粒子，更稀疏
       duration: 999 // 持续很长时间（由外部控制停止）
     });
     
@@ -1060,9 +1151,9 @@ export class SkillEffects {
   updateMeditationPosition(position) {
     if (this.meditationEmitter && this.meditationEmitter.active) {
       this.meditationEmitter.position.x = position.x;
-      this.meditationEmitter.position.y = position.y - 40;
+      this.meditationEmitter.position.y = position.y - 50;
       this.meditationEmitter.particleConfig.position.x = position.x;
-      this.meditationEmitter.particleConfig.position.y = position.y - 40;
+      this.meditationEmitter.particleConfig.position.y = position.y - 50;
     }
   }
 

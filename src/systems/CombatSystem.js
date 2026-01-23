@@ -985,7 +985,25 @@ export class CombatSystem {
             } else {
               console.log('普通攻击需要选择目标');
             }
-          } else {
+          } 
+          // 特殊处理：治疗技能（对自己释放）
+          else if (skill.id === 'heal') {
+            const casterTransform = this.playerEntity.getComponent('transform');
+            if (casterTransform) {
+              this.tryUseSkillAtPosition(this.playerEntity, skill, casterTransform.position, currentTime, entities);
+            }
+          }
+          // 特殊处理：打坐技能（通过场景回调处理）
+          else if (skill.id === 'meditation') {
+            // 打坐技能需要通过场景的onSkillClicked回调处理
+            // 因为它涉及到场景的meditationState状态管理
+            if (this.onMeditationSkill) {
+              this.onMeditationSkill(skill);
+            } else {
+              console.log('打坐技能需要场景支持');
+            }
+          }
+          else {
             // 其他技能：使用鼠标位置作为目标点
             const mouseWorldPos = this.inputManager.getMouseWorldPosition(this.camera);
             this.tryUseSkillAtPosition(this.playerEntity, skill, mouseWorldPos, currentTime, entities);
@@ -1153,14 +1171,16 @@ export class CombatSystem {
       return false;
     }
     
-    // 检查距离（施法者到目标位置的距离）
-    const dx = targetPos.x - casterTransform.position.x;
-    const dy = targetPos.y - casterTransform.position.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    
-    if (distance > skill.range) {
-      console.log(`目标位置超出技能范围`);
-      return false;
+    // 检查距离（施法者到目标位置的距离）- range为0表示自身技能，跳过距离检查
+    if (skill.range > 0) {
+      const dx = targetPos.x - casterTransform.position.x;
+      const dy = targetPos.y - casterTransform.position.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance > skill.range) {
+        console.log(`目标位置超出技能范围`);
+        return false;
+      }
     }
     
     // 使用技能
@@ -1341,7 +1361,7 @@ export class CombatSystem {
     
     // 特殊处理：寒冰指（路径伤害）
     if (skill.id === 'ice_finger') {
-      this.applyOneYangFingerDamage(caster, targetPos, skill, entities);
+      this.applyLinearPathDamage(caster, targetPos, skill, entities);
       return;
     }
     
@@ -1376,13 +1396,13 @@ export class CombatSystem {
   }
   
   /**
-   * 应用一阳指伤害（路径 + 终点）
+   * 应用直线路径伤害（路径 + 终点）- 用于寒冰指等技能
    * @param {Entity} caster - 施法者
    * @param {Object} targetPos - 目标位置
    * @param {Object} skill - 技能数据
    * @param {Array<Entity>} entities - 实体列表
    */
-  applyOneYangFingerDamage(caster, targetPos, skill, entities) {
+  applyLinearPathDamage(caster, targetPos, skill, entities) {
     const casterTransform = caster.getComponent('transform');
     if (!casterTransform) return;
     

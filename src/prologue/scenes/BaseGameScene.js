@@ -179,6 +179,11 @@ export class BaseGameScene extends PrologueScene {
       floatingTextManager: this.floatingTextManager
     });
     
+    // 设置打坐技能回调
+    this.combatSystem.onMeditationSkill = (skill) => {
+      this.onSkillClicked(skill);
+    };
+    
     // 设置掉落回调
     this.combatSystem.setLootDropCallback((position, lootItems) => {
       this.spawnLootItems(position, lootItems);
@@ -601,8 +606,18 @@ export class BaseGameScene extends PrologueScene {
       }
     }
     
-    // 更新移动系统
-    this.movementSystem.update(deltaTime, this.entities);
+    // 更新移动系统（打坐时禁止玩家移动）
+    if (this.meditationState.active && this.playerEntity) {
+      // 打坐时只更新非玩家实体
+      const nonPlayerEntities = this.entities.filter(e => e !== this.playerEntity);
+      this.movementSystem.update(deltaTime, nonPlayerEntities);
+      
+      // 检测玩家是否尝试移动，如果是则停止打坐
+      this.checkMeditationMovementInterrupt();
+    } else {
+      // 正常更新所有实体
+      this.movementSystem.update(deltaTime, this.entities);
+    }
     
     // 检查实体之间的碰撞
     this.checkEntityCollisions();
@@ -1193,6 +1208,13 @@ export class BaseGameScene extends PrologueScene {
     
     if (!stats || !transform) return;
     
+    // 检查是否满血满蓝，自动停止打坐
+    if (stats.hp >= stats.maxHp && stats.mp >= stats.maxMp) {
+      console.log('BaseGameScene: 满血满蓝，自动停止打坐');
+      this.stopMeditation();
+      return;
+    }
+    
     // 更新打坐特效位置（跟随玩家）
     if (this.skillEffects) {
       this.skillEffects.updateMeditationPosition(transform.position);
@@ -1267,6 +1289,47 @@ export class BaseGameScene extends PrologueScene {
     }
     
     console.log('BaseGameScene: 停止打坐');
+  }
+
+  /**
+   * 检测打坐时的移动中断
+   */
+  checkMeditationMovementInterrupt() {
+    if (!this.meditationState.active || !this.inputManager) return;
+    
+    // 检测移动按键（WASD 或方向键）
+    const isMoving = 
+      this.inputManager.isKeyDown('up') ||
+      this.inputManager.isKeyDown('down') ||
+      this.inputManager.isKeyDown('left') ||
+      this.inputManager.isKeyDown('right') ||
+      this.inputManager.isKeyDown('w') ||
+      this.inputManager.isKeyDown('W') ||
+      this.inputManager.isKeyDown('s') ||
+      this.inputManager.isKeyDown('S') ||
+      this.inputManager.isKeyDown('a') ||
+      this.inputManager.isKeyDown('A') ||
+      this.inputManager.isKeyDown('d') ||
+      this.inputManager.isKeyDown('D');
+    
+    // 如果检测到移动输入，停止打坐
+    if (isMoving) {
+      console.log('BaseGameScene: 移动中断打坐');
+      this.stopMeditation();
+      
+      // 显示提示
+      if (this.floatingTextManager && this.playerEntity) {
+        const transform = this.playerEntity.getComponent('transform');
+        if (transform) {
+          this.floatingTextManager.addText(
+            transform.position.x,
+            transform.position.y - 50,
+            '移动中断打坐',
+            '#ffaa00'
+          );
+        }
+      }
+    }
   }
 
   /**
