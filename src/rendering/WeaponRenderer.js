@@ -361,8 +361,31 @@ export class WeaponRenderer {
       return false;
     }
     
-    // 只要有鼠标移动就可以攻击（不管武器是否冷却完成）
-    return this.mouseMovement.movementsPerSecond > 0 && this.mouseMovement.totalDistance > 0;
+    // 必须有鼠标移动记录
+    if (this.mouseMovement.movements.length === 0) {
+      return false;
+    }
+    
+    // 必须有总移动距离
+    if (this.mouseMovement.totalDistance <= 0) {
+      return false;
+    }
+    
+    // 如果最后的移动类型是刺击，需要至少2次移动才能触发
+    if (this.mouseMovement.lastMovementType === 'thrust') {
+      if (this.mouseMovement.thrustMovements < 2) {
+        return false;
+      }
+    }
+    
+    // 如果最后的移动类型是扫击，需要至少1次移动
+    if (this.mouseMovement.lastMovementType === 'sweep') {
+      if (this.mouseMovement.sweepMovements < 1) {
+        return false;
+      }
+    }
+    
+    return true;
   }
 
   /**
@@ -379,17 +402,21 @@ export class WeaponRenderer {
       this.weaponCooldown.isReady = false;
     }
     
+    // 玩家武器不需要攻击动画，只记录攻击类型
     // 如果没有移动类型，不触发攻击
     if (!this.mouseMovement.lastMovementType) {
       return;
     }
     
-    // 根据最后的移动类型决定攻击类型
-    if (this.mouseMovement.lastMovementType === 'thrust') {
-      this.startAttack('thrust'); // 刺击
-    } else {
-      this.startAttack('sweep'); // 扫击
-    }
+    // 不触发动画，只清空移动记录
+    // this.startAttack() 已被注释掉
+    
+    // 攻击后清空移动记录，避免重复触发
+    this.mouseMovement.movements = [];
+    this.mouseMovement.thrustMovements = 0;
+    this.mouseMovement.sweepMovements = 0;
+    this.mouseMovement.totalDistance = 0;
+    this.mouseMovement.movementsPerSecond = 0;
   }
 
   /**
@@ -510,14 +537,8 @@ export class WeaponRenderer {
     // 移动到玩家位置
     ctx.translate(x, y);
     
-    // 旋转到鼠标方向
-    if (this.attackAnimation.active && hand === 'mainhand') {
-      // 攻击时应用攻击动画
-      this.applyAttackAnimation(ctx, config);
-    } else {
-      // 非攻击时，武器指向鼠标方向（不伸缩）
-      ctx.rotate(this.currentMouseAngle);
-    }
+    // 武器始终指向鼠标方向，不播放攻击动画
+    ctx.rotate(this.currentMouseAngle);
     
     // 武器起点在玩家边缘（半径16像素）
     ctx.translate(16, 0);

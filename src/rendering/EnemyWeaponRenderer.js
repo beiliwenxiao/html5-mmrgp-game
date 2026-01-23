@@ -9,7 +9,7 @@ export class EnemyWeaponRenderer {
     this.weaponConfigs = {
       'wild_dog': {
         type: 'bite',
-        attackSpeed: 1.0 / 3.0, // 每3秒攻击1次
+        attackSpeed: 1.0, // 每1秒攻击1次
         jawSize: 16, // 牙齿大小
         jawColor: '#ffffff',
         animationDuration: 0.3 // 咬合动画时长（秒）

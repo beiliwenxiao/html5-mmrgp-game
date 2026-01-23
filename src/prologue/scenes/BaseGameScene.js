@@ -96,6 +96,14 @@ export class BaseGameScene extends PrologueScene {
     // 教程状态
     this.tutorialPhase = 'init';
     
+    // 战斗状态
+    this.combatState = {
+      inCombat: false,           // 是否在战斗中
+      lastCombatTime: 0,         // 上次战斗时间（秒）
+      combatExitDelay: 20,       // 脱离战斗延迟（秒）
+      combatExitTimer: 0         // 脱离战斗倒计时（秒）
+    };
+    
     // 面板切换冷却时间
     this.lastPlayerInfoToggleTime = 0;
     this.lastInventoryToggleTime = 0;
@@ -482,6 +490,9 @@ export class BaseGameScene extends PrologueScene {
     // 更新战斗系统
     this.combatSystem.update(deltaTime, this.entities);
     
+    // 更新战斗状态
+    this.updateCombatState(deltaTime);
+    
     // 更新装备系统
     this.equipmentSystem.update(deltaTime, this.entities);
     
@@ -839,6 +850,27 @@ export class BaseGameScene extends PrologueScene {
       return;
     }
     
+    // 获取攻击类型和速度
+    const attackTypeName = this.weaponRenderer.getAttackTypeName();
+    const speedKmh = this.weaponRenderer.mouseMovement.speedKmh;
+    
+    // 检查速度阈值
+    // 扫击：速度小于20km/h不产生伤害
+    // 刺击：速度小于10km/h不产生伤害
+    const minSpeed = attackTypeName === '扫击' ? 20 : 10;
+    
+    if (speedKmh < minSpeed) {
+      // 速度太慢，攻击无效
+      // 清空移动记录，但不消耗武器冷却时间
+      this.weaponRenderer.mouseMovement.movements = [];
+      this.weaponRenderer.mouseMovement.thrustMovements = 0;
+      this.weaponRenderer.mouseMovement.sweepMovements = 0;
+      this.weaponRenderer.mouseMovement.totalDistance = 0;
+      this.weaponRenderer.mouseMovement.movementsPerSecond = 0;
+      this.weaponRenderer.mouseMovement.lastAttackTime = currentTime;
+      return;
+    }
+    
     // 获取攻击范围
     const attackRange = this.weaponRenderer.getAttackRange(this.playerEntity);
     
@@ -853,19 +885,26 @@ export class BaseGameScene extends PrologueScene {
       attackRange
     );
     
-    if (enemiesInRange.length === 0) return;
+    if (enemiesInRange.length === 0) {
+      // 没有敌人，攻击无效
+      // 清空移动记录，但不消耗武器冷却时间
+      this.weaponRenderer.mouseMovement.movements = [];
+      this.weaponRenderer.mouseMovement.thrustMovements = 0;
+      this.weaponRenderer.mouseMovement.sweepMovements = 0;
+      this.weaponRenderer.mouseMovement.totalDistance = 0;
+      this.weaponRenderer.mouseMovement.movementsPerSecond = 0;
+      this.weaponRenderer.mouseMovement.lastAttackTime = currentTime;
+      return;
+    }
     
-    // 检查武器是否就绪
+    // 攻击有效，检查武器是否就绪
     const isWeaponReady = this.weaponRenderer.weaponCooldown.isReady;
     
-    // 记录攻击并触发动画
+    // 记录攻击并触发动画（会消耗武器冷却时间）
     this.weaponRenderer.recordAttack(currentTime);
     
     // 获取伤害倍率（基于武器就绪状态和移动速度）
     const damageMultiplier = this.weaponRenderer.getSwipeDamageMultiplier(isWeaponReady);
-    
-    // 获取攻击类型名称
-    const attackTypeName = this.weaponRenderer.getAttackTypeName();
     
     // 计算击退方向（武器指向的方向）
     const weaponAngle = this.weaponRenderer.currentMouseAngle;
@@ -902,8 +941,6 @@ export class BaseGameScene extends PrologueScene {
     }
     
     // 显示攻击类型和伤害提示
-    const speedKmh = this.weaponRenderer.mouseMovement.speedKmh;
-    
     // 根据武器状态显示不同内容和颜色
     let displayText;
     let textColor;
@@ -925,6 +962,87 @@ export class BaseGameScene extends PrologueScene {
       displayText,
       textColor
     );
+  }
+
+  /**
+   * 更新战斗状态
+   * @param {number} deltaTime - 帧间隔时间（秒）
+   */
+  updateCombatState(deltaTime) {
+    const currentTime = performance.now() / 1000; // 转换为秒
+    
+    // 检查是否有敌人在攻击范围内或正在攻击玩家
+    const hasNearbyEnemies = this.checkNearbyEnemies();
+    
+    if (hasNearbyEnemies) {
+      // 有敌人在附近，进入或保持战斗状态
+      if (!this.combatState.inCombat) {
+        this.enterCombat();
+      }
+      // 更新最后战斗时间
+      this.combatState.lastCombatTime = currentTime;
+      this.combatState.combatExitTimer = this.combatState.combatExitDelay;
+    } else if (this.combatState.inCombat) {
+      // 没有敌人，但在战斗中，开始倒计时
+      const timeSinceLastCombat = currentTime - this.combatState.lastCombatTime;
+      this.combatState.combatExitTimer = Math.max(0, this.combatState.combatExitDelay - timeSinceLastCombat);
+      
+      // 倒计时结束，脱离战斗
+      if (this.combatState.combatExitTimer <= 0) {
+        this.exitCombat();
+      }
+    }
+  }
+
+  /**
+   * 检查附近是否有敌人
+   * @returns {boolean}
+   */
+  checkNearbyEnemies() {
+    if (!this.playerEntity) return false;
+    
+    const playerTransform = this.playerEntity.getComponent('transform');
+    if (!playerTransform) return false;
+    
+    const combatRange = 300; // 战斗范围：300像素
+    
+    for (const entity of this.entities) {
+      if (entity.type !== 'enemy' || entity.isDead || entity.isDying) continue;
+      
+      const enemyTransform = entity.getComponent('transform');
+      const enemyStats = entity.getComponent('stats');
+      if (!enemyTransform || !enemyStats || enemyStats.hp <= 0) continue;
+      
+      // 计算距离
+      const dx = enemyTransform.position.x - playerTransform.position.x;
+      const dy = enemyTransform.position.y - playerTransform.position.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance <= combatRange) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
+  /**
+   * 进入战斗状态
+   */
+  enterCombat() {
+    this.combatState.inCombat = true;
+    this.combatState.lastCombatTime = performance.now() / 1000;
+    this.combatState.combatExitTimer = this.combatState.combatExitDelay;
+    console.log('BaseGameScene: 进入战斗状态');
+  }
+
+  /**
+   * 脱离战斗状态
+   */
+  exitCombat() {
+    this.combatState.inCombat = false;
+    this.combatState.combatExitTimer = 0;
+    console.log('BaseGameScene: 脱离战斗状态');
   }
 
   /**
@@ -1314,6 +1432,9 @@ export class BaseGameScene extends PrologueScene {
       this.bottomControlBar.render(ctx);
     }
     
+    // 渲染战斗状态UI
+    this.renderCombatStateUI(ctx);
+    
     // 渲染场景过渡
     if (this.isTransitioning) {
       this.renderTransition(ctx);
@@ -1336,6 +1457,51 @@ export class BaseGameScene extends PrologueScene {
     for (const entity of sortedEntities) {
       this.renderEntity(ctx, entity);
     }
+  }
+
+  /**
+   * 渲染战斗状态UI
+   * @param {CanvasRenderingContext2D} ctx - 渲染上下文
+   */
+  renderCombatStateUI(ctx) {
+    if (!this.combatState.inCombat) return;
+    
+    // 战斗状态面板位置（屏幕右上角）
+    const panelX = this.logicalWidth - 90;
+    const panelY = 10;
+    const panelWidth = 80;
+    const panelHeight = 30;
+    
+    ctx.save();
+    
+    // 绘制背景
+    ctx.fillStyle = 'rgba(139, 0, 0, 0.7)'; // 深红色背景
+    ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
+    
+    // 绘制边框
+    ctx.strokeStyle = '#ff0000';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
+    
+    // 绘制"战斗中"文字
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('战斗中', panelX + panelWidth / 2, panelY + 14);
+    
+    // 绘制脱离战斗倒计时
+    const timer = Math.ceil(this.combatState.combatExitTimer);
+    if (timer > 0) {
+      ctx.fillStyle = '#ffff00';
+      ctx.font = '10px Arial';
+      ctx.fillText(`${timer}秒`, panelX + panelWidth / 2, panelY + 26);
+    } else {
+      ctx.fillStyle = '#ff6666';
+      ctx.font = '9px Arial';
+      ctx.fillText('敌人附近', panelX + panelWidth / 2, panelY + 26);
+    }
+    
+    ctx.restore();
   }
 
   /**
