@@ -433,8 +433,8 @@ export class BaseGameScene extends PrologueScene {
           hotkey: '1' 
         },
         { 
-          id: 'one_yang_finger', 
-          name: '一阳指', 
+          id: 'ice_finger', 
+          name: '寒冰指', 
           type: 'magic', 
           damageMin: 20,
           damageMax: 50,
@@ -443,7 +443,7 @@ export class BaseGameScene extends PrologueScene {
           manaCost: 12, 
           cooldown: 3.0, 
           range: 550, 
-          effectType: 'one_yang_finger', 
+          effectType: 'ice_finger', 
           projectileSpeed: 600, 
           hotkey: '2' 
         },
@@ -1193,6 +1193,11 @@ export class BaseGameScene extends PrologueScene {
     
     if (!stats || !transform) return;
     
+    // 更新打坐特效位置（跟随玩家）
+    if (this.skillEffects) {
+      this.skillEffects.updateMeditationPosition(transform.position);
+    }
+    
     // 每秒恢复一次
     if (currentTime - this.meditationState.lastTickTime >= 1.0) {
       // 恢复10%血量和魔法
@@ -1238,6 +1243,11 @@ export class BaseGameScene extends PrologueScene {
           '打坐',
           '#00ffff'
         );
+        
+        // 创建打坐烟雾特效
+        if (this.skillEffects) {
+          this.skillEffects.createSkillEffect('meditation', transform.position);
+        }
       }
     }
     
@@ -1250,6 +1260,12 @@ export class BaseGameScene extends PrologueScene {
    */
   stopMeditation() {
     this.meditationState.active = false;
+    
+    // 停止打坐烟雾特效
+    if (this.skillEffects) {
+      this.skillEffects.stopMeditationEffect();
+    }
+    
     console.log('BaseGameScene: 停止打坐');
   }
 

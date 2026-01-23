@@ -177,7 +177,7 @@ export class SkillEffects {
       case 'flame_palm':
         this.createFlamePalmEffect(position, target, onHit);
         break;
-      case 'one_yang_finger':
+      case 'ice_finger':
         this.createOneYangFingerEffect(position, target, onHit);
         break;
       case 'inferno_palm':
@@ -1033,8 +1033,8 @@ export class SkillEffects {
    * @param {Object} position - 位置
    */
   createMeditationEffect(position) {
-    // 创建持续的烟雾发射器
-    const emitter = this.particleSystem.createEmitter({
+    // 保存打坐发射器引用
+    this.meditationEmitter = this.particleSystem.createEmitter({
       position: { x: position.x, y: position.y - 40 }, // 头顶位置
       particleConfig: {
         position: { x: position.x, y: position.y - 40 },
@@ -1048,20 +1048,41 @@ export class SkillEffects {
       duration: 999 // 持续很长时间（由外部控制停止）
     });
     
-    this.activeEmitters.push(emitter);
+    this.activeEmitters.push(this.meditationEmitter);
     
-    // 返回发射器引用，以便外部可以停止
-    return emitter;
+    return this.meditationEmitter;
+  }
+
+  /**
+   * 更新打坐特效位置（跟随玩家）
+   * @param {Object} position - 玩家位置
+   */
+  updateMeditationPosition(position) {
+    if (this.meditationEmitter && this.meditationEmitter.active) {
+      this.meditationEmitter.position.x = position.x;
+      this.meditationEmitter.position.y = position.y - 40;
+      this.meditationEmitter.particleConfig.position.x = position.x;
+      this.meditationEmitter.particleConfig.position.y = position.y - 40;
+    }
   }
 
   /**
    * 停止打坐特效
    */
   stopMeditationEffect() {
-    // 停止所有打坐相关的发射器
+    // 停止打坐发射器
+    if (this.meditationEmitter) {
+      this.meditationEmitter.active = false;
+      const index = this.activeEmitters.indexOf(this.meditationEmitter);
+      if (index !== -1) {
+        this.activeEmitters.splice(index, 1);
+      }
+      this.meditationEmitter = null;
+    }
+    
+    // 备用：停止所有打坐相关的发射器（通过颜色判断）
     for (let i = this.activeEmitters.length - 1; i >= 0; i--) {
       const emitter = this.activeEmitters[i];
-      // 检查是否是打坐发射器（通过颜色判断）
       if (emitter.particleConfig && emitter.particleConfig.color === '#88ccff') {
         emitter.active = false;
         this.activeEmitters.splice(i, 1);

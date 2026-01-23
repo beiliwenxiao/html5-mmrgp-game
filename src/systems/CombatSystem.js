@@ -1339,8 +1339,8 @@ export class CombatSystem {
       return;
     }
     
-    // 特殊处理：一阳指（路径伤害）
-    if (skill.id === 'one_yang_finger') {
+    // 特殊处理：寒冰指（路径伤害）
+    if (skill.id === 'ice_finger') {
       this.applyOneYangFingerDamage(caster, targetPos, skill, entities);
       return;
     }

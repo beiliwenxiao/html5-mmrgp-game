@@ -389,9 +389,9 @@ export class BottomControlBar extends UIElement {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('🔥', 0, 0);
-    } else if (skill.effectType === 'one_yang_finger') {
-      // 一阳指 - 金色光束图标
-      ctx.fillStyle = '#ffdd00';
+    } else if (skill.effectType === 'ice_finger') {
+      // 寒冰指 - 蓝色光束图标
+      ctx.fillStyle = '#1eeefcff';
       ctx.beginPath();
       ctx.moveTo(0, -15);
       ctx.lineTo(5, 0);

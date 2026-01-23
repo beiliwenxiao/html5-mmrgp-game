@@ -103,60 +103,22 @@ export class Act1SceneECS extends BaseGameScene {
   }
 
   /**
-   * 创建玩家实体 - 覆盖父类方法，设置第一幕特有的初始状态
+   * 创建玩家实体 - 调用父类方法，然后设置第一幕特有的初始状态
    */
   createPlayerEntity() {
+    // 调用父类方法创建玩家（使用统一的技能配置）
+    super.createPlayerEntity();
+    
+    // 第一幕特有：设置角色名称和初始血量（30%，受伤状态）
     this.characterName = '灾民';
+    this.playerEntity.name = this.characterName;
     
-    this.playerEntity = this.entityFactory.createPlayer({
-      name: this.characterName,
-      class: 'refugee',
-      level: 1,
-      position: { x: 400, y: 300 },
-      stats: {
-        maxHp: 150,
-        hp: 45, // 30% 生命值（第一幕开始时受伤状态）
-        maxMp: 100,
-        mp: 100,
-        attack: 15,
-        magicPower: 12,
-        attackSpeed: 1.0,
-        critRate: 0.05,
-        critDamage: 1.5,
-        defense: 8,
-        magicResist: 5,
-        dodge: 0.05,
-        block: 0.03,
-        speed: 120,
-        hpRegen: 0.5,
-        mpRegen: 1.0
-      },
-      skills: [
-        { id: 'basic_attack', name: '普通攻击', type: 'physical', damage: 15, manaCost: 0, cooldown: 1.0, range: 150, effectType: 'melee', description: '按1键攻击', hotkey: '1' },
-        { id: 'fireball', name: '火球术', type: 'magic', damage: 45, manaCost: 15, cooldown: 2.0, range: 500, aoeRadius: 100, effectType: 'fireball', projectileSpeed: 450, description: '发射炽热的火球', hotkey: '2' },
-        { id: 'ice_lance', name: '寒冰箭', type: 'magic', damage: 40, manaCost: 12, cooldown: 1.8, range: 550, aoeRadius: 80, effectType: 'ice_lance', projectileSpeed: 500, description: '发射寒冰箭', hotkey: '3' },
-        { id: 'flame_burst', name: '烈焰爆发', type: 'magic', damage: 65, manaCost: 25, cooldown: 4.0, range: 450, aoeRadius: 150, effectType: 'flame_burst', projectileSpeed: 400, description: '释放强大的火焰能量', hotkey: '4' }
-      ],
-      equipment: {},
-      inventory: []
-    });
-    
-    this.entities.push(this.playerEntity);
-    
-    // 设置相机跟随玩家
-    const transform = this.playerEntity.getComponent('transform');
-    if (transform) {
-      this.camera.setTarget(transform);
+    const stats = this.playerEntity.getComponent('stats');
+    if (stats) {
+      stats.hp = Math.floor(stats.maxHp * 0.3); // 30% 生命值
     }
     
-    // 设置各系统的玩家实体
-    this.combatSystem.setPlayerEntity(this.playerEntity);
-    this.movementSystem.setPlayerEntity(this.playerEntity);
-    this.inventoryPanel.setEntity(this.playerEntity);
-    this.playerInfoPanel.setPlayer(this.playerEntity);
-    this.bottomControlBar.setEntity(this.playerEntity);
-    
-    console.log('Act1SceneECS: 创建玩家实体', this.playerEntity);
+    console.log('Act1SceneECS: 创建玩家实体（初始血量30%）', this.playerEntity);
   }
 
   /**
