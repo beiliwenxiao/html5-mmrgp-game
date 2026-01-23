@@ -42,11 +42,13 @@ export class BottomControlBar extends UIElement {
       glowColor: '#6699ff'
     };
     
-    // 技能槽配置
+    // 技能槽配置（5个技能）
     this.skillSlots = [
-      { x: this.width / 2 - 120, y: 50, size: 60, hotkey: '1', skillIndex: 1 },
-      { x: this.width / 2, y: 50, size: 60, hotkey: '2', skillIndex: 2 },
-      { x: this.width / 2 + 120, y: 50, size: 60, hotkey: '3', skillIndex: 3 }
+      { x: this.width / 2 - 180, y: 50, size: 60, hotkey: '1', skillIndex: 0 },
+      { x: this.width / 2 - 90, y: 50, size: 60, hotkey: '2', skillIndex: 1 },
+      { x: this.width / 2, y: 50, size: 60, hotkey: '3', skillIndex: 2 },
+      { x: this.width / 2 + 90, y: 50, size: 60, hotkey: '4', skillIndex: 3 },
+      { x: this.width / 2 + 180, y: 50, size: 60, hotkey: '5', skillIndex: 4 }
     ];
     
     // 悬停状态
@@ -271,8 +273,8 @@ export class BottomControlBar extends UIElement {
   renderSkillSlots(ctx) {
     if (!this.entity) return;
     
-    const skills = this.entity.getComponent('skills');
-    if (!skills) return;
+    const combat = this.entity.getComponent('combat');
+    if (!combat || !combat.skills) return;
     
     for (let i = 0; i < this.skillSlots.length; i++) {
       const slot = this.skillSlots[i];
@@ -280,8 +282,8 @@ export class BottomControlBar extends UIElement {
       const slotY = this.y + slot.y;
       const halfSize = slot.size / 2;
       
-      // 获取对应的技能（跳过第0个技能，使用1、2、3）
-      const skill = skills.skills[slot.skillIndex];
+      // 获取对应的技能（使用索引0-4）
+      const skill = combat.skills[slot.skillIndex];
       
       const isHovered = this.hoveredSlot === i;
       
@@ -296,7 +298,7 @@ export class BottomControlBar extends UIElement {
       
       // 渲染技能
       if (skill) {
-        this.renderSkill(ctx, skill, slotX, slotY, slot.size, skills);
+        this.renderSkill(ctx, skill, slotX, slotY, slot.size, combat);
       }
       
       // 快捷键提示
@@ -314,16 +316,19 @@ export class BottomControlBar extends UIElement {
    * @param {number} x - X坐标
    * @param {number} y - Y坐标
    * @param {number} size - 尺寸
-   * @param {Object} skillsComponent - 技能组件
+   * @param {Object} combatComponent - 战斗组件
    */
-  renderSkill(ctx, skill, x, y, size, skillsComponent) {
+  renderSkill(ctx, skill, x, y, size, combatComponent) {
     const halfSize = size / 2;
     
     // 技能图标（简化为图形）
     this.renderSkillIcon(ctx, skill, x, y, size);
     
     // 冷却遮罩
-    const cooldown = skillsComponent.getCooldownRemaining(skill.id);
+    const currentTime = performance.now();
+    const cooldownMs = combatComponent.getSkillCooldownRemaining(skill.id, currentTime);
+    const cooldown = cooldownMs / 1000; // 转换为秒
+    
     if (cooldown > 0) {
       const cooldownRatio = cooldown / skill.cooldown;
       
@@ -372,8 +377,76 @@ export class BottomControlBar extends UIElement {
     ctx.save();
     ctx.translate(x, y);
     
-    if (skill.effectType === 'fireball') {
-      // 火球术 - 火焰图标
+    if (skill.effectType === 'flame_palm') {
+      // 火焰掌 - 火焰图标
+      ctx.fillStyle = '#ff6600';
+      ctx.beginPath();
+      ctx.arc(0, 0, 15, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.fillStyle = '#ffaa00';
+      ctx.font = 'bold 24px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🔥', 0, 0);
+    } else if (skill.effectType === 'one_yang_finger') {
+      // 一阳指 - 金色光束图标
+      ctx.fillStyle = '#ffdd00';
+      ctx.beginPath();
+      ctx.moveTo(0, -15);
+      ctx.lineTo(5, 0);
+      ctx.lineTo(0, 15);
+      ctx.lineTo(-5, 0);
+      ctx.closePath();
+      ctx.fill();
+      
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 24px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('☀', 0, 0);
+    } else if (skill.effectType === 'inferno_palm') {
+      // 烈焰掌 - 爆炸图标
+      ctx.fillStyle = '#ff0000';
+      for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.arc(Math.cos(angle) * 8, Math.sin(angle) * 8, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      
+      ctx.fillStyle = '#ffff00';
+      ctx.font = 'bold 24px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('💥', 0, 0);
+    } else if (skill.effectType === 'heal') {
+      // 治疗 - 绿色十字图标
+      ctx.fillStyle = '#00ff00';
+      ctx.fillRect(-3, -15, 6, 30);
+      ctx.fillRect(-15, -3, 30, 6);
+      
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 24px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('💚', 0, 0);
+    } else if (skill.effectType === 'meditation') {
+      // 打坐 - 烟雾图标
+      ctx.fillStyle = '#88ccff';
+      ctx.beginPath();
+      ctx.arc(-8, 0, 8, 0, Math.PI * 2);
+      ctx.arc(0, -5, 8, 0, Math.PI * 2);
+      ctx.arc(8, 0, 8, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 20px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🧘', 0, 0);
+    } else if (skill.effectType === 'fireball') {
+      // 火球术 - 火焰图标（旧技能）
       ctx.fillStyle = '#ff6600';
       ctx.beginPath();
       ctx.arc(0, 0, 15, 0, Math.PI * 2);
@@ -385,7 +458,7 @@ export class BottomControlBar extends UIElement {
       ctx.textBaseline = 'middle';
       ctx.fillText('🔥', 0, 0);
     } else if (skill.effectType === 'ice_lance') {
-      // 寒冰箭 - 冰晶图标
+      // 寒冰箭 - 冰晶图标（旧技能）
       ctx.fillStyle = '#00ccff';
       ctx.beginPath();
       ctx.moveTo(0, -15);
@@ -401,7 +474,7 @@ export class BottomControlBar extends UIElement {
       ctx.textBaseline = 'middle';
       ctx.fillText('❄', 0, 0);
     } else if (skill.effectType === 'flame_burst') {
-      // 烈焰爆发 - 爆炸图标
+      // 烈焰爆发 - 爆炸图标（旧技能）
       ctx.fillStyle = '#ff0000';
       for (let i = 0; i < 8; i++) {
         const angle = (i / 8) * Math.PI * 2;
@@ -471,9 +544,9 @@ export class BottomControlBar extends UIElement {
           y >= slotY - halfSize && y <= slotY + halfSize) {
         
         if (this.onSkillClick && this.entity) {
-          const skills = this.entity.getComponent('skills');
-          if (skills) {
-            const skill = skills.skills[slot.skillIndex];
+          const combat = this.entity.getComponent('combat');
+          if (combat && combat.skills) {
+            const skill = combat.skills[slot.skillIndex];
             if (skill) {
               this.onSkillClick(skill);
             }

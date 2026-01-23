@@ -54,14 +54,13 @@ export class CombatSystem {
     // 伤害数字列表
     this.damageNumbers = [];
     
-    // 技能快捷键映射
+    // 技能快捷键映射（5个技能）
     this.skillKeyMap = {
       'skill1': 0,
       'skill2': 1,
       'skill3': 2,
       'skill4': 3,
-      'skill5': 4,
-      'skill6': 5
+      'skill5': 4
     };
     
     console.log('CombatSystem: Initialized');
@@ -1171,6 +1170,16 @@ export class CombatSystem {
     // 消耗魔法值
     stats.consumeMana(skill.manaCost);
     
+    // 显示技能名称（在玩家头顶）
+    if (this.floatingTextManager && caster.type === 'player') {
+      this.floatingTextManager.addText(
+        casterTransform.position.x,
+        casterTransform.position.y - 50,
+        skill.name,
+        '#ffff00'
+      );
+    }
+    
     // 应用AOE技能效果
     this.applyAOESkillEffects(caster, targetPos, skill, currentTime, entities);
     
@@ -1311,6 +1320,37 @@ export class CombatSystem {
       }, skill.castTime * 1000 || 500);
     }
     
+    // 特殊处理：治疗技能
+    if (skill.id === 'heal') {
+      const stats = caster.getComponent('stats');
+      if (stats) {
+        const actualHeal = stats.heal(skill.healAmount);
+        
+        // 显示治疗数字（从玩家身上飘起）
+        if (casterTransform && actualHeal > 0) {
+          this.showHealNumber(casterTransform.position, actualHeal);
+        }
+        
+        // 创建治疗特效
+        if (this.skillEffects) {
+          this.skillEffects.createSkillEffect('mage_heal', casterTransform.position);
+        }
+      }
+      return;
+    }
+    
+    // 特殊处理：一阳指（路径伤害）
+    if (skill.id === 'one_yang_finger') {
+      this.applyOneYangFingerDamage(caster, targetPos, skill, entities);
+      return;
+    }
+    
+    // 特殊处理：火焰掌（主伤害 + 溅射）
+    if (skill.id === 'flame_palm') {
+      this.applyFlamePalmDamage(caster, targetPos, skill, entities);
+      return;
+    }
+    
     // 创建技能特效（抛射物飞向目标位置）
     if (this.skillEffects && casterTransform) {
       // 如果有抛射物速度，创建飞行特效
@@ -1332,6 +1372,126 @@ export class CombatSystem {
     } else {
       // 没有特效系统，直接应用伤害
       this.applyAOEDamage(caster, targetPos, skill, entities);
+    }
+  }
+  
+  /**
+   * 应用一阳指伤害（路径 + 终点）
+   * @param {Entity} caster - 施法者
+   * @param {Object} targetPos - 目标位置
+   * @param {Object} skill - 技能数据
+   * @param {Array<Entity>} entities - 实体列表
+   */
+  applyOneYangFingerDamage(caster, targetPos, skill, entities) {
+    const casterTransform = caster.getComponent('transform');
+    if (!casterTransform) return;
+    
+    // 创建特效
+    if (this.skillEffects) {
+      this.skillEffects.createSkillEffect(
+        skill.id,
+        casterTransform.position,
+        targetPos,
+        () => {
+          // 终点伤害
+          this.applyAOEDamage(caster, targetPos, {
+            ...skill,
+            damageMin: skill.finalDamageMin,
+            damageMax: skill.finalDamageMax,
+            aoeRadius: 50
+          }, entities);
+        }
+      );
+    }
+    
+    // 路径伤害检测
+    const dx = targetPos.x - casterTransform.position.x;
+    const dy = targetPos.y - casterTransform.position.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // 防止除以零
+    if (distance < 1) return;
+    
+    const dirX = dx / distance;
+    const dirY = dy / distance;
+    
+    // 检测路径上的敌人
+    const pathWidth = 30; // 路径宽度
+    const enemies = entities.filter(e => e.type === 'enemy' && !e.isDead && !e.isDying);
+    
+    for (const enemy of enemies) {
+      const enemyTransform = enemy.getComponent('transform');
+      if (!enemyTransform) continue;
+      
+      // 计算敌人到路径的距离
+      const ex = enemyTransform.position.x - casterTransform.position.x;
+      const ey = enemyTransform.position.y - casterTransform.position.y;
+      
+      // 投影到路径方向
+      const projection = ex * dirX + ey * dirY;
+      
+      // 如果投影在路径范围内
+      if (projection >= 0 && projection <= distance) {
+        // 计算垂直距离
+        const perpX = ex - projection * dirX;
+        const perpY = ey - projection * dirY;
+        const perpDist = Math.sqrt(perpX * perpX + perpY * perpY);
+        
+        // 如果在路径宽度内，造成路径伤害
+        if (perpDist <= pathWidth) {
+          const pathDamage = Math.floor(Math.random() * (skill.damageMax - skill.damageMin + 1)) + skill.damageMin;
+          this.applyDamage(enemy, pathDamage);
+        }
+      }
+    }
+  }
+  
+  /**
+   * 应用火焰掌伤害（主伤害 + 溅射）
+   * @param {Entity} caster - 施法者
+   * @param {Object} targetPos - 目标位置
+   * @param {Object} skill - 技能数据
+   * @param {Array<Entity>} entities - 实体列表
+   */
+  applyFlamePalmDamage(caster, targetPos, skill, entities) {
+    const casterTransform = caster.getComponent('transform');
+    if (!casterTransform) return;
+    
+    // 创建特效
+    if (this.skillEffects) {
+      this.skillEffects.createSkillEffect(
+        skill.id,
+        casterTransform.position,
+        targetPos,
+        () => {
+          // 主火焰伤害
+          this.applyAOEDamage(caster, targetPos, skill, entities);
+          
+          // 溅射小火焰伤害
+          const splashRadius = 80;
+          const enemies = entities.filter(e => {
+            if (e.type !== 'enemy' || e.isDead || e.isDying) return false;
+            
+            const transform = e.getComponent('transform');
+            if (!transform) return false;
+            
+            const dx = transform.position.x - targetPos.x;
+            const dy = transform.position.y - targetPos.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            return distance <= splashRadius;
+          });
+          
+          // 对每个敌人造成溅射伤害
+          for (const enemy of enemies) {
+            const splashDamage = Math.floor(
+              Math.random() * (skill.splashDamageMax - skill.splashDamageMin + 1)
+            ) + skill.splashDamageMin;
+            
+            this.applyDamage(enemy, splashDamage);
+          }
+        }
+      );
     }
   }
 
@@ -1385,6 +1545,13 @@ export class CombatSystem {
     
     if (!casterStats || !targetStats) return 0;
     
+    // 如果技能有随机伤害范围（damageMin/damageMax），直接使用
+    if (skill.damageMin !== undefined && skill.damageMax !== undefined) {
+      const randomDamage = Math.floor(Math.random() * (skill.damageMax - skill.damageMin + 1)) + skill.damageMin;
+      return randomDamage;
+    }
+    
+    // 否则使用原有的伤害计算逻辑
     // 获取修改后的属性（考虑状态效果）
     let attack = casterStats.attack;
     let defense = targetStats.defense;

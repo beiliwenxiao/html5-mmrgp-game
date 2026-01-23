@@ -104,6 +104,13 @@ export class BaseGameScene extends PrologueScene {
       combatExitTimer: 0         // 脱离战斗倒计时（秒）
     };
     
+    // 打坐状态
+    this.meditationState = {
+      active: false,             // 是否正在打坐
+      startTime: 0,              // 开始时间（秒）
+      lastTickTime: 0            // 上次恢复时间（秒）
+    };
+    
     // 面板切换冷却时间
     this.lastPlayerInfoToggleTime = 0;
     this.lastInventoryToggleTime = 0;
@@ -330,10 +337,64 @@ export class BaseGameScene extends PrologueScene {
   onSkillClicked(skill) {
     console.log('BaseGameScene: 技能点击', skill);
     
-    // 如果有选中的目标，使用技能
-    if (this.combatSystem && this.combatSystem.selectedTarget && this.playerEntity) {
-      this.combatSystem.useSkill(this.playerEntity, skill.id, this.combatSystem.selectedTarget);
+    if (!this.playerEntity || !this.combatSystem) return;
+    
+    // 特殊处理：打坐技能
+    if (skill.id === 'meditation') {
+      // 检查是否在战斗中
+      if (this.combatState.inCombat) {
+        console.log('战斗中无法打坐');
+        if (this.floatingTextManager) {
+          const transform = this.playerEntity.getComponent('transform');
+          if (transform) {
+            this.floatingTextManager.addText(
+              transform.position.x,
+              transform.position.y - 50,
+              '战斗中无法打坐',
+              '#ff6666'
+            );
+          }
+        }
+        return;
+      }
+      
+      // 切换打坐状态
+      if (this.meditationState.active) {
+        this.stopMeditation();
+      } else {
+        this.startMeditation();
+      }
+      return;
     }
+    
+    // 特殊处理：治疗技能（自己释放）
+    if (skill.id === 'heal') {
+      const combat = this.playerEntity.getComponent('combat');
+      const currentTime = performance.now();
+      
+      if (combat && combat.canUseSkill(skill.id, currentTime)) {
+        this.combatSystem.tryUseSkillAtPosition(
+          this.playerEntity,
+          skill,
+          this.playerEntity.getComponent('transform').position,
+          currentTime,
+          this.entities
+        );
+      }
+      return;
+    }
+    
+    // 其他技能：使用鼠标位置作为目标
+    const mouseWorldPos = this.inputManager.getMouseWorldPosition(this.camera);
+    const currentTime = performance.now();
+    
+    this.combatSystem.tryUseSkillAtPosition(
+      this.playerEntity,
+      skill,
+      mouseWorldPos,
+      currentTime,
+      this.entities
+    );
   }
 
   /**
@@ -355,10 +416,75 @@ export class BaseGameScene extends PrologueScene {
         speed: 120
       },
       skills: [
-        { id: 'basic_attack', name: '普通攻击', type: 'physical', damage: 15, manaCost: 0, cooldown: 1.0, range: 150, effectType: 'melee', hotkey: '1' },
-        { id: 'fireball', name: '火球术', type: 'magic', damage: 45, manaCost: 15, cooldown: 2.0, range: 500, aoeRadius: 100, effectType: 'fireball', projectileSpeed: 450, hotkey: '2' },
-        { id: 'ice_lance', name: '寒冰箭', type: 'magic', damage: 40, manaCost: 12, cooldown: 1.8, range: 550, aoeRadius: 80, effectType: 'ice_lance', projectileSpeed: 500, hotkey: '3' },
-        { id: 'flame_burst', name: '烈焰爆发', type: 'magic', damage: 65, manaCost: 25, cooldown: 4.0, range: 450, aoeRadius: 150, effectType: 'flame_burst', projectileSpeed: 400, hotkey: '4' }
+        { 
+          id: 'flame_palm', 
+          name: '火焰掌', 
+          type: 'magic', 
+          damageMin: 30,
+          damageMax: 100,
+          splashDamageMin: 5,
+          splashDamageMax: 20,
+          splashCount: 8,
+          manaCost: 15, 
+          cooldown: 3.0, 
+          range: 400, 
+          effectType: 'flame_palm', 
+          projectileSpeed: 450, 
+          hotkey: '1' 
+        },
+        { 
+          id: 'one_yang_finger', 
+          name: '一阳指', 
+          type: 'magic', 
+          damageMin: 20,
+          damageMax: 50,
+          finalDamageMin: 50,
+          finalDamageMax: 120,
+          manaCost: 12, 
+          cooldown: 3.0, 
+          range: 550, 
+          effectType: 'one_yang_finger', 
+          projectileSpeed: 600, 
+          hotkey: '2' 
+        },
+        { 
+          id: 'inferno_palm', 
+          name: '烈焰掌', 
+          type: 'magic', 
+          damageMin: 50,
+          damageMax: 200,
+          projectileCount: 5,
+          manaCost: 25, 
+          cooldown: 10.0, 
+          range: 450, 
+          effectType: 'inferno_palm', 
+          projectileSpeed: 400, 
+          hotkey: '3' 
+        },
+        { 
+          id: 'heal', 
+          name: '治疗', 
+          type: 'heal', 
+          healAmount: 50,
+          manaCost: 20, 
+          cooldown: 20.0, 
+          range: 0, 
+          effectType: 'heal', 
+          hotkey: '4' 
+        },
+        { 
+          id: 'meditation', 
+          name: '打坐', 
+          type: 'channel', 
+          healPerSecond: 0.1,
+          manaPerSecond: 0.1,
+          manaCost: 0, 
+          cooldown: 5.0, 
+          range: 0, 
+          effectType: 'meditation', 
+          hotkey: '5',
+          requiresNonCombat: true
+        }
       ],
       equipment: {},
       inventory: []
@@ -492,6 +618,9 @@ export class BaseGameScene extends PrologueScene {
     
     // 更新战斗状态
     this.updateCombatState(deltaTime);
+    
+    // 更新打坐状态
+    this.updateMeditationState(deltaTime);
     
     // 更新装备系统
     this.equipmentSystem.update(deltaTime, this.entities);
@@ -1033,6 +1162,12 @@ export class BaseGameScene extends PrologueScene {
     this.combatState.inCombat = true;
     this.combatState.lastCombatTime = performance.now() / 1000;
     this.combatState.combatExitTimer = this.combatState.combatExitDelay;
+    
+    // 进入战斗时中断打坐
+    if (this.meditationState.active) {
+      this.stopMeditation();
+    }
+    
     console.log('BaseGameScene: 进入战斗状态');
   }
 
@@ -1043,6 +1178,79 @@ export class BaseGameScene extends PrologueScene {
     this.combatState.inCombat = false;
     this.combatState.combatExitTimer = 0;
     console.log('BaseGameScene: 脱离战斗状态');
+  }
+
+  /**
+   * 更新打坐状态
+   * @param {number} deltaTime - 帧间隔时间（秒）
+   */
+  updateMeditationState(deltaTime) {
+    if (!this.meditationState.active || !this.playerEntity) return;
+    
+    const currentTime = performance.now() / 1000;
+    const stats = this.playerEntity.getComponent('stats');
+    const transform = this.playerEntity.getComponent('transform');
+    
+    if (!stats || !transform) return;
+    
+    // 每秒恢复一次
+    if (currentTime - this.meditationState.lastTickTime >= 1.0) {
+      // 恢复10%血量和魔法
+      const healAmount = Math.floor(stats.maxHp * 0.1);
+      const manaAmount = Math.floor(stats.maxMp * 0.1);
+      
+      const actualHeal = stats.heal(healAmount);
+      const actualMana = stats.restoreMana(manaAmount);
+      
+      // 显示恢复数值
+      if (actualHeal > 0) {
+        this.floatingTextManager.addHeal(transform.position.x - 20, transform.position.y - 40, actualHeal);
+      }
+      if (actualMana > 0) {
+        this.floatingTextManager.addManaRestore(transform.position.x + 20, transform.position.y - 40, actualMana);
+      }
+      
+      this.meditationState.lastTickTime = currentTime;
+    }
+  }
+
+  /**
+   * 开始打坐
+   */
+  startMeditation() {
+    if (this.combatState.inCombat) {
+      console.log('BaseGameScene: 战斗中无法打坐');
+      return false;
+    }
+    
+    const currentTime = performance.now() / 1000;
+    this.meditationState.active = true;
+    this.meditationState.startTime = currentTime;
+    this.meditationState.lastTickTime = currentTime;
+    
+    // 显示技能名称
+    if (this.playerEntity) {
+      const transform = this.playerEntity.getComponent('transform');
+      if (transform) {
+        this.floatingTextManager.addText(
+          transform.position.x,
+          transform.position.y - 60,
+          '打坐',
+          '#00ffff'
+        );
+      }
+    }
+    
+    console.log('BaseGameScene: 开始打坐');
+    return true;
+  }
+
+  /**
+   * 停止打坐
+   */
+  stopMeditation() {
+    this.meditationState.active = false;
+    console.log('BaseGameScene: 停止打坐');
   }
 
   /**

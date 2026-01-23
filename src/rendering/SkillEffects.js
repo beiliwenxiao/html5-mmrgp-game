@@ -173,6 +173,20 @@ export class SkillEffects {
         this.createFlameBurstEffect(position, target, onHit);
         break;
       
+      // 新技能特效
+      case 'flame_palm':
+        this.createFlamePalmEffect(position, target, onHit);
+        break;
+      case 'one_yang_finger':
+        this.createOneYangFingerEffect(position, target, onHit);
+        break;
+      case 'inferno_palm':
+        this.createInfernoPalmEffect(position, target, onHit);
+        break;
+      case 'meditation':
+        this.createMeditationEffect(position);
+        break;
+      
       // 弓箭手技能
       case 'archer_multi_shot':
         this.createMultiArrowEffect(position, target, onHit);
@@ -301,6 +315,13 @@ export class SkillEffects {
     const dx = target.x - position.x;
     const dy = target.y - position.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // 防止除以零
+    if (distance < 1) {
+      if (onHit) onHit(position);
+      return;
+    }
+    
     const speed = 300; // 像素/秒
     
     // 创建火球抛射物
@@ -371,6 +392,13 @@ export class SkillEffects {
     const dx = target.x - position.x;
     const dy = target.y - position.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // 防止除以零
+    if (distance < 1) {
+      if (onHit) onHit(position);
+      return;
+    }
+    
     const speed = 400; // 冰枪比火球快
     
     // 创建冰枪抛射物
@@ -441,6 +469,13 @@ export class SkillEffects {
     const dx = target.x - position.x;
     const dy = target.y - position.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // 防止除以零
+    if (distance < 1) {
+      if (onHit) onHit(position);
+      return;
+    }
+    
     const speed = 400;
     
     // 创建更大的火焰球
@@ -642,6 +677,13 @@ export class SkillEffects {
     const dx = target.x - position.x;
     const dy = target.y - position.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // 防止除以零
+    if (distance < 1) {
+      if (onHit) onHit(position);
+      return;
+    }
+    
     const speed = 350;
     
     const projectile = {
@@ -741,6 +783,290 @@ export class SkillEffects {
         angleRange: { min: 0, max: Math.PI * 2 }
       }
     );
+  }
+
+  /**
+   * 创建火焰掌特效（一小坨火焰 + 溅射小火焰）
+   * @param {Object} position - 起始位置
+   * @param {Object} target - 目标位置
+   * @param {Function} onHit - 命中回调
+   */
+  createFlamePalmEffect(position, target, onHit) {
+    if (!target) return;
+    
+    // 计算方向
+    const dx = target.x - position.x;
+    const dy = target.y - position.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // 防止除以零
+    if (distance < 1) {
+      if (onHit) onHit(position);
+      return;
+    }
+    
+    const speed = 350;
+    
+    // 创建主火焰球
+    const projectile = {
+      position: { ...position },
+      velocity: {
+        x: (dx / distance) * speed,
+        y: (dy / distance) * speed
+      },
+      target: { ...target },
+      elapsed: 0,
+      maxLife: distance / speed,
+      size: 12,
+      color: '#ff6600',
+      shape: 'circle',
+      trailConfig: {
+        position: { ...position },
+        velocity: { x: 0, y: 0 },
+        life: 400,
+        size: 8,
+        color: '#ff8800',
+        gravity: 0
+      },
+      onHit: (hitPos) => {
+        // 主火焰命中效果
+        this.particleSystem.emitBurst(
+          {
+            position: { ...hitPos },
+            velocity: { x: 0, y: 0 },
+            life: 500,
+            size: 10,
+            color: '#ff6600',
+            gravity: 50
+          },
+          20,
+          {
+            velocityRange: { min: 80, max: 150 },
+            angleRange: { min: 0, max: Math.PI * 2 },
+            sizeRange: { min: 8, max: 12 }
+          }
+        );
+        
+        // 溅射小火焰（8个方向）
+        for (let i = 0; i < 8; i++) {
+          const angle = (i / 8) * Math.PI * 2;
+          const splashSpeed = 150 + Math.random() * 100;
+          const splashDistance = 40 + Math.random() * 30;
+          
+          // 创建溅射火焰粒子
+          for (let j = 0; j < 5; j++) {
+            this.particleSystem.emit({
+              position: { ...hitPos },
+              velocity: {
+                x: Math.cos(angle) * splashSpeed,
+                y: Math.sin(angle) * splashSpeed
+              },
+              life: 400,
+              size: 4 + Math.random() * 4,
+              color: '#ff4400',
+              gravity: 100
+            });
+          }
+        }
+        
+        if (onHit) onHit(hitPos);
+      },
+      completed: false
+    };
+    
+    this.projectiles.push(projectile);
+  }
+
+  /**
+   * 创建一阳指特效（直线攻击）
+   * @param {Object} position - 起始位置
+   * @param {Object} target - 目标位置
+   * @param {Function} onHit - 命中回调
+   */
+  createOneYangFingerEffect(position, target, onHit) {
+    if (!target) return;
+    
+    // 计算方向
+    const dx = target.x - position.x;
+    const dy = target.y - position.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // 防止除以零
+    if (distance < 1) {
+      if (onHit) onHit(position);
+      return;
+    }
+    
+    const speed = 600; // 更快的速度
+    
+    // 创建金色光束
+    const projectile = {
+      position: { ...position },
+      velocity: {
+        x: (dx / distance) * speed,
+        y: (dy / distance) * speed
+      },
+      target: { ...target },
+      elapsed: 0,
+      maxLife: distance / speed,
+      size: 6,
+      color: '#ffdd00',
+      shape: 'rect',
+      trailConfig: {
+        position: { ...position },
+        velocity: { x: 0, y: 0 },
+        life: 300,
+        size: 5,
+        color: '#ffee88',
+        gravity: 0
+      },
+      onHit: (hitPos) => {
+        // 终点爆炸效果
+        this.particleSystem.emitBurst(
+          {
+            position: { ...hitPos },
+            velocity: { x: 0, y: 0 },
+            life: 600,
+            size: 12,
+            color: '#ffdd00',
+            gravity: 0
+          },
+          30,
+          {
+            velocityRange: { min: 100, max: 200 },
+            angleRange: { min: 0, max: Math.PI * 2 },
+            sizeRange: { min: 8, max: 14 }
+          }
+        );
+        
+        if (onHit) onHit(hitPos);
+      },
+      completed: false
+    };
+    
+    this.projectiles.push(projectile);
+  }
+
+  /**
+   * 创建烈焰掌特效（5大坨火焰）
+   * @param {Object} position - 起始位置
+   * @param {Object} target - 目标位置
+   * @param {Function} onHit - 命中回调
+   */
+  createInfernoPalmEffect(position, target, onHit) {
+    if (!target) return;
+    
+    // 计算基础方向
+    const dx = target.x - position.x;
+    const dy = target.y - position.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // 防止除以零
+    if (distance < 1) {
+      if (onHit) onHit(position);
+      return;
+    }
+    
+    const baseAngle = Math.atan2(dy, dx);
+    
+    // 创建5个火焰球，呈扇形分布
+    const angles = [-0.3, -0.15, 0, 0.15, 0.3]; // 弧度偏移
+    
+    for (let i = 0; i < 5; i++) {
+      const angle = baseAngle + angles[i];
+      const speed = 300 + Math.random() * 50;
+      
+      // 计算目标位置（稍微分散）
+      const targetX = target.x + Math.cos(angles[i]) * 50;
+      const targetY = target.y + Math.sin(angles[i]) * 50;
+      
+      const projectile = {
+        position: { ...position },
+        velocity: {
+          x: Math.cos(angle) * speed,
+          y: Math.sin(angle) * speed
+        },
+        target: { x: targetX, y: targetY },
+        elapsed: 0,
+        maxLife: distance / speed,
+        size: 16,
+        color: '#ff2200',
+        shape: 'circle',
+        trailConfig: {
+          position: { ...position },
+          velocity: { x: 0, y: 0 },
+          life: 600,
+          size: 12,
+          color: '#ff4400',
+          gravity: 0
+        },
+        onHit: (hitPos) => {
+          // 大爆炸效果
+          this.particleSystem.emitBurst(
+            {
+              position: { ...hitPos },
+              velocity: { x: 0, y: 0 },
+              life: 800,
+              size: 16,
+              color: '#ff2200',
+              gravity: 30
+            },
+            40,
+            {
+              velocityRange: { min: 150, max: 300 },
+              angleRange: { min: 0, max: Math.PI * 2 },
+              sizeRange: { min: 12, max: 18 }
+            }
+          );
+          
+          if (onHit) onHit(hitPos);
+        },
+        completed: false
+      };
+      
+      this.projectiles.push(projectile);
+    }
+  }
+
+  /**
+   * 创建打坐特效（头顶滚动烟雾）
+   * @param {Object} position - 位置
+   */
+  createMeditationEffect(position) {
+    // 创建持续的烟雾发射器
+    const emitter = this.particleSystem.createEmitter({
+      position: { x: position.x, y: position.y - 40 }, // 头顶位置
+      particleConfig: {
+        position: { x: position.x, y: position.y - 40 },
+        velocity: { x: 0, y: -30 }, // 向上飘
+        life: 2000, // 2秒生命周期
+        size: 8,
+        color: '#88ccff',
+        gravity: -15 // 负重力，继续向上
+      },
+      rate: 10, // 每秒10个粒子
+      duration: 999 // 持续很长时间（由外部控制停止）
+    });
+    
+    this.activeEmitters.push(emitter);
+    
+    // 返回发射器引用，以便外部可以停止
+    return emitter;
+  }
+
+  /**
+   * 停止打坐特效
+   */
+  stopMeditationEffect() {
+    // 停止所有打坐相关的发射器
+    for (let i = this.activeEmitters.length - 1; i >= 0; i--) {
+      const emitter = this.activeEmitters[i];
+      // 检查是否是打坐发射器（通过颜色判断）
+      if (emitter.particleConfig && emitter.particleConfig.color === '#88ccff') {
+        emitter.active = false;
+        this.activeEmitters.splice(i, 1);
+      }
+    }
   }
 
   /**
