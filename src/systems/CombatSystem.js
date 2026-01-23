@@ -19,6 +19,8 @@ export class CombatSystem {
    * @param {SkillEffects} config.skillEffects - 技能特效系统（可选）
    * @param {StatusEffectSystem} config.statusEffectSystem - 状态效果系统（可选）
    * @param {WeaponRenderer} config.weaponRenderer - 武器渲染器（可选）
+   * @param {EnemyWeaponRenderer} config.enemyWeaponRenderer - 敌人武器渲染器（可选）
+   * @param {FloatingTextManager} config.floatingTextManager - 飘字管理器（可选）
    */
   constructor(config = {}) {
     this.inputManager = config.inputManager;
@@ -27,6 +29,8 @@ export class CombatSystem {
     this.skillEffects = config.skillEffects;
     this.statusEffectSystem = config.statusEffectSystem;
     this.weaponRenderer = config.weaponRenderer;
+    this.enemyWeaponRenderer = config.enemyWeaponRenderer;
+    this.floatingTextManager = config.floatingTextManager;
     
     // 初始化元素系统
     this.elementSystem = new ElementSystem();
@@ -500,6 +504,7 @@ export class CombatSystem {
     const combat = attacker.getComponent('combat');
     const sprite = attacker.getComponent('sprite');
     const attackerTransform = attacker.getComponent('transform');
+    const targetTransform = target.getComponent('transform');
     
     if (!combat) return;
     
@@ -517,6 +522,11 @@ export class CombatSystem {
         }, 300); // 假设攻击动画持续300ms
       }
       
+      // 如果是敌人攻击，触发敌人武器动画
+      if (attacker.type === 'enemy' && this.enemyWeaponRenderer && attackerTransform && targetTransform) {
+        this.enemyWeaponRenderer.startAttack(attacker, targetTransform.position);
+      }
+      
       // 创建攻击特效
       if (this.skillEffects && attackerTransform) {
         this.skillEffects.createSkillEffect('basic_attack', attackerTransform.position);
@@ -526,8 +536,63 @@ export class CombatSystem {
       const damage = this.calculateDamage(attacker, target);
       this.applyDamage(target, damage);
       
+      // 显示攻击方式文本和掉血情况（敌人攻击玩家时）
+      if (attacker.type === 'enemy' && target.type === 'player' && targetTransform) {
+        const attackText = this.getAttackText(attacker);
+        if (attackText && this.floatingTextManager) {
+          // 显示攻击方式（红色，位置较高）
+          this.floatingTextManager.addText(
+            targetTransform.position.x,
+            targetTransform.position.y - 60,
+            attackText,
+            '#ff6666'
+          );
+          
+          // 显示掉血数值（黄色，位置较低）
+          this.floatingTextManager.addText(
+            targetTransform.position.x,
+            targetTransform.position.y - 30,
+            `-${damage}`,
+            '#ffff00'
+          );
+        }
+      }
+      
       console.log(`${attacker.name || attacker.id} 攻击 ${target.name || target.id}，造成 ${damage} 点伤害`);
     }
+  }
+  
+  /**
+   * 获取攻击方式文本
+   * @param {Entity} attacker - 攻击者
+   * @returns {string} 攻击方式文本
+   */
+  getAttackText(attacker) {
+    // 根据敌人的templateId或名字判断攻击方式
+    const templateId = attacker.templateId || '';
+    const name = attacker.name || '';
+    
+    // 野狗用咬的
+    if (templateId === 'wild_dog' || name.includes('野狗')) {
+      return '撕咬';
+    }
+    
+    // 其他敌人用武器攻击
+    // 可以根据不同敌人类型返回不同的攻击方式
+    if (templateId === 'soldier' || name.includes('士兵')) {
+      return '刀砍';
+    }
+    
+    if (templateId === 'bandit' || name.includes('土匪')) {
+      return '剑刺';
+    }
+    
+    if (templateId === 'starving' || name.includes('饥民')) {
+      return '棍击';
+    }
+    
+    // 默认攻击方式
+    return '攻击';
   }
 
   /**

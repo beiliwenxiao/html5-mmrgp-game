@@ -1,0 +1,343 @@
+/**
+ * FlightSystem - 轻功飞行系统
+ * 
+ * 负责处理玩家的轻功飞行功能，包括：
+ * - 飞行动画（蓄力、飞行、落地三阶段）
+ * - 飞行特效（起飞和落地烟雾）
+ * - 相机跟随
+ * - 飞行距离限制
+ */
+
+export class FlightSystem {
+  constructor(options = {}) {
+    this.particleSystem = options.particleSystem || null;
+    this.floatingTextManager = options.floatingTextManager || null;
+    this.camera = options.camera || null;
+    
+    // 飞行状态
+    this.isFlying = false;
+    this.flyingData = null;
+    
+    // 飞行参数配置
+    this.config = {
+      maxDistance: 640, // 最大飞行距离：20个身位 = 20 × 32像素
+      chargeDuration: 0.3, // 蓄力时长（秒）
+      flyDuration: 0.5, // 飞行时长（秒）
+      landDuration: 0.2, // 落地时长（秒）
+      arcHeight: 50, // 飞行弧线高度（像素）
+      squatOffset: 5, // 蓄力下蹲偏移（像素）
+      bounceOffset: 3, // 落地缓冲偏移（像素）
+      smokeParticleCount: 12, // 烟雾粒子数量
+      smokeRadius: 16, // 烟雾起始半径（半个玩家身位）
+      smokeLife: 600, // 烟雾生命周期（毫秒）
+      smokeSize: { min: 6, max: 10 }, // 烟雾粒子大小范围
+      smokeColor: '#e0e0e0', // 烟雾颜色
+      smokeAlpha: 0.5, // 烟雾透明度
+      smokeFriction: 0.96, // 烟雾摩擦力
+      takeoffGravity: -50, // 起飞烟雾重力（向上）
+      landingGravity: 30 // 落地烟雾重力（向下）
+    };
+  }
+  
+  /**
+   * 设置粒子系统
+   */
+  setParticleSystem(particleSystem) {
+    this.particleSystem = particleSystem;
+  }
+  
+  /**
+   * 设置飘字管理器
+   */
+  setFloatingTextManager(floatingTextManager) {
+    this.floatingTextManager = floatingTextManager;
+  }
+  
+  /**
+   * 设置相机
+   */
+  setCamera(camera) {
+    this.camera = camera;
+  }
+  
+  /**
+   * 检查是否正在飞行
+   */
+  isPlayerFlying() {
+    return this.isFlying;
+  }
+  
+  /**
+   * 开始飞行
+   * @param {Object} playerTransform - 玩家的TransformComponent
+   * @param {number} targetX - 目标X坐标
+   * @param {number} targetY - 目标Y坐标
+   * @returns {boolean} 是否成功开始飞行
+   */
+  startFlight(playerTransform, targetX, targetY) {
+    if (!playerTransform) {
+      console.error('FlightSystem: 玩家Transform组件不存在');
+      return false;
+    }
+    
+    if (this.isFlying) {
+      console.warn('FlightSystem: 已经在飞行中，无法再次触发');
+      return false;
+    }
+    
+    const startX = playerTransform.position.x;
+    const startY = playerTransform.position.y;
+    
+    // 计算距离
+    const dx = targetX - startX;
+    const dy = targetY - startY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // 限制飞行距离
+    let finalTargetX = targetX;
+    let finalTargetY = targetY;
+    
+    if (distance > this.config.maxDistance) {
+      const ratio = this.config.maxDistance / distance;
+      finalTargetX = startX + dx * ratio;
+      finalTargetY = startY + dy * ratio;
+    }
+    
+    // 初始化飞行数据
+    this.isFlying = true;
+    this.flyingData = {
+      startX: startX,
+      startY: startY,
+      targetX: finalTargetX,
+      targetY: finalTargetY,
+      progress: 0,
+      phase: 'charge', // 阶段：charge(蓄力) -> fly(飞行) -> land(落地)
+      chargeTime: 0
+    };
+    
+    // 设置相机为外部控制模式
+    if (this.camera) {
+      this.camera.externalControl = true;
+    }
+    
+    // 创建起飞烟雾特效
+    this.createTakeoffSmoke(startX, startY);
+    
+    console.log('FlightSystem: 开始轻功飞行', { 
+      from: { x: startX, y: startY }, 
+      to: { x: finalTargetX, y: finalTargetY },
+      distance: Math.sqrt((finalTargetX - startX) ** 2 + (finalTargetY - startY) ** 2)
+    });
+    
+    return true;
+  }
+  
+  /**
+   * 更新飞行状态
+   * @param {number} deltaTime - 帧时间间隔（秒）
+   * @param {Object} playerTransform - 玩家的TransformComponent
+   */
+  update(deltaTime, playerTransform) {
+    if (!this.isFlying || !this.flyingData || !playerTransform) return;
+    
+    const data = this.flyingData;
+    
+    if (data.phase === 'charge') {
+      this.updateChargePhase(deltaTime, playerTransform);
+    } else if (data.phase === 'fly') {
+      this.updateFlyPhase(deltaTime, playerTransform);
+    } else if (data.phase === 'land') {
+      this.updateLandPhase(deltaTime, playerTransform);
+    }
+  }
+  
+  /**
+   * 更新蓄力阶段
+   */
+  updateChargePhase(deltaTime, playerTransform) {
+    const data = this.flyingData;
+    data.chargeTime += deltaTime;
+    const chargeProgress = Math.min(1, data.chargeTime / this.config.chargeDuration);
+    
+    // 轻微下蹲效果（Y轴偏移）
+    const squatOffset = Math.sin(chargeProgress * Math.PI) * this.config.squatOffset;
+    playerTransform.position.y = data.startY + squatOffset;
+    
+    if (chargeProgress >= 1) {
+      // 蓄力完成，进入飞行阶段
+      data.phase = 'fly';
+      data.progress = 0;
+    }
+  }
+  
+  /**
+   * 更新飞行阶段
+   */
+  updateFlyPhase(deltaTime, playerTransform) {
+    const data = this.flyingData;
+    data.progress += deltaTime / this.config.flyDuration;
+    
+    if (data.progress >= 1) {
+      // 飞行完成，进入落地阶段
+      data.phase = 'land';
+      data.progress = 0;
+      playerTransform.position.x = data.targetX;
+      playerTransform.position.y = data.targetY;
+      
+      // 创建落地烟雾特效
+      this.createLandingSmoke(data.targetX, data.targetY);
+      
+      // 显示轻功飘字
+      if (this.floatingTextManager) {
+        this.floatingTextManager.addText(
+          data.targetX,
+          data.targetY - 40,
+          '轻功',
+          '#cccccc'
+        );
+      }
+    } else {
+      // 使用缓动函数实现平滑飞行
+      const easeProgress = this.easeInOutQuad(data.progress);
+      
+      // 计算当前位置
+      const currentX = data.startX + (data.targetX - data.startX) * easeProgress;
+      const currentY = data.startY + (data.targetY - data.startY) * easeProgress;
+      
+      // 添加抛物线效果（向上的弧线）
+      const arcOffset = Math.sin(easeProgress * Math.PI) * this.config.arcHeight;
+      
+      playerTransform.position.x = currentX;
+      playerTransform.position.y = currentY - arcOffset;
+      
+      // 相机跟随玩家
+      if (this.camera) {
+        this.camera.position.x = playerTransform.position.x;
+        this.camera.position.y = playerTransform.position.y;
+      }
+    }
+  }
+  
+  /**
+   * 更新落地阶段
+   */
+  updateLandPhase(deltaTime, playerTransform) {
+    const data = this.flyingData;
+    data.progress += deltaTime / this.config.landDuration;
+    
+    if (data.progress >= 1) {
+      // 落地完成，结束飞行
+      this.isFlying = false;
+      this.flyingData = null;
+      
+      // 恢复相机自动跟随
+      if (this.camera) {
+        this.camera.externalControl = false;
+      }
+      
+      console.log('FlightSystem: 轻功完成');
+    } else {
+      // 落地缓冲效果（轻微下蹲再恢复）
+      const bounceOffset = Math.sin(data.progress * Math.PI) * this.config.bounceOffset;
+      playerTransform.position.y = data.targetY + bounceOffset;
+      
+      // 相机继续跟随
+      if (this.camera) {
+        this.camera.position.x = playerTransform.position.x;
+        this.camera.position.y = playerTransform.position.y;
+      }
+    }
+  }
+  
+  /**
+   * 缓动函数：ease-in-out-quad
+   */
+  easeInOutQuad(t) {
+    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  }
+  
+  /**
+   * 创建起飞烟雾特效
+   */
+  createTakeoffSmoke(x, y) {
+    if (!this.particleSystem) return;
+    
+    const { smokeParticleCount, smokeRadius, smokeLife, smokeSize, smokeColor, smokeAlpha, smokeFriction, takeoffGravity } = this.config;
+    
+    for (let i = 0; i < smokeParticleCount; i++) {
+      // 只在下半圆生成粒子（从0度到180度）
+      const angle = Math.PI * (i / smokeParticleCount);
+      const offsetX = Math.cos(angle) * smokeRadius;
+      const offsetY = Math.sin(angle) * smokeRadius;
+      
+      this.particleSystem.emit({
+        position: { x: x + offsetX, y: y + offsetY },
+        velocity: { 
+          x: Math.cos(angle) * 50, // 向外扩散
+          y: Math.sin(angle) * 25 - 30 // 向外下方，然后重力让它向上
+        },
+        life: smokeLife,
+        size: smokeSize.min + Math.random() * (smokeSize.max - smokeSize.min),
+        color: smokeColor,
+        alpha: smokeAlpha,
+        friction: smokeFriction,
+        gravity: takeoffGravity
+      });
+    }
+  }
+  
+  /**
+   * 创建落地烟雾特效
+   */
+  createLandingSmoke(x, y) {
+    if (!this.particleSystem) return;
+    
+    const { smokeParticleCount, smokeRadius, smokeLife, smokeSize, smokeColor, smokeAlpha, smokeFriction, landingGravity } = this.config;
+    
+    for (let i = 0; i < smokeParticleCount; i++) {
+      // 只在下半圆生成粒子（从0度到180度）
+      const angle = Math.PI * (i / smokeParticleCount);
+      const offsetX = Math.cos(angle) * smokeRadius;
+      const offsetY = Math.sin(angle) * smokeRadius;
+      
+      this.particleSystem.emit({
+        position: { x: x + offsetX, y: y + offsetY },
+        velocity: { 
+          x: Math.cos(angle) * 50, // 向外扩散
+          y: Math.sin(angle) * 25 + 10 // 向外下方
+        },
+        life: smokeLife,
+        size: smokeSize.min + Math.random() * (smokeSize.max - smokeSize.min),
+        color: smokeColor,
+        alpha: smokeAlpha,
+        friction: smokeFriction,
+        gravity: landingGravity
+      });
+    }
+  }
+  
+  /**
+   * 取消飞行
+   */
+  cancelFlight() {
+    this.isFlying = false;
+    this.flyingData = null;
+    
+    // 恢复相机自动跟随
+    if (this.camera) {
+      this.camera.externalControl = false;
+    }
+  }
+  
+  /**
+   * 清理资源
+   */
+  cleanup() {
+    this.cancelFlight();
+    this.particleSystem = null;
+    this.floatingTextManager = null;
+    this.camera = null;
+  }
+}
+
+export default FlightSystem;

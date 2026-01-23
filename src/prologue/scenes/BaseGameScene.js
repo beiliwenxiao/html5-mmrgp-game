@@ -33,6 +33,7 @@ import { BottomControlBar } from '../../ui/BottomControlBar.js';
 import { FloatingTextManager } from '../../ui/FloatingText.js';
 import { ParticleSystem } from '../../rendering/ParticleSystem.js';
 import { WeaponRenderer } from '../../rendering/WeaponRenderer.js';
+import { EnemyWeaponRenderer } from '../../rendering/EnemyWeaponRenderer.js';
 import { FlightSystem } from '../../systems/FlightSystem.js';
 import { Entity } from '../../ecs/Entity.js';
 import { TransformComponent } from '../../ecs/components/TransformComponent.js';
@@ -62,6 +63,7 @@ export class BaseGameScene extends PrologueScene {
     this.combatEffects = null;
     this.skillEffects = null;
     this.weaponRenderer = null;
+    this.enemyWeaponRenderer = null;
     this.flightSystem = null;
     this.uiClickHandler = new UIClickHandler();
     
@@ -142,6 +144,9 @@ export class BaseGameScene extends PrologueScene {
     // 初始化武器渲染器
     this.weaponRenderer = new WeaponRenderer();
     
+    // 初始化敌人武器渲染器
+    this.enemyWeaponRenderer = new EnemyWeaponRenderer();
+    
     // 初始化轻功飞行系统
     this.flightSystem = new FlightSystem({
       particleSystem: this.particleSystem,
@@ -154,7 +159,9 @@ export class BaseGameScene extends PrologueScene {
       inputManager: this.inputManager,
       camera: this.camera,
       skillEffects: this.skillEffects,
-      weaponRenderer: this.weaponRenderer
+      weaponRenderer: this.weaponRenderer,
+      enemyWeaponRenderer: this.enemyWeaponRenderer,
+      floatingTextManager: this.floatingTextManager
     });
     
     // 设置掉落回调
@@ -493,6 +500,11 @@ export class BaseGameScene extends PrologueScene {
     if (this.weaponRenderer) {
       const currentTime = performance.now() / 1000; // 转换为秒
       this.weaponRenderer.update(deltaTime, currentTime);
+    }
+    
+    // 更新敌人武器渲染器
+    if (this.enemyWeaponRenderer) {
+      this.enemyWeaponRenderer.update(deltaTime);
       
       // 检查武器飞行路径上的碰撞
       if (this.weaponRenderer.thrownWeapon.flying) {
@@ -1241,6 +1253,16 @@ export class BaseGameScene extends PrologueScene {
       this.weaponRenderer.render(ctx, this.playerEntity, this.camera);
     }
     
+    // 渲染敌人武器
+    if (this.enemyWeaponRenderer) {
+      for (const entity of this.entities) {
+        if (entity.type === 'enemy' && !entity.isDead && !entity.isDying) {
+          // 传入玩家实体作为目标，让武器朝向玩家
+          this.enemyWeaponRenderer.render(ctx, entity, this.playerEntity);
+        }
+      }
+    }
+    
     // 渲染粒子系统（在世界坐标系中，相机变换生效时）
     this.particleSystem.render(ctx, this.camera);
     
@@ -1479,6 +1501,10 @@ export class BaseGameScene extends PrologueScene {
     
     if (this.flightSystem) {
       this.flightSystem.cleanup();
+    }
+    
+    if (this.enemyWeaponRenderer) {
+      this.enemyWeaponRenderer.cleanup();
     }
     
     this.tutorialSystem.cleanup();

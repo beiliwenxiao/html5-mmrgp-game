@@ -862,6 +862,11 @@ export class Act1SceneECS extends BaseGameScene {
    * 检查火堆碰撞（阻止玩家穿过火堆）
    */
   checkCampfireCollision() {
+    // 如果正在轻功飞行，不检查火堆碰撞（可以飞过火堆）
+    if (this.flightSystem && this.flightSystem.isPlayerFlying()) {
+      return;
+    }
+    
     const transform = this.playerEntity.getComponent('transform');
     if (!transform) return;
     
