@@ -250,6 +250,9 @@ export class PlayerInfoPanel extends UIElement {
       ctx.fillText(attr.value.toString(), this.x + this.padding + 60, currentY);
       currentY += this.lineHeight;
     }
+    
+    // 绘制装备tooltip
+    this.renderEquipmentTooltip(ctx, equipment);
   }
 
   /**
@@ -326,6 +329,10 @@ export class PlayerInfoPanel extends UIElement {
   handleMouseMove(x, y) {
     if (!this.visible) return;
     
+    // 保存鼠标位置用于tooltip
+    this.mouseX = x;
+    this.mouseY = y;
+    
     // 检查是否悬停在属性加点按钮上
     if (this.attributeButtonRect) {
       const btn = this.attributeButtonRect;
@@ -344,6 +351,173 @@ export class PlayerInfoPanel extends UIElement {
         break;
       }
     }
+  }
+
+  /**
+   * 渲染装备tooltip
+   * @param {CanvasRenderingContext2D} ctx - 渲染上下文
+   * @param {Object} equipment - 装备组件
+   */
+  renderEquipmentTooltip(ctx, equipment) {
+    if (!this.hoveredEquipSlot || !equipment) return;
+    
+    const item = equipment.slots[this.hoveredEquipSlot];
+    if (!item) return;
+    
+    const tooltipWidth = 280;
+    const tooltipHeight = 180;
+    
+    // 获取canvas尺寸
+    const canvasWidth = ctx.canvas.width;
+    const canvasHeight = ctx.canvas.height;
+    
+    // 默认显示在鼠标右侧
+    let tooltipX = this.mouseX + 15;
+    let tooltipY = this.mouseY - 20;
+    
+    // 如果超出右边界，显示在鼠标左侧
+    if (tooltipX + tooltipWidth > canvasWidth) {
+      tooltipX = this.mouseX - tooltipWidth - 15;
+    }
+    
+    // 如果左侧也超出，显示在面板右侧
+    if (tooltipX < 0) {
+      tooltipX = this.x + this.width + 10;
+      // 如果面板右侧也超出，显示在面板左侧
+      if (tooltipX + tooltipWidth > canvasWidth) {
+        tooltipX = this.x - tooltipWidth - 10;
+      }
+    }
+    
+    // 如果超出下边界，向上调整
+    if (tooltipY + tooltipHeight > canvasHeight) {
+      tooltipY = canvasHeight - tooltipHeight - 10;
+    }
+    
+    // 如果超出上边界，向下调整
+    if (tooltipY < 0) {
+      tooltipY = 10;
+    }
+    
+    // 稀有度颜色
+    const rarityColors = {
+      0: '#888888', // 普通
+      1: '#00ff00', // 优秀
+      2: '#0088ff', // 精良
+      3: '#aa00ff', // 史诗
+      4: '#ff8800'  // 传说
+    };
+    
+    // 提示框背景
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.95)';
+    ctx.fillRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight);
+    
+    // 提示框边框
+    ctx.strokeStyle = rarityColors[item.rarity] || '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight);
+
+    let yOffset = 20;
+    
+    // 物品名称
+    ctx.fillStyle = rarityColors[item.rarity] || '#ffffff';
+    ctx.font = 'bold 14px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText(item.name, tooltipX + 10, tooltipY + yOffset);
+    yOffset += 20;
+    
+    // 物品类型和稀有度
+    const typeNames = {
+      'weapon': '武器',
+      'armor': '护甲',
+      'accessory': '饰品',
+      'consumable': '消耗品'
+    };
+    
+    const rarityNames = {
+      0: '普通',
+      1: '优秀',
+      2: '精良',
+      3: '史诗',
+      4: '传说'
+    };
+    
+    ctx.fillStyle = '#aaaaaa';
+    ctx.font = '12px Arial';
+    const typeName = typeNames[item.type] || item.type;
+    const rarityName = rarityNames[item.rarity] || '未知';
+    ctx.fillText(`${typeName} | ${rarityName}`, tooltipX + 10, tooltipY + yOffset);
+    yOffset += 15;
+    
+    // 物品描述
+    if (item.description) {
+      ctx.fillStyle = '#cccccc';
+      ctx.font = '10px Arial';
+      yOffset += 5;
+      this.wrapText(ctx, item.description, tooltipX + 10, tooltipY + yOffset, tooltipWidth - 20, 12);
+      yOffset += 30;
+    }
+    
+    // 装备属性
+    if (item.stats) {
+      ctx.fillStyle = '#ffff00';
+      ctx.font = '11px Arial';
+      ctx.fillText('装备属性:', tooltipX + 10, tooltipY + yOffset);
+      yOffset += 15;
+      
+      ctx.fillStyle = '#00ff00';
+      
+      if (item.stats.attack) {
+        ctx.fillText(`攻击力: +${item.stats.attack}`, tooltipX + 15, tooltipY + yOffset);
+        yOffset += 12;
+      }
+      if (item.stats.defense) {
+        ctx.fillText(`防御力: +${item.stats.defense}`, tooltipX + 15, tooltipY + yOffset);
+        yOffset += 12;
+      }
+      if (item.stats.maxHp) {
+        ctx.fillText(`生命值: +${item.stats.maxHp}`, tooltipX + 15, tooltipY + yOffset);
+        yOffset += 12;
+      }
+      if (item.stats.maxMp) {
+        ctx.fillText(`魔法值: +${item.stats.maxMp}`, tooltipX + 15, tooltipY + yOffset);
+        yOffset += 12;
+      }
+      if (item.stats.speed) {
+        ctx.fillText(`速度: +${item.stats.speed}`, tooltipX + 15, tooltipY + yOffset);
+        yOffset += 12;
+      }
+    }
+  }
+
+  /**
+   * 文本换行
+   * @param {CanvasRenderingContext2D} ctx - 渲染上下文
+   * @param {string} text - 文本
+   * @param {number} x - X坐标
+   * @param {number} y - Y坐标
+   * @param {number} maxWidth - 最大宽度
+   * @param {number} lineHeight - 行高
+   */
+  wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+    const words = text.split('');
+    let line = '';
+    let currentY = y;
+
+    for (let i = 0; i < words.length; i++) {
+      const testLine = line + words[i];
+      const metrics = ctx.measureText(testLine);
+      const testWidth = metrics.width;
+
+      if (testWidth > maxWidth && i > 0) {
+        ctx.fillText(line, x, currentY);
+        line = words[i];
+        currentY += lineHeight;
+      } else {
+        line = testLine;
+      }
+    }
+    ctx.fillText(line, x, currentY);
   }
 
   /**

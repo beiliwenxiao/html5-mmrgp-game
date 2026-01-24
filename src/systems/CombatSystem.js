@@ -1046,6 +1046,15 @@ export class CombatSystem {
       return false;
     }
     
+    // 检查鼠标移动速度是否达到阈值（5 km/h）
+    if (this.weaponRenderer) {
+      const speedKmh = this.weaponRenderer.mouseMovement.speedKmh;
+      if (speedKmh < 5) {
+        console.log(`鼠标移动速度不足：${speedKmh.toFixed(1)} km/h，需要至少 5 km/h`);
+        return false;
+      }
+    }
+    
     // 使用技能
     const usedSkill = combat.useSkill(skill.id, currentTime);
     if (!usedSkill) return false;
