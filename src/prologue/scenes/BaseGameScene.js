@@ -1063,17 +1063,22 @@ export class BaseGameScene extends PrologueScene {
       if (!stats) continue;
       
       let finalDamage;
+      let damageType; // 伤害类型
+      
       if (!isWeaponReady) {
         // 冷却中：damageMultiplier 是固定伤害值（0-5）
         finalDamage = Math.floor(damageMultiplier);
+        damageType = `${attackTypeName}[冷却]`;
       } else {
         // 就绪：damageMultiplier 是倍率，需要乘以基础攻击力
         const baseDamage = stats.attack || 15;
         finalDamage = Math.floor(baseDamage * damageMultiplier);
+        const multiplierPercent = Math.floor(damageMultiplier * 100);
+        damageType = `${attackTypeName}${multiplierPercent}%`;
       }
       
-      // 应用伤害和击退效果
-      this.combatSystem.applyDamage(enemy, finalDamage, knockbackDir);
+      // 应用伤害和击退效果（传入伤害类型）
+      this.combatSystem.applyDamage(enemy, finalDamage, knockbackDir, damageType);
       
       // 创建攻击特效
       if (this.skillEffects) {
@@ -1084,28 +1089,27 @@ export class BaseGameScene extends PrologueScene {
       }
     }
     
-    // 显示攻击类型和伤害提示
-    // 根据武器状态显示不同内容和颜色
-    let displayText;
-    let textColor;
-    if (!isWeaponReady) {
-      // 冷却中：显示灰色，只显示伤害数值（damageMultiplier就是伤害值0-5）
-      const actualDamage = Math.floor(damageMultiplier);
-      displayText = `${attackTypeName} [冷却] ${actualDamage}`;
-      textColor = '#888888'; // 灰色
-    } else {
-      // 就绪：显示正常颜色和详细信息
-      const multiplierPercent = Math.floor(damageMultiplier * 100);
-      displayText = `${attackTypeName} 速度${speedKmh.toFixed(1)}km/h 伤害${multiplierPercent}%`;
-      textColor = attackTypeName === '刺击' ? '#ff9900' : '#00ffff';
+    // 在玩家头上显示攻击统计信息
+    if (enemiesInRange.length > 0) {
+      let summaryText;
+      let summaryColor;
+      
+      if (!isWeaponReady) {
+        summaryText = `${attackTypeName} [冷却] 命中${enemiesInRange.length}个敌人`;
+        summaryColor = '#888888';
+      } else {
+        const multiplierPercent = Math.floor(damageMultiplier * 100);
+        summaryText = `${attackTypeName} ${speedKmh.toFixed(1)}km/h ${multiplierPercent}% 命中${enemiesInRange.length}个`;
+        summaryColor = attackTypeName === '刺击' ? '#ff9900' : '#00ffff';
+      }
+      
+      this.floatingTextManager.addText(
+        transform.position.x,
+        transform.position.y - 80,
+        summaryText,
+        summaryColor
+      );
     }
-    
-    this.floatingTextManager.addText(
-      transform.position.x,
-      transform.position.y - 60,
-      displayText,
-      textColor
-    );
   }
 
   /**

@@ -81,6 +81,12 @@ export class WeaponRenderer {
       autoRecoverTime: 10,  // 自动回收时间（秒）
       ownerEntity: null     // 武器所有者
     };
+    
+    // 武器眩晕状态（被击退后无法格挡）
+    this.stunned = {
+      active: false,        // 是否眩晕
+      endTime: 0            // 眩晕结束时间（毫秒）
+    };
   }
 
   /**
@@ -89,6 +95,12 @@ export class WeaponRenderer {
    * @param {number} currentTime - 当前时间（秒）
    */
   update(deltaTime, currentTime) {
+    // 更新眩晕状态
+    if (this.stunned.active && performance.now() >= this.stunned.endTime) {
+      this.stunned.active = false;
+      console.log('武器眩晕恢复，可以格挡了');
+    }
+    
     if (this.attackAnimation.active) {
       this.attackAnimation.progress += deltaTime / this.attackAnimation.duration;
       
@@ -687,11 +699,14 @@ export class WeaponRenderer {
     // 基准角度是鼠标方向
     const baseAngle = this.currentMouseAngle;
     
-    // 根据攻击类型确定攻击扇形角度
-    let attackArc = Math.PI / 2; // 默认90度扇形
+    // 根据移动类型确定攻击扇形角度
+    // 使用 lastMovementType 而不是 attackAnimation.type
+    let attackArc = Math.PI; // 默认180度扇形（更宽容）
     
-    if (this.attackAnimation.type === 'forward') {
-      attackArc = Math.PI / 3; // 前刺60度扇形
+    if (this.mouseMovement.lastMovementType === 'thrust') {
+      attackArc = Math.PI / 2; // 刺击：90度扇形
+    } else if (this.mouseMovement.lastMovementType === 'sweep') {
+      attackArc = Math.PI * 1.2; // 扫击：216度扇形（更宽）
     }
     
     for (const entity of entities) {

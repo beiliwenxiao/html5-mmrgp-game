@@ -63,6 +63,14 @@ export class CombatSystem {
       'skill5': 4
     };
     
+    // 格挡状态：记录哪些敌人的攻击被格挡了
+    // Map<enemyId, { blocked: boolean, time: number }>
+    this.blockedAttacks = new Map();
+    
+    // 武器碰撞冷却：防止同一次攻击重复触发碰撞
+    // Map<enemyId, number> - 记录上次碰撞时间
+    this.weaponCollisionCooldowns = new Map();
+    
     console.log('CombatSystem: Initialized');
   }
 
@@ -82,6 +90,9 @@ export class CombatSystem {
   update(deltaTime, entities) {
     const currentTime = performance.now();
     
+    // 清理过期的格挡标记（超过0.5秒）
+    this.cleanupBlockedAttacks(currentTime);
+    
     // 更新大规模战斗（如果激活）
     if (this.largeBattle && this.largeBattle.active) {
       this.updateLargeScaleBattle(deltaTime, currentTime);
@@ -99,6 +110,9 @@ export class CombatSystem {
     // 处理自动攻击
     this.handleAutoAttack(currentTime, entities);
     
+    // 检测武器碰撞并应用反作用力
+    this.checkWeaponCollisions(entities);
+    
     // 检查死亡
     this.checkDeath(entities);
     
@@ -110,6 +124,28 @@ export class CombatSystem {
       const combat = entity.getComponent('combat');
       if (combat) {
         combat.update(deltaTime);
+      }
+    }
+  }
+  
+  /**
+   * 清理过期的格挡标记
+   * @param {number} currentTime - 当前时间（毫秒）
+   */
+  cleanupBlockedAttacks(currentTime) {
+    const expireTime = 500; // 0.5秒后过期
+    
+    for (const [enemyId, blockInfo] of this.blockedAttacks.entries()) {
+      if (currentTime - blockInfo.time > expireTime) {
+        this.blockedAttacks.delete(enemyId);
+      }
+    }
+    
+    // 清理过期的碰撞冷却记录
+    const collisionExpireTime = 1000; // 1秒后过期
+    for (const [enemyId, collisionTime] of this.weaponCollisionCooldowns.entries()) {
+      if (currentTime - collisionTime > collisionExpireTime) {
+        this.weaponCollisionCooldowns.delete(enemyId);
       }
     }
   }
@@ -326,11 +362,22 @@ export class CombatSystem {
   renderDamageNumbers(ctx) {
     if (this.damageNumbers.length === 0) return;
     
+    // 调试日志（每秒只输出一次）
+    if (!this._lastDamageNumberLog || performance.now() - this._lastDamageNumberLog > 1000) {
+      console.log(`[renderDamageNumbers] 正在渲染 ${this.damageNumbers.length} 个伤害数字`);
+      this._lastDamageNumberLog = performance.now();
+    }
+    
     ctx.save();
     
     for (const dn of this.damageNumbers) {
       // 转换为屏幕坐标
       const screenPos = this.worldToScreen({ x: dn.x, y: dn.y });
+      
+      // 调试：输出屏幕坐标
+      if (dn.damageType === '武器碰撞') {
+        console.log(`[renderDamageNumbers] 武器碰撞伤害 世界坐标:(${dn.x.toFixed(0)}, ${dn.y.toFixed(0)}) -> 屏幕坐标:(${screenPos.x.toFixed(0)}, ${screenPos.y.toFixed(0)})`);
+      }
       
       // 计算透明度（根据生命周期）
       const alpha = dn.life / dn.maxLife;
@@ -340,13 +387,28 @@ export class CombatSystem {
       
       // 绘制数字
       ctx.globalAlpha = alpha;
-      ctx.fillStyle = dn.isHeal ? '#00ff00' : '#ffff00'; // 治疗为绿色，伤害为黄色
+      // 根据伤害类型选择颜色
+      if (dn.isHeal) {
+        ctx.fillStyle = '#00ff00'; // 治疗为绿色
+      } else if (dn.damageType === '武器碰撞') {
+        ctx.fillStyle = '#ff6666'; // 武器碰撞为红色
+      } else {
+        ctx.fillStyle = '#ffff00'; // 普通伤害为黄色
+      }
       ctx.strokeStyle = '#000000';
       ctx.font = `bold ${Math.floor(24 * scale)}px Arial`;
       ctx.textAlign = 'center';
       ctx.lineWidth = 4;
       
-      const text = dn.isHeal ? `+${dn.damage}` : `-${dn.damage}`;
+      // 构建显示文本：如果有伤害类型，显示"类型 -数值"，否则只显示"-数值"
+      let text;
+      if (dn.isHeal) {
+        text = `+${dn.damage}`;
+      } else if (dn.damageType) {
+        text = `${dn.damageType} -${dn.damage}`;
+      } else {
+        text = `-${dn.damage}`;
+      }
       
       // 描边
       ctx.strokeText(text, screenPos.x, screenPos.y);
@@ -507,6 +569,39 @@ export class CombatSystem {
     
     if (!combat) return;
     
+    // 检查敌人攻击是否被格挡
+    if (attacker.type === 'enemy' && target.type === 'player') {
+      // 检查玩家武器是否眩晕（无法格挡）
+      if (this.weaponRenderer && this.weaponRenderer.stunned.active) {
+        console.log(`${attacker.name || attacker.id} 的攻击命中！玩家武器眩晕中，无法格挡`);
+        // 武器眩晕，无法格挡，继续正常攻击流程
+      } else {
+        // 武器未眩晕，检查是否有格挡标记
+        const blockInfo = this.blockedAttacks.get(attacker.id);
+        if (blockInfo && blockInfo.blocked) {
+          // 攻击被格挡，不造成伤害
+          console.log(`${attacker.name || attacker.id} 的攻击被格挡！`);
+          
+          // 显示格挡提示
+          if (targetTransform && this.floatingTextManager) {
+            this.floatingTextManager.addText(
+              targetTransform.position.x,
+              targetTransform.position.y - 60,
+              '格挡！',
+              '#00ffff'
+            );
+          }
+          
+          // 清除格挡标记（格挡只生效一次）
+          this.blockedAttacks.delete(attacker.id);
+          
+          // 更新冷却时间但不造成伤害
+          combat.attack(currentTime);
+          return;
+        }
+      }
+    }
+    
     // 执行攻击（更新冷却时间）
     if (combat.attack(currentTime)) {
       // 播放攻击动画
@@ -531,31 +626,10 @@ export class CombatSystem {
         this.skillEffects.createSkillEffect('basic_attack', attackerTransform.position);
       }
       
-      // 计算并应用伤害
+      // 计算并应用伤害（传入攻击类型）
       const damage = this.calculateDamage(attacker, target);
-      this.applyDamage(target, damage);
-      
-      // 显示攻击方式文本和掉血情况（敌人攻击玩家时）
-      if (attacker.type === 'enemy' && target.type === 'player' && targetTransform) {
-        const attackText = this.getAttackText(attacker);
-        if (attackText && this.floatingTextManager) {
-          // 显示攻击方式（红色，位置较高）
-          this.floatingTextManager.addText(
-            targetTransform.position.x,
-            targetTransform.position.y - 60,
-            attackText,
-            '#ff6666'
-          );
-          
-          // 显示掉血数值（黄色，位置较低）
-          this.floatingTextManager.addText(
-            targetTransform.position.x,
-            targetTransform.position.y - 30,
-            `-${damage}`,
-            '#ffff00'
-          );
-        }
-      }
+      const attackType = this.getAttackText(attacker);
+      this.applyDamage(target, damage, null, attackType);
       
       console.log(`${attacker.name || attacker.id} 攻击 ${target.name || target.id}，造成 ${damage} 点伤害`);
     }
@@ -663,8 +737,9 @@ export class CombatSystem {
    * @param {Entity} target - 目标
    * @param {number} damage - 伤害值
    * @param {Object} knockbackDir - 击退方向（可选）{x, y}
+   * @param {string} damageType - 伤害类型（可选），如"刺击"、"扫击"、"火焰掌"等
    */
-  applyDamage(target, damage, knockbackDir = null) {
+  applyDamage(target, damage, knockbackDir = null, damageType = null) {
     const stats = target.getComponent('stats');
     const transform = target.getComponent('transform');
     
@@ -675,9 +750,9 @@ export class CombatSystem {
     stats.takeDamage(damage);
     const isDead = stats.hp <= 0;
     
-    // 显示伤害数字
+    // 显示伤害数字（包含类型信息）
     if (transform) {
-      this.showDamageNumber(transform.position, damage);
+      this.showDamageNumber(transform.position, damage, damageType);
     }
     
     // 播放受击动画（如果有）
@@ -871,18 +946,27 @@ export class CombatSystem {
    * 显示伤害数字
    * @param {Object} position - 位置 {x, y}
    * @param {number} damage - 伤害值
+   * @param {string} damageType - 伤害类型（可选）
    */
-  showDamageNumber(position, damage) {
+  showDamageNumber(position, damage, damageType = null) {
+    // 调试日志
+    console.log(`[showDamageNumber] 位置: (${position?.x?.toFixed(0)}, ${position?.y?.toFixed(0)}), 伤害: ${damage}, 类型: ${damageType}`);
+    
+    // 武器碰撞的伤害数字显示在更高的位置，避免重叠
+    const yOffset = damageType === '武器碰撞' ? -50 : -20;
+    
     const damageNumber = {
       x: position.x,
-      y: position.y - 20, // 从实体上方开始
+      y: position.y + yOffset, // 从实体上方开始
       damage: damage,
+      damageType: damageType, // 添加伤害类型
       life: 1.0, // 生命周期（秒）
       maxLife: 1.0,
       velocity: { x: (Math.random() - 0.5) * 20, y: -50 } // 向上飘动
     };
     
     this.damageNumbers.push(damageNumber);
+    console.log(`[showDamageNumber] damageNumbers数组长度: ${this.damageNumbers.length}`);
   }
 
   /**
@@ -1046,13 +1130,13 @@ export class CombatSystem {
       return false;
     }
     
-    // 检查鼠标移动速度是否达到阈值（5 km/h）
+    // 获取鼠标移动速度
+    let speedKmh = 0;
+    let isLowSpeed = false;
     if (this.weaponRenderer) {
-      const speedKmh = this.weaponRenderer.mouseMovement.speedKmh;
-      if (speedKmh < 5) {
-        console.log(`鼠标移动速度不足：${speedKmh.toFixed(1)} km/h，需要至少 5 km/h`);
-        return false;
-      }
+      speedKmh = this.weaponRenderer.mouseMovement.speedKmh;
+      // 标记低速攻击（< 10 km/h）
+      isLowSpeed = speedKmh < 10;
     }
     
     // 使用技能
@@ -1064,36 +1148,63 @@ export class CombatSystem {
       this.weaponRenderer.startAttack();
     }
     
-    // 获取滑动伤害倍率
-    const damageMultiplier = this.weaponRenderer ? this.weaponRenderer.getSwipeDamageMultiplier() : 1.0;
-    
     // 对范围内的所有敌人造成伤害
     for (const enemy of enemiesInRange) {
-      // 计算基础伤害
-      let baseDamage = this.calculateSkillDamage(caster, enemy, skill);
+      let finalDamage;
       
-      // 应用滑动倍率
-      const finalDamage = Math.floor(baseDamage * damageMultiplier);
+      if (isLowSpeed) {
+        // 低速攻击（< 10 km/h）：伤害为0-5随机值
+        finalDamage = Math.floor(Math.random() * 6); // 0-5
+        console.log(`低速攻击 (${speedKmh.toFixed(1)} km/h)，伤害: ${finalDamage}`);
+      } else {
+        // 正常速度攻击（≥10 km/h）：计算正常伤害
+        // 获取滑动伤害倍率
+        const damageMultiplier = this.weaponRenderer ? this.weaponRenderer.getSwipeDamageMultiplier() : 1.0;
+        
+        // 计算基础伤害
+        let baseDamage = this.calculateSkillDamage(caster, enemy, skill);
+        
+        // 应用滑动倍率
+        finalDamage = Math.floor(baseDamage * damageMultiplier);
+      }
       
-      this.applyDamage(enemy, finalDamage);
+      // 应用伤害和击退效果
+      const enemyTransform = enemy.getComponent('transform');
+      if (enemyTransform) {
+        // 计算击退方向
+        const dx = enemyTransform.position.x - casterTransform.position.x;
+        const dy = enemyTransform.position.y - casterTransform.position.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance > 0) {
+          const knockbackDir = {
+            x: dx / distance,
+            y: dy / distance
+          };
+          
+          // 应用伤害和击退
+          this.applyDamage(enemy, finalDamage, knockbackDir);
+        } else {
+          this.applyDamage(enemy, finalDamage);
+        }
+      } else {
+        this.applyDamage(enemy, finalDamage);
+      }
       
       // 创建攻击特效
-      if (this.skillEffects) {
-        const enemyTransform = enemy.getComponent('transform');
-        if (enemyTransform) {
-          this.skillEffects.createSkillEffect('basic_attack', casterTransform.position, enemyTransform.position);
-        }
+      if (this.skillEffects && enemyTransform) {
+        this.skillEffects.createSkillEffect('basic_attack', casterTransform.position, enemyTransform.position);
       }
     }
     
-    // 显示伤害倍率提示
-    if (this.weaponRenderer && damageMultiplier !== 1.0) {
-      const swipes = this.weaponRenderer.swipeDetection.swipesPerSecond;
-      const multiplierPercent = Math.floor(damageMultiplier * 100);
-      console.log(`滑动攻击 - ${swipes}次/秒，${multiplierPercent}% 伤害`);
+    // 显示攻击信息
+    if (isLowSpeed) {
+      console.log(`${caster.name || caster.id} 低速攻击，命中 ${enemiesInRange.length} 个敌人，速度: ${speedKmh.toFixed(1)} km/h`);
+    } else {
+      const damageMultiplier = this.weaponRenderer ? this.weaponRenderer.getSwipeDamageMultiplier() : 1.0;
+      console.log(`${caster.name || caster.id} 使用武器攻击，命中 ${enemiesInRange.length} 个敌人，伤害倍率: ${damageMultiplier.toFixed(2)}x`);
     }
     
-    console.log(`${caster.name || caster.id} 使用武器攻击，命中 ${enemiesInRange.length} 个敌人，伤害倍率: ${damageMultiplier.toFixed(2)}x`);
     return true;
   }
 
@@ -1267,9 +1378,9 @@ export class CombatSystem {
         this.skillEffects.createSkillEffect(skill.id, casterTransform.position, targetTransform.position);
       }
       
-      // 应用伤害
+      // 应用伤害（传入技能名称作为伤害类型）
       const damage = this.calculateSkillDamage(caster, target, skill);
-      this.applyDamage(target, damage);
+      this.applyDamage(target, damage, null, skill.name);
       return;
     }
     
@@ -1286,9 +1397,9 @@ export class CombatSystem {
             casterTransform.position,
             targetPos,
             () => {
-              // 命中回调
+              // 命中回调（传入技能名称）
               const damage = this.calculateSkillDamage(caster, target, skill);
-              this.applyDamage(target, damage);
+              this.applyDamage(target, damage, null, skill.name);
             }
           );
           return; // 伤害将在命中时应用
@@ -1304,10 +1415,10 @@ export class CombatSystem {
     
     // 根据技能类型应用效果
     if (skill.type === 'physical' || skill.type === 'magic') {
-      // 伤害技能（近战或没有特效系统）
+      // 伤害技能（近战或没有特效系统）（传入技能名称）
       if (target && skill.range <= 100) {
         const damage = this.calculateSkillDamage(caster, target, skill);
-        this.applyDamage(target, damage);
+        this.applyDamage(target, damage, null, skill.name);
       }
     } else if (skill.type === 'heal') {
       // 治疗技能
@@ -1466,10 +1577,10 @@ export class CombatSystem {
         const perpY = ey - projection * dirY;
         const perpDist = Math.sqrt(perpX * perpX + perpY * perpY);
         
-        // 如果在路径宽度内，造成路径伤害
+        // 如果在路径宽度内，造成路径伤害（传入技能名称+路径标记）
         if (perpDist <= pathWidth) {
           const pathDamage = Math.floor(Math.random() * (skill.damageMax - skill.damageMin + 1)) + skill.damageMin;
-          this.applyDamage(enemy, pathDamage);
+          this.applyDamage(enemy, pathDamage, null, `${skill.name}[路径]`);
         }
       }
     }
@@ -1511,13 +1622,13 @@ export class CombatSystem {
             return distance <= splashRadius;
           });
           
-          // 对每个敌人造成溅射伤害
+          // 对每个敌人造成溅射伤害（传入技能名称+溅射标记）
           for (const enemy of enemies) {
             const splashDamage = Math.floor(
               Math.random() * (skill.splashDamageMax - skill.splashDamageMin + 1)
             ) + skill.splashDamageMin;
             
-            this.applyDamage(enemy, splashDamage);
+            this.applyDamage(enemy, splashDamage, null, `${skill.name}[溅射]`);
           }
         }
       );
@@ -1554,10 +1665,10 @@ export class CombatSystem {
     
     console.log(`AOE技能 ${skill.name} 命中 ${enemies.length} 个敌人`);
     
-    // 对每个敌人造成伤害
+    // 对每个敌人造成伤害（传入技能名称）
     for (const enemy of enemies) {
       const damage = this.calculateSkillDamage(caster, enemy, skill);
-      this.applyDamage(enemy, damage);
+      this.applyDamage(enemy, damage, null, skill.name);
     }
   }
 
@@ -2397,4 +2508,279 @@ export class CombatSystem {
       console.log('CombatSystem: 大规模战斗已结束');
     }
   }
+
+  /**
+   * 检测武器碰撞并应用反作用力
+   * @param {Array<Entity>} entities - 实体列表
+   */
+  checkWeaponCollisions(entities) {
+    if (!this.weaponRenderer || !this.enemyWeaponRenderer || !this.playerEntity) return;
+    
+    const playerTransform = this.playerEntity.getComponent('transform');
+    if (!playerTransform) return;
+    
+    // 检查玩家武器是否活跃（攻击动画或滑动移动）
+    const playerWeaponAnimation = this.weaponRenderer.attackAnimation;
+    const hasMouseMovement = this.weaponRenderer.mouseMovement.movements.length > 0;
+    
+    // 如果既没有攻击动画也没有鼠标移动，不检测碰撞
+    if (!playerWeaponAnimation?.active && !hasMouseMovement) return;
+    
+    // 确定武器方向：优先使用攻击动画方向，否则使用当前鼠标角度
+    const weaponDirection = playerWeaponAnimation?.active 
+      ? playerWeaponAnimation.direction 
+      : this.weaponRenderer.currentMouseAngle;
+    
+    // 计算玩家武器的位置和范围
+    const playerWeaponPos = this.getWeaponTipPosition(
+      playerTransform.position,
+      weaponDirection,
+      60 // 武器长度
+    );
+    const playerWeaponRadius = 35; // 增大武器碰撞半径
+    
+    // 检查与所有敌人的碰撞
+    for (const enemy of entities) {
+      if (enemy.type !== 'enemy' || enemy.isDead || enemy.isDying) continue;
+      
+      const enemyTransform = enemy.getComponent('transform');
+      if (!enemyTransform) continue;
+      
+      // 检测玩家武器与敌人武器的碰撞
+      const enemyWeaponAnimation = this.enemyWeaponRenderer.attackAnimations.get(enemy.id);
+      if (enemyWeaponAnimation && enemyWeaponAnimation.active) {
+        // 检查碰撞冷却（同一次攻击只触发一次碰撞）
+        const lastCollisionTime = this.weaponCollisionCooldowns.get(enemy.id) || 0;
+        const currentTime = performance.now();
+        if (currentTime - lastCollisionTime < 500) {
+          // 500ms内不重复触发碰撞
+          continue;
+        }
+        
+        // 计算敌人武器的位置和范围
+        const enemyWeaponPos = this.getWeaponTipPosition(
+          enemyTransform.position,
+          enemyWeaponAnimation.angle, // 使用 angle 而不是 direction
+          50 // 敌人武器长度
+        );
+        const enemyWeaponRadius = 30; // 敌人武器碰撞半径
+        
+        // 检测武器之间的碰撞
+        const weaponDx = playerWeaponPos.x - enemyWeaponPos.x;
+        const weaponDy = playerWeaponPos.y - enemyWeaponPos.y;
+        const weaponDistance = Math.sqrt(weaponDx * weaponDx + weaponDy * weaponDy);
+        
+        if (weaponDistance < playerWeaponRadius + enemyWeaponRadius) {
+          // 记录碰撞时间，防止重复触发
+          this.weaponCollisionCooldowns.set(enemy.id, currentTime);
+          
+          // 武器碰撞！比较双方速度
+          const knockbackDir = {
+            x: weaponDx / weaponDistance,
+            y: weaponDy / weaponDistance
+          };
+          
+          // 获取玩家武器速度（km/h）
+          const playerSpeed = this.weaponRenderer.mouseMovement.speedKmh || 0;
+          
+          // 敌人武器速度（根据敌人类型调整）
+          // 野狗咬合速度较快，士兵和土匪中等，饥民较慢
+          let enemySpeed = 30; // 默认30 km/h
+          const templateId = enemy.templateId || '';
+          if (templateId === 'wild_dog') {
+            enemySpeed = 40; // 野狗较快
+          } else if (templateId === 'soldier' || templateId === 'bandit') {
+            enemySpeed = 35; // 士兵和土匪中等
+          } else if (templateId === 'starving') {
+            enemySpeed = 25; // 饥民较慢
+          }
+          
+          console.log(`武器碰撞检测：玩家速度=${playerSpeed.toFixed(1)}km/h，敌人速度=${enemySpeed}km/h`);
+          
+          // 比较速度，速度慢的一方受到伤害
+          if (playerSpeed < enemySpeed) {
+            // 玩家速度慢，玩家受伤
+            const clashDamage = Math.floor(Math.random() * 6); // 0-5随机伤害
+            this.applyDamage(this.playerEntity, clashDamage, null, '武器碰撞');
+            
+            // 玩家失去格挡能力1秒
+            this.blockedAttacks.delete(enemy.id); // 清除格挡标记
+            
+            // 标记玩家武器被击退，1秒内无法格挡
+            this.weaponRenderer.stunned = {
+              active: true,
+              endTime: performance.now() + 1000 // 1秒后恢复
+            };
+            
+            // 显示眩晕提示
+            const playerTransform = this.playerEntity.getComponent('transform');
+            if (playerTransform && this.floatingTextManager) {
+              this.floatingTextManager.addText(
+                playerTransform.position.x,
+                playerTransform.position.y - 80,
+                '武器被弹开！1秒无法格挡',
+                '#ff6666'
+              );
+            }
+            
+            console.log(`武器碰撞！玩家速度慢(${playerSpeed.toFixed(1)} < ${enemySpeed})，受到${clashDamage}点伤害，1秒内无法格挡`);
+          } else {
+            // 敌人速度慢或相等，敌人受伤
+            const clashDamage = Math.floor(Math.random() * 6); // 0-5随机伤害
+            this.applyDamage(enemy, clashDamage, null, '武器碰撞');
+            
+            // 标记敌人的攻击被格挡（即使速度相等，玩家也能格挡）
+            this.blockedAttacks.set(enemy.id, {
+              blocked: true,
+              time: performance.now()
+            });
+            
+            console.log(`武器碰撞！敌人速度慢或相等(${playerSpeed.toFixed(1)} >= ${enemySpeed})，敌人受到${clashDamage}点伤害并被格挡`);
+          }
+          
+          // 弹开双方
+          this.applyKnockbackToEntity(enemy, knockbackDir, 25);
+          this.applyKnockbackToEntity(this.playerEntity, { x: -knockbackDir.x, y: -knockbackDir.y }, 15);
+          
+          // 创建碰撞火花特效
+          this.createWeaponClashEffect(
+            (playerWeaponPos.x + enemyWeaponPos.x) / 2,
+            (playerWeaponPos.y + enemyWeaponPos.y) / 2
+          );
+          
+          continue; // 已经处理了这个敌人，跳过身体碰撞检测
+        }
+      }
+      
+      // 检测玩家武器与敌人身体的碰撞
+      const bodyDx = enemyTransform.position.x - playerWeaponPos.x;
+      const bodyDy = enemyTransform.position.y - playerWeaponPos.y;
+      const bodyDistance = Math.sqrt(bodyDx * bodyDx + bodyDy * bodyDy);
+      
+      if (bodyDistance < 20 + playerWeaponRadius) { // 20是敌人半径
+        // 玩家武器击中敌人身体，弹开或挡住敌人
+        const knockbackDir = {
+          x: bodyDx / bodyDistance,
+          y: bodyDy / bodyDistance
+        };
+        
+        // 弹开敌人
+        this.applyKnockbackToEntity(enemy, knockbackDir, 20);
+        
+        // 创建击中特效
+        this.createWeaponHitEffect(enemyTransform.position);
+      }
+    }
+    
+    // 检测敌人武器与玩家身体的碰撞
+    for (const enemy of entities) {
+      if (enemy.type !== 'enemy' || enemy.isDead || enemy.isDying) continue;
+      
+      const enemyTransform = enemy.getComponent('transform');
+      if (!enemyTransform) continue;
+      
+      const enemyWeaponAnimation = this.enemyWeaponRenderer.attackAnimations.get(enemy.id);
+      if (!enemyWeaponAnimation || !enemyWeaponAnimation.active) continue;
+      
+      const enemyWeaponPos = this.getWeaponTipPosition(
+        enemyTransform.position,
+        enemyWeaponAnimation.angle, // 使用 angle 而不是 direction
+        50
+      );
+      
+      const playerBodyDx = playerTransform.position.x - enemyWeaponPos.x;
+      const playerBodyDy = playerTransform.position.y - enemyWeaponPos.y;
+      const playerBodyDistance = Math.sqrt(playerBodyDx * playerBodyDx + playerBodyDy * playerBodyDy);
+      
+      if (playerBodyDistance < 20 + 30) { // 20是玩家半径，30是敌人武器半径
+        // 敌人武器击中玩家身体
+        const knockbackDir = {
+          x: playerBodyDx / playerBodyDistance,
+          y: playerBodyDy / playerBodyDistance
+        };
+        this.applyKnockbackToEntity(this.playerEntity, knockbackDir, 15);
+      }
+    }
+  }
+
+  /**
+   * 创建武器碰撞火花特效
+   * @param {number} x - X坐标
+   * @param {number} y - Y坐标
+   */
+  createWeaponClashEffect(x, y) {
+    if (!this.skillEffects || !this.skillEffects.particleSystem) return;
+    
+    this.skillEffects.particleSystem.emitBurst(
+      {
+        position: { x, y },
+        velocity: { x: 0, y: 0 },
+        life: 300,
+        size: 5,
+        color: '#ffff00',
+        gravity: 0
+      },
+      20,
+      {
+        velocityRange: { min: 100, max: 180 },
+        angleRange: { min: 0, max: Math.PI * 2 },
+        sizeRange: { min: 3, max: 7 }
+      }
+    );
+  }
+
+  /**
+   * 创建武器击中特效
+   * @param {Object} position - 位置 {x, y}
+   */
+  createWeaponHitEffect(position) {
+    if (!this.skillEffects || !this.skillEffects.particleSystem) return;
+    
+    this.skillEffects.particleSystem.emitBurst(
+      {
+        position: { ...position },
+        velocity: { x: 0, y: 0 },
+        life: 400,
+        size: 4,
+        color: '#ff8800',
+        gravity: 50
+      },
+      12,
+      {
+        velocityRange: { min: 60, max: 120 },
+        angleRange: { min: 0, max: Math.PI * 2 },
+        sizeRange: { min: 3, max: 6 }
+      }
+    );
+  }
+
+  /**
+   * 获取武器尖端位置
+   * @param {Object} entityPos - 实体位置 {x, y}
+   * @param {number} weaponAngle - 武器角度（弧度）
+   * @param {number} weaponLength - 武器长度
+   * @returns {Object} 武器尖端位置 {x, y}
+   */
+  getWeaponTipPosition(entityPos, weaponAngle, weaponLength) {
+    return {
+      x: entityPos.x + Math.cos(weaponAngle) * weaponLength,
+      y: entityPos.y + Math.sin(weaponAngle) * weaponLength
+    };
+  }
+
+  /**
+   * 应用击退效果到实体
+   * @param {Entity} entity - 实体
+   * @param {Object} direction - 击退方向 {x, y}（已归一化）
+   * @param {number} strength - 击退强度
+   */
+  applyKnockbackToEntity(entity, direction, strength) {
+    const transform = entity.getComponent('transform');
+    if (!transform) return;
+    
+    // 应用击退
+    transform.position.x += direction.x * strength;
+    transform.position.y += direction.y * strength;
+  }
 }
+
