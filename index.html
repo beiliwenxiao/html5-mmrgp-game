@@ -730,11 +730,7 @@
                 sceneManager.update(deltaTime);
                 sceneManager.render(ctx);
                 
-                // 更新和渲染对话框
-                if (dialogueBox) {
-                    dialogueBox.update(deltaTime);
-                    dialogueBox.render(ctx);
-                }
+                // 对话框由场景自己渲染，这里不需要重复渲染
                 
                 // 更新和渲染技能树面板
                 if (skillTreePanel) {

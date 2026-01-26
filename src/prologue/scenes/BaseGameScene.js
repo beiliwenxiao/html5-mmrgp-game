@@ -30,6 +30,7 @@ import { SkillEffects } from '../../rendering/SkillEffects.js';
 import { InventoryPanel } from '../../ui/InventoryPanel.js';
 import { PlayerInfoPanel } from '../../ui/PlayerInfoPanel.js';
 import { BottomControlBar } from '../../ui/BottomControlBar.js';
+import { DialogueBox } from '../../ui/DialogueBox.js';
 import { FloatingTextManager } from '../../ui/FloatingText.js';
 import { ParticleSystem } from '../../rendering/ParticleSystem.js';
 import { WeaponRenderer } from '../../rendering/WeaponRenderer.js';
@@ -76,6 +77,7 @@ export class BaseGameScene extends PrologueScene {
     this.inventoryPanel = null;
     this.playerInfoPanel = null;
     this.bottomControlBar = null;
+    this.dialogueBox = null;
     
     // 飘动文字管理器
     this.floatingTextManager = new FloatingTextManager();
@@ -285,10 +287,27 @@ export class BaseGameScene extends PrologueScene {
       }
     });
     
+    // 对话框 - 居中显示
+    const dialogueBoxWidth = 700;
+    const dialogueBoxHeight = 230;
+    this.dialogueBox = new DialogueBox({
+      x: (this.logicalWidth - dialogueBoxWidth) / 2,
+      y: (this.logicalHeight - dialogueBoxHeight) / 2,
+      width: dialogueBoxWidth,
+      height: dialogueBoxHeight,
+      visible: false,
+      zIndex: 200,
+      dialogueSystem: this.dialogueSystem,
+      onDialogueEnd: () => {
+        console.log('BaseGameScene: 对话结束');
+      }
+    });
+    
     // 注册 UI 元素到 UIClickHandler
     this.uiClickHandler.registerElement(this.inventoryPanel);
     this.uiClickHandler.registerElement(this.playerInfoPanel);
     this.uiClickHandler.registerElement(this.bottomControlBar);
+    this.uiClickHandler.registerElement(this.dialogueBox);
   }
 
   /**
@@ -719,6 +738,17 @@ export class BaseGameScene extends PrologueScene {
     this.playerInfoPanel.update(deltaTime);
     this.bottomControlBar.update(deltaTime);
     
+    // 更新对话框 - 根据对话系统状态显示/隐藏
+    if (this.dialogueBox && this.dialogueSystem) {
+      const isDialogueActive = this.dialogueSystem.isDialogueActive();
+      if (isDialogueActive && !this.dialogueBox.visible) {
+        this.dialogueBox.show();
+      } else if (!isDialogueActive && this.dialogueBox.visible) {
+        this.dialogueBox.hide();
+      }
+      this.dialogueBox.update(deltaTime);
+    }
+    
     // 更新鼠标悬停状态
     this.updatePanelHover();
     
@@ -853,6 +883,21 @@ export class BaseGameScene extends PrologueScene {
     if (this.inputManager.isMouseClicked() && !this.inputManager.isMouseClickHandled()) {
       const mousePos = this.inputManager.getMousePosition();
       const button = this.inputManager.getMouseButton() === 2 ? 'right' : 'left';
+      
+      // 如果对话激活，优先处理对话框点击
+      if (this.dialogueSystem && this.dialogueSystem.isDialogueActive()) {
+        // 检查是否点击在对话框内
+        if (this.dialogueBox && this.dialogueBox.visible) {
+          const dialogueHandled = this.dialogueBox.handleMouseClick(mousePos.x, mousePos.y, button);
+          if (dialogueHandled) {
+            this.inputManager.markMouseClickHandled();
+            return;
+          }
+        }
+        // 对话激活时，即使点击在对话框外也阻止移动
+        this.inputManager.markMouseClickHandled();
+        return;
+      }
       
       const uiHandled = this.uiClickHandler.handleClick(mousePos.x, mousePos.y, button);
       
@@ -994,14 +1039,24 @@ export class BaseGameScene extends PrologueScene {
       return;
     }
     
+    // 如果武器被禁用（武器碰撞失败），不能进行自动攻击
+    if (this.weaponRenderer.disabled && this.weaponRenderer.disabled.active) {
+      const now = performance.now();
+      if (now < this.weaponRenderer.disabled.endTime) {
+        return;
+      } else {
+        this.weaponRenderer.disabled.active = false;
+      }
+    }
+    
     // 获取攻击类型和速度
     const attackTypeName = this.weaponRenderer.getAttackTypeName();
     const speedKmh = this.weaponRenderer.mouseMovement.speedKmh;
     
     // 检查速度阈值
-    // 扫击：速度小于20km/h不产生伤害
-    // 刺击：速度小于10km/h不产生伤害
-    const minSpeed = attackTypeName === '扫击' ? 20 : 10;
+    // 扫击：速度小于3km/h不产生伤害
+    // 刺击：速度小于3km/h不产生伤害
+    const minSpeed = 3;
     
     if (speedKmh < minSpeed) {
       // 速度太慢，攻击无效
@@ -1377,6 +1432,9 @@ export class BaseGameScene extends PrologueScene {
     if (this.bottomControlBar.visible) {
       this.bottomControlBar.handleMouseMove(mousePos.x, mousePos.y);
     }
+    if (this.dialogueBox && this.dialogueBox.visible) {
+      this.dialogueBox.handleMouseMove(mousePos.x, mousePos.y);
+    }
   }
 
   /**
@@ -1698,9 +1756,9 @@ export class BaseGameScene extends PrologueScene {
       this.tutorialSystem.render(ctx);
     }
     
-    // 渲染对话系统
-    if (this.dialogueSystem) {
-      this.dialogueSystem.render(ctx);
+    // 渲染对话系统（通过 DialogueBox UI 组件）
+    if (this.dialogueBox) {
+      this.dialogueBox.render(ctx);
     }
     
     // 渲染战斗系统

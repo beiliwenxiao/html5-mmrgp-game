@@ -90,6 +90,8 @@ export class EnemyWeaponRenderer {
     const dy = targetPos.y - transform.position.y;
     const angle = Math.atan2(dy, dx);
     
+    console.log(`[EnemyWeaponRenderer] startAttack: entity=${entity.id}, duration=${config.animationDuration}`);
+    
     // 创建攻击动画状态
     this.attackAnimations.set(entity.id, {
       active: true,

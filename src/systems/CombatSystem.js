@@ -618,6 +618,7 @@ export class CombatSystem {
       
       // 如果是敌人攻击，触发敌人武器动画
       if (attacker.type === 'enemy' && this.enemyWeaponRenderer && attackerTransform && targetTransform) {
+        console.log(`[敌人攻击] 触发武器动画: ${attacker.id}`);
         this.enemyWeaponRenderer.startAttack(attacker, targetTransform.position);
       }
       
@@ -2519,25 +2520,30 @@ export class CombatSystem {
     const playerTransform = this.playerEntity.getComponent('transform');
     if (!playerTransform) return;
     
-    // 检查玩家武器是否活跃（攻击动画或滑动移动）
-    const playerWeaponAnimation = this.weaponRenderer.attackAnimation;
-    const hasMouseMovement = this.weaponRenderer.mouseMovement.movements.length > 0;
+    const currentTime = performance.now();
     
-    // 如果既没有攻击动画也没有鼠标移动，不检测碰撞
-    if (!playerWeaponAnimation?.active && !hasMouseMovement) return;
+    // 检查玩家武器是否被禁用
+    if (this.weaponRenderer.disabled && this.weaponRenderer.disabled.active) {
+      if (currentTime < this.weaponRenderer.disabled.endTime) {
+        return;
+      } else {
+        this.weaponRenderer.disabled.active = false;
+      }
+    }
     
-    // 确定武器方向：优先使用攻击动画方向，否则使用当前鼠标角度
-    const weaponDirection = playerWeaponAnimation?.active 
-      ? playerWeaponAnimation.direction 
-      : this.weaponRenderer.currentMouseAngle;
+    // 获取玩家武器速度
+    const playerSpeed = this.weaponRenderer.mouseMovement.speedKmh || 0;
+    
+    // 确定武器方向
+    const weaponDirection = this.weaponRenderer.currentMouseAngle;
     
     // 计算玩家武器的位置和范围
     const playerWeaponPos = this.getWeaponTipPosition(
       playerTransform.position,
       weaponDirection,
-      60 // 武器长度
+      60
     );
-    const playerWeaponRadius = 35; // 增大武器碰撞半径
+    const playerWeaponRadius = 35;
     
     // 检查与所有敌人的碰撞
     for (const enemy of entities) {
@@ -2546,159 +2552,182 @@ export class CombatSystem {
       const enemyTransform = enemy.getComponent('transform');
       if (!enemyTransform) continue;
       
-      // 检测玩家武器与敌人武器的碰撞
-      const enemyWeaponAnimation = this.enemyWeaponRenderer.attackAnimations.get(enemy.id);
-      if (enemyWeaponAnimation && enemyWeaponAnimation.active) {
-        // 检查碰撞冷却（同一次攻击只触发一次碰撞）
-        const lastCollisionTime = this.weaponCollisionCooldowns.get(enemy.id) || 0;
-        const currentTime = performance.now();
-        if (currentTime - lastCollisionTime < 500) {
-          // 500ms内不重复触发碰撞
-          continue;
-        }
-        
-        // 计算敌人武器的位置和范围
-        const enemyWeaponPos = this.getWeaponTipPosition(
-          enemyTransform.position,
-          enemyWeaponAnimation.angle, // 使用 angle 而不是 direction
-          50 // 敌人武器长度
-        );
-        const enemyWeaponRadius = 30; // 敌人武器碰撞半径
-        
-        // 检测武器之间的碰撞
-        const weaponDx = playerWeaponPos.x - enemyWeaponPos.x;
-        const weaponDy = playerWeaponPos.y - enemyWeaponPos.y;
-        const weaponDistance = Math.sqrt(weaponDx * weaponDx + weaponDy * weaponDy);
-        
-        if (weaponDistance < playerWeaponRadius + enemyWeaponRadius) {
-          // 记录碰撞时间，防止重复触发
-          this.weaponCollisionCooldowns.set(enemy.id, currentTime);
-          
-          // 武器碰撞！比较双方速度
-          const knockbackDir = {
-            x: weaponDx / weaponDistance,
-            y: weaponDy / weaponDistance
-          };
-          
-          // 获取玩家武器速度（km/h）
-          const playerSpeed = this.weaponRenderer.mouseMovement.speedKmh || 0;
-          
-          // 敌人武器速度（根据敌人类型调整）
-          // 野狗咬合速度较快，士兵和土匪中等，饥民较慢
-          let enemySpeed = 30; // 默认30 km/h
-          const templateId = enemy.templateId || '';
-          if (templateId === 'wild_dog') {
-            enemySpeed = 40; // 野狗较快
-          } else if (templateId === 'soldier' || templateId === 'bandit') {
-            enemySpeed = 35; // 士兵和土匪中等
-          } else if (templateId === 'starving') {
-            enemySpeed = 25; // 饥民较慢
-          }
-          
-          console.log(`武器碰撞检测：玩家速度=${playerSpeed.toFixed(1)}km/h，敌人速度=${enemySpeed}km/h`);
-          
-          // 比较速度，速度慢的一方受到伤害
-          if (playerSpeed < enemySpeed) {
-            // 玩家速度慢，玩家受伤
-            const clashDamage = Math.floor(Math.random() * 6); // 0-5随机伤害
-            this.applyDamage(this.playerEntity, clashDamage, null, '武器碰撞');
-            
-            // 玩家失去格挡能力1秒
-            this.blockedAttacks.delete(enemy.id); // 清除格挡标记
-            
-            // 标记玩家武器被击退，1秒内无法格挡
-            this.weaponRenderer.stunned = {
-              active: true,
-              endTime: performance.now() + 1000 // 1秒后恢复
-            };
-            
-            // 显示眩晕提示
-            const playerTransform = this.playerEntity.getComponent('transform');
-            if (playerTransform && this.floatingTextManager) {
-              this.floatingTextManager.addText(
-                playerTransform.position.x,
-                playerTransform.position.y - 80,
-                '武器被弹开！1秒无法格挡',
-                '#ff6666'
-              );
-            }
-            
-            console.log(`武器碰撞！玩家速度慢(${playerSpeed.toFixed(1)} < ${enemySpeed})，受到${clashDamage}点伤害，1秒内无法格挡`);
-          } else {
-            // 敌人速度慢或相等，敌人受伤
-            const clashDamage = Math.floor(Math.random() * 6); // 0-5随机伤害
-            this.applyDamage(enemy, clashDamage, null, '武器碰撞');
-            
-            // 标记敌人的攻击被格挡（即使速度相等，玩家也能格挡）
-            this.blockedAttacks.set(enemy.id, {
-              blocked: true,
-              time: performance.now()
-            });
-            
-            console.log(`武器碰撞！敌人速度慢或相等(${playerSpeed.toFixed(1)} >= ${enemySpeed})，敌人受到${clashDamage}点伤害并被格挡`);
-          }
-          
-          // 弹开双方
-          this.applyKnockbackToEntity(enemy, knockbackDir, 25);
-          this.applyKnockbackToEntity(this.playerEntity, { x: -knockbackDir.x, y: -knockbackDir.y }, 15);
-          
-          // 创建碰撞火花特效
-          this.createWeaponClashEffect(
-            (playerWeaponPos.x + enemyWeaponPos.x) / 2,
-            (playerWeaponPos.y + enemyWeaponPos.y) / 2
-          );
-          
-          continue; // 已经处理了这个敌人，跳过身体碰撞检测
-        }
+      // 检查敌人武器是否被禁用
+      const enemyDisabled = this.enemyWeaponDisabled?.get(enemy.id);
+      if (enemyDisabled && enemyDisabled.active && currentTime < enemyDisabled.endTime) {
+        continue;
+      } else if (enemyDisabled && enemyDisabled.active) {
+        enemyDisabled.active = false;
       }
       
-      // 检测玩家武器与敌人身体的碰撞
-      const bodyDx = enemyTransform.position.x - playerWeaponPos.x;
-      const bodyDy = enemyTransform.position.y - playerWeaponPos.y;
-      const bodyDistance = Math.sqrt(bodyDx * bodyDx + bodyDy * bodyDy);
-      
-      if (bodyDistance < 20 + playerWeaponRadius) { // 20是敌人半径
-        // 玩家武器击中敌人身体，弹开或挡住敌人
-        const knockbackDir = {
-          x: bodyDx / bodyDistance,
-          y: bodyDy / bodyDistance
-        };
-        
-        // 弹开敌人
-        this.applyKnockbackToEntity(enemy, knockbackDir, 20);
-        
-        // 创建击中特效
-        this.createWeaponHitEffect(enemyTransform.position);
-      }
-    }
-    
-    // 检测敌人武器与玩家身体的碰撞
-    for (const enemy of entities) {
-      if (enemy.type !== 'enemy' || enemy.isDead || enemy.isDying) continue;
-      
-      const enemyTransform = enemy.getComponent('transform');
-      if (!enemyTransform) continue;
-      
+      // 检测敌人是否在攻击
       const enemyWeaponAnimation = this.enemyWeaponRenderer.attackAnimations.get(enemy.id);
-      if (!enemyWeaponAnimation || !enemyWeaponAnimation.active) continue;
+      const enemyIsAttacking = enemyWeaponAnimation && enemyWeaponAnimation.active;
       
+      // 只有敌人在攻击时才检测武器碰撞
+      if (!enemyIsAttacking) {
+        continue;
+      }
+      
+      // 检查碰撞冷却
+      const lastCollisionTime = this.weaponCollisionCooldowns.get(enemy.id) || 0;
+      if (currentTime - lastCollisionTime < 500) {
+        continue;
+      }
+      
+      // 计算敌人武器位置
+      const enemyWeaponAngle = enemyWeaponAnimation.angle;
       const enemyWeaponPos = this.getWeaponTipPosition(
         enemyTransform.position,
-        enemyWeaponAnimation.angle, // 使用 angle 而不是 direction
+        enemyWeaponAngle,
         50
       );
+      const enemyWeaponRadius = 30;
       
-      const playerBodyDx = playerTransform.position.x - enemyWeaponPos.x;
-      const playerBodyDy = playerTransform.position.y - enemyWeaponPos.y;
-      const playerBodyDistance = Math.sqrt(playerBodyDx * playerBodyDx + playerBodyDy * playerBodyDy);
+      // 检测武器之间的碰撞
+      const weaponDx = playerWeaponPos.x - enemyWeaponPos.x;
+      const weaponDy = playerWeaponPos.y - enemyWeaponPos.y;
+      const weaponDistance = Math.sqrt(weaponDx * weaponDx + weaponDy * weaponDy);
       
-      if (playerBodyDistance < 20 + 30) { // 20是玩家半径，30是敌人武器半径
-        // 敌人武器击中玩家身体
-        const knockbackDir = {
-          x: playerBodyDx / playerBodyDistance,
-          y: playerBodyDy / playerBodyDistance
+      if (weaponDistance < playerWeaponRadius + enemyWeaponRadius) {
+        // 武器碰撞发生！
+        this.weaponCollisionCooldowns.set(enemy.id, currentTime);
+        
+        // 获取敌人武器速度
+        let enemySpeed = 30;
+        const templateId = enemy.templateId || '';
+        if (templateId === 'wild_dog') {
+          enemySpeed = 40;
+        } else if (templateId === 'soldier' || templateId === 'bandit') {
+          enemySpeed = 35;
+        } else if (templateId === 'starving') {
+          enemySpeed = 25;
+        }
+        
+        // 计算伤害倍率：速度<3为随机0-5，速度3-100为50%-200%递进
+        const calcDamageMultiplier = (speed) => {
+          if (speed < 3) {
+            return null; // 返回null表示使用随机0-5伤害
+          }
+          // 速度3-100，倍率50%-200%
+          // 线性插值：3km/h -> 0.5, 100km/h -> 2.0
+          const ratio = Math.min((speed - 3) / (100 - 3), 1);
+          return 0.5 + ratio * 1.5;
         };
-        this.applyKnockbackToEntity(this.playerEntity, knockbackDir, 15);
+        
+        const playerMultiplier = calcDamageMultiplier(playerSpeed);
+        const enemyMultiplier = calcDamageMultiplier(enemySpeed);
+        
+        const knockbackDir = {
+          x: weaponDx / weaponDistance,
+          y: weaponDy / weaponDistance
+        };
+        
+        // 比较速度，决定胜负
+        if (playerSpeed > enemySpeed) {
+          // 玩家胜出
+          const stats = this.playerEntity.getComponent('stats');
+          const baseDamage = stats?.attack || 15;
+          let finalDamage;
+          let damageText;
+          
+          if (playerMultiplier === null) {
+            finalDamage = Math.floor(Math.random() * 6);
+            damageText = `${finalDamage}`;
+          } else {
+            finalDamage = Math.floor(baseDamage * playerMultiplier);
+            damageText = `${Math.floor(playerMultiplier * 100)}%`;
+          }
+          
+          this.applyDamage(enemy, finalDamage, knockbackDir, `武器碰撞${damageText}`);
+          
+          // 禁用敌人武器3秒
+          if (!this.enemyWeaponDisabled) {
+            this.enemyWeaponDisabled = new Map();
+          }
+          this.enemyWeaponDisabled.set(enemy.id, {
+            active: true,
+            endTime: currentTime + 3000
+          });
+          
+          if (enemyWeaponAnimation) {
+            enemyWeaponAnimation.active = false;
+          }
+          
+          if (this.floatingTextManager) {
+            this.floatingTextManager.addText(
+              playerTransform.position.x,
+              playerTransform.position.y - 80,
+              `${playerSpeed.toFixed(1)}km/h 胜出！`,
+              '#00ff00'
+            );
+            this.floatingTextManager.addText(
+              enemyTransform.position.x,
+              enemyTransform.position.y - 80,
+              `武器失效3秒`,
+              '#ff4444'
+            );
+          }
+          
+        } else if (playerSpeed < enemySpeed) {
+          // 敌人胜出
+          const enemyStats = enemy.getComponent('stats');
+          const baseDamage = enemyStats?.attack || 10;
+          let finalDamage;
+          let damageText;
+          
+          if (enemyMultiplier === null) {
+            finalDamage = Math.floor(Math.random() * 6);
+            damageText = `${finalDamage}`;
+          } else {
+            finalDamage = Math.floor(baseDamage * enemyMultiplier);
+            damageText = `${Math.floor(enemyMultiplier * 100)}%`;
+          }
+          
+          this.applyDamage(this.playerEntity, finalDamage, { x: -knockbackDir.x, y: -knockbackDir.y }, `武器碰撞${damageText}`);
+          
+          // 禁用玩家武器3秒
+          this.weaponRenderer.disabled = {
+            active: true,
+            endTime: currentTime + 3000
+          };
+          
+          if (this.floatingTextManager) {
+            this.floatingTextManager.addText(
+              enemyTransform.position.x,
+              enemyTransform.position.y - 80,
+              `${enemySpeed}km/h 胜出！`,
+              '#00ff00'
+            );
+            this.floatingTextManager.addText(
+              playerTransform.position.x,
+              playerTransform.position.y - 80,
+              `武器失效3秒`,
+              '#ff4444'
+            );
+          }
+          
+        } else {
+          // 速度相等：双方弹开，无伤害
+          if (this.floatingTextManager) {
+            this.floatingTextManager.addText(
+              (playerTransform.position.x + enemyTransform.position.x) / 2,
+              (playerTransform.position.y + enemyTransform.position.y) / 2 - 50,
+              '势均力敌！',
+              '#ffff00'
+            );
+          }
+        }
+        
+        // 弹开双方
+        this.applyKnockbackToEntity(enemy, knockbackDir, 25);
+        this.applyKnockbackToEntity(this.playerEntity, { x: -knockbackDir.x, y: -knockbackDir.y }, 15);
+        
+        // 创建碰撞火花特效
+        this.createWeaponClashEffect(
+          (playerWeaponPos.x + enemyWeaponPos.x) / 2,
+          (playerWeaponPos.y + enemyWeaponPos.y) / 2
+        );
       }
     }
   }
