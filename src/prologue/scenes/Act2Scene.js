@@ -285,11 +285,34 @@ export class Act2Scene extends BaseGameScene {
         this.equipmentUpgradeDialogueCompleted = true;
         setTimeout(() => this.startEquipmentUpgradeDialogue(), 1000);
       }
-      // 装备升级对话结束 -> 给予装备
+      // 装备升级对话结束 -> 给予装备并切换到第三幕
       else if (this.dialoguePhase === 'upgrade' && this.equipmentUpgradeDialogueCompleted && !this.hasReceivedEquipment) {
         this.giveNewEquipment();
         this.isSceneComplete = true;
+        
+        // 延迟2秒后切换到第三幕
+        setTimeout(() => {
+          this.transitionToAct3();
+        }, 2000);
       }
+    }
+  }
+
+  /**
+   * 切换到第三幕
+   */
+  transitionToAct3() {
+    console.log('Act2Scene: 切换到第三幕');
+    
+    // 通过 SceneManager 切换场景
+    if (this.sceneManager) {
+      // 直接传递玩家实体，让BaseGameScene继承
+      this.sceneManager.switchTo('Act3Scene', {
+        playerEntity: this.playerEntity,
+        previousAct: 2
+      });
+    } else {
+      console.error('Act2Scene: SceneManager 未设置，无法切换场景');
     }
   }
 

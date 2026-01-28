@@ -390,6 +390,8 @@ export class CombatSystem {
       // 根据伤害类型选择颜色
       if (dn.isHeal) {
         ctx.fillStyle = '#00ff00'; // 治疗为绿色
+      } else if (dn.damage === 0) {
+        ctx.fillStyle = '#aaaaaa'; // 0伤害（格挡/Miss）为灰色
       } else if (dn.damageType === '武器碰撞') {
         ctx.fillStyle = '#ff6666'; // 武器碰撞为红色
       } else {
@@ -404,6 +406,15 @@ export class CombatSystem {
       let text;
       if (dn.isHeal) {
         text = `+${dn.damage}`;
+      } else if (dn.damage === 0) {
+        // 0伤害显示为格挡或Miss
+        if (dn.damageType && dn.damageType.includes('格挡')) {
+          text = '格挡';
+        } else if (dn.damageType && dn.damageType.includes('碰撞')) {
+          text = '碰撞';
+        } else {
+          text = 'Miss';
+        }
       } else if (dn.damageType) {
         text = `${dn.damageType} -${dn.damage}`;
       } else {
@@ -2708,7 +2719,7 @@ export class CombatSystem {
           }
           
         } else {
-          // 速度相等：双方弹开，无伤害
+          // 速度相等：双方弹开，无伤害，但显示碰撞提示
           if (this.floatingTextManager) {
             this.floatingTextManager.addText(
               (playerTransform.position.x + enemyTransform.position.x) / 2,
@@ -2717,6 +2728,10 @@ export class CombatSystem {
               '#ffff00'
             );
           }
+          
+          // 显示碰撞提示（即使没有伤害）
+          this.showDamageNumber(playerTransform.position, 0, '武器碰撞[格挡]');
+          this.showDamageNumber(enemyTransform.position, 0, '武器碰撞[格挡]');
         }
         
         // 弹开双方

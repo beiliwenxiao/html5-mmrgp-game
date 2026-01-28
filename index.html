@@ -410,6 +410,7 @@
     <script type="module">
         import { Act1SceneECS } from './src/prologue/scenes/Act1SceneECS.js';
         import { Act2Scene } from './src/prologue/scenes/Act2Scene.js';
+        import { Act3Scene } from './src/prologue/scenes/Act3Scene.js';
         import { SceneManager } from './src/core/SceneManager.js';
         import { DialogueBox } from './src/ui/DialogueBox.js';
         import { SkillTreePanel } from './src/ui/SkillTreePanel.js';
@@ -604,9 +605,14 @@
                 const act2Scene = new Act2Scene();
                 sceneManager.registerScene('Act2Scene', act2Scene);
                 
+                // 创建并注册第三幕场景
+                const act3Scene = new Act3Scene();
+                sceneManager.registerScene('Act3Scene', act3Scene);
+                
                 // 设置场景管理器引用
                 act1Scene.setSceneManager(sceneManager);
                 act2Scene.setSceneManager(sceneManager);
+                act3Scene.setSceneManager(sceneManager);
                 
                 // 初始化通知系统
                 notificationSystem = new NotificationSystem({
@@ -618,6 +624,7 @@
                 // 为所有场景设置教程回调
                 setupSceneCallbacks(act1Scene);
                 setupSceneCallbacks(act2Scene);
+                setupSceneCallbacks(act3Scene);
                 
                 scene = act1Scene;
                 await sleep(500);

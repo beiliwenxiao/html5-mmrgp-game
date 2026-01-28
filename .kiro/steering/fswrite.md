@@ -1,3 +1,6 @@
+---
+inclusion: always
+---
 ## 文件写入最佳实践
 
 ### fsWrite 和 fsAppend 使用指南

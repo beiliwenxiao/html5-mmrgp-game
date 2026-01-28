@@ -333,7 +333,7 @@
   - 复用现有 SkillTreePanel（技能树界面）
   - _需求: 8, 9, 10, 11, 12_
 
-- [ ] 26. 实现第三幕场景 (Act3Scene)
+- [x] 26. 实现第三幕场景 (Act3Scene)
   - 创建 `src/prologue/scenes/Act3Scene.js` 文件
   - 实现铜钱法器剧情
   - 实现负属性展示
