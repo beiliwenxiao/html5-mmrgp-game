@@ -87,6 +87,8 @@ export class Act1SceneECS extends BaseGameScene {
     // 调用父类的 enter，初始化所有基础系统
     super.enter(data);
     
+    console.log('Act1SceneECS: enter() 完成，isActive =', this.isActive);
+    
     // 初始化教程阶段配置
     this.initTutorialPhases();
     
@@ -141,11 +143,11 @@ export class Act1SceneECS extends BaseGameScene {
    * 显示角色创建界面
    */
   showCharacterCreation() {
-    console.log('Act1SceneECS: 显示角色创建界面');
     this.characterCreated = true;
     
-    // 手动显示第一个渐进式提示
-    this.tutorialSystem.showTutorial('progressive_tip_1');
+    // 不在这里显示教程，等待回调设置后再显示
+    // 教程会在 index.html 的 initGame 中设置回调后显示
+    console.log('Act1SceneECS: showCharacterCreation 完成，等待教程回调设置');
   }
 
   /**
@@ -486,7 +488,10 @@ export class Act1SceneECS extends BaseGameScene {
    * 更新场景 - 调用父类并添加第一幕特有逻辑
    */
   update(deltaTime) {
-    if (!this.isActive) return;
+    if (!this.isActive) {
+      console.log('Act1SceneECS: update 被跳过，场景未激活');
+      return;
+    }
     
     // 更新场景过渡（优先处理）
     if (this.isTransitioning) {
@@ -495,6 +500,13 @@ export class Act1SceneECS extends BaseGameScene {
         this.inputManager.update();
         return;
       }
+    }
+    
+    // 调试：每60帧输出一次状态
+    if (!this._debugFrameCount) this._debugFrameCount = 0;
+    this._debugFrameCount++;
+    if (this._debugFrameCount % 60 === 0) {
+      console.log('Act1SceneECS: update 运行中，tutorialPhase =', this.tutorialPhase);
     }
     
     // 更新教程阶段（第一幕特有）
@@ -575,7 +587,30 @@ export class Act1SceneECS extends BaseGameScene {
   initTutorialPhases() {
     this.tutorialPhaseHandlers = {
       'character_creation': {
-        check: () => this.inputManager.isAnyKeyPressed(),
+        check: () => {
+          // 检查是否按下任意键（检查映射后的键名）
+          const mappedKeys = ['up', 'down', 'left', 'right'];
+          
+          // 调试：检查每个键的状态
+          const keyStates = mappedKeys.map(key => ({
+            key,
+            isDown: this.inputManager.isKeyDown(key)
+          }));
+          const anyPressed = keyStates.some(state => state.isDown);
+          
+          // 每60帧输出一次调试信息
+          if (!this._debugCharCreationCount) this._debugCharCreationCount = 0;
+          this._debugCharCreationCount++;
+          if (this._debugCharCreationCount % 60 === 0) {
+            console.log('Act1SceneECS: character_creation 检查中，按键状态:', keyStates);
+          }
+          
+          if (anyPressed) {
+            console.log('Act1SceneECS: 检测到按键！', keyStates.filter(s => s.isDown));
+          }
+          
+          return anyPressed;
+        },
         onComplete: () => {
           this.completeTutorial('progressive_tip_1');
           console.log('Act1SceneECS: 完成tip_1，进入移动阶段');
@@ -742,7 +777,10 @@ export class Act1SceneECS extends BaseGameScene {
    */
   updateTutorialPhase(deltaTime) {
     const handler = this.tutorialPhaseHandlers[this.tutorialPhase];
-    if (!handler) return;
+    if (!handler) {
+      console.log('Act1SceneECS: 没有找到阶段处理器:', this.tutorialPhase);
+      return;
+    }
     
     // 执行阶段特定的更新逻辑
     if (handler.update) {
@@ -751,6 +789,7 @@ export class Act1SceneECS extends BaseGameScene {
     
     // 检查阶段完成条件
     if (handler.check && handler.check()) {
+      console.log('Act1SceneECS: 阶段完成条件满足，调用 onComplete');
       handler.onComplete();
     }
   }
@@ -1134,9 +1173,12 @@ export class Act1SceneECS extends BaseGameScene {
    * 完成教程
    */
   completeTutorial(tutorialId) {
-    console.log(`Act1SceneECS: 完成教程 - ${tutorialId}`);
     this.tutorialsCompleted[tutorialId] = true;
-    this.tutorialSystem.completeTutorial();
+    
+    // 调用教程系统的完成方法
+    if (this.tutorialSystem) {
+      this.tutorialSystem.completeTutorial(tutorialId);
+    }
   }
 
   /**

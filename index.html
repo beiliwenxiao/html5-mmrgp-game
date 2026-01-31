@@ -484,10 +484,16 @@
         
         // 为场景设置回调
         function setupSceneCallbacks(sceneInstance) {
-            if (!sceneInstance || !sceneInstance.tutorialSystem) return;
+            if (!sceneInstance || !sceneInstance.tutorialSystem) {
+                console.warn('setupSceneCallbacks: 场景或教程系统不存在');
+                return;
+            }
+            
+            console.log('setupSceneCallbacks: 为场景设置回调');
             
             // 设置教程回调
             sceneInstance.tutorialSystem.onShow((data) => {
+                console.log('index.html: onShow 回调被触发');
                 currentTutorialData = data;
                 
                 // 判断是渐进式提示还是基础教程
@@ -621,11 +627,6 @@
                     maxNotifications: 5
                 });
                 
-                // 为所有场景设置教程回调
-                setupSceneCallbacks(act1Scene);
-                setupSceneCallbacks(act2Scene);
-                setupSceneCallbacks(act3Scene);
-                
                 scene = act1Scene;
                 await sleep(500);
                 
@@ -636,16 +637,37 @@
                 sceneManager.switchTo('Act1Scene');
                 await sleep(500);
                 
+                // 场景进入后，设置教程回调（此时教程系统已初始化）
+                console.log('设置教程回调...');
+                setupSceneCallbacks(act1Scene);
+                setupSceneCallbacks(act2Scene);
+                setupSceneCallbacks(act3Scene);
+                
+                // 重新触发第一个教程显示（因为之前回调还没设置）
+                console.log('尝试显示第一个教程...');
+                console.log('tutorialSystem 存在:', !!act1Scene.tutorialSystem);
+                console.log('progressive_tip_1 已完成:', act1Scene.tutorialsCompleted.progressive_tip_1);
+                
+                if (act1Scene.tutorialSystem && !act1Scene.tutorialsCompleted.progressive_tip_1) {
+                    // 先清除之前的教程状态（因为回调还没设置时就显示了）
+                    act1Scene.tutorialSystem.currentTutorial = null;
+                    
+                    const result = act1Scene.tutorialSystem.showTutorial('progressive_tip_1');
+                    console.log('showTutorial 返回:', result);
+                }
+                
                 updateLoading(100, '完成！');
                 await sleep(500);
                 
                 // 隐藏加载屏幕
                 loadingScreen.style.display = 'none';
                 
+                console.log('准备启动游戏循环...');
+                
                 // 开始游戏循环
                 gameLoop();
                 
-                console.log('游戏初始化完成');
+                console.log('游戏初始化完成，游戏循环已启动');
             } catch (error) {
                 console.error('游戏初始化失败:', error);
                 loadingText.textContent = '加载失败: ' + error.message;
@@ -718,6 +740,13 @@
             const currentTime = performance.now();
             const deltaTime = (currentTime - lastTime) / 1000;
             lastTime = currentTime;
+            
+            // 调试：每60帧输出一次
+            if (!window._gameLoopFrameCount) window._gameLoopFrameCount = 0;
+            window._gameLoopFrameCount++;
+            if (window._gameLoopFrameCount % 60 === 0) {
+                console.log('gameLoop 运行中，sceneManager 存在:', !!sceneManager);
+            }
             
             // 计算 FPS
             frameCount++;

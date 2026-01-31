@@ -459,10 +459,24 @@ export class Act1Scene extends Scene {
   
   /**
    * 加载背景图片
+   * @param {string} imagePath - 图片路径
    */
   loadBackgroundImage(imagePath) {
-    // TODO: 实现背景图片加载
-    console.log(`Act1Scene: 加载背景图片 "${imagePath}"`);
+    // 使用AssetManager加载背景图片
+    if (this.engine && this.engine.assetManager) {
+      this.engine.assetManager.loadImage(imagePath)
+        .then(image => {
+          this.backgroundImage = image;
+          console.log(`Act1Scene: 背景图片加载成功 "${imagePath}"`);
+        })
+        .catch(error => {
+          console.warn(`Act1Scene: 背景图片加载失败 "${imagePath}"`, error);
+          // 使用默认背景色
+          this.backgroundImage = null;
+        });
+    } else {
+      console.log(`Act1Scene: AssetManager不可用，跳过背景图片加载 "${imagePath}"`);
+    }
   }
   
   /**

@@ -22,6 +22,10 @@ export class PrologueManager {
      * @param {GameEngine} gameEngine - 游戏引擎实例
      */
     constructor(gameEngine) {
+        if (!gameEngine) {
+            throw new Error('PrologueManager: gameEngine is required');
+        }
+        
         this.gameEngine = gameEngine;
         
         // 引擎核心系统引用
@@ -39,6 +43,9 @@ export class PrologueManager {
         
         // 序章场景映射
         this.actScenes = new Map();
+        
+        // 场景音乐映射
+        this.sceneMusic = {};
         
         // 玩家数据（序章期间的角色数据）
         this.playerData = null;
@@ -207,16 +214,58 @@ export class PrologueManager {
     async loadAssets() {
         console.log('PrologueManager: Loading assets...');
         
-        // 注意：实际资源加载将在后续任务中实现
-        // 这里先预留接口
-        
-        // 示例：加载序章主题音乐
-        // if (this.audioManager) {
-        //     this.audioManager.addMusic('prologue_theme', 'assets/audio/music/prologue_theme.mp3');
-        //     this.audioManager.addMusic('battle_theme', 'assets/audio/music/battle_theme.mp3');
-        // }
-        
-        console.log('PrologueManager: Assets loaded');
+        try {
+            // 加载音频配置
+            const audioConfig = await this.loadAudioConfig();
+            
+            // 注册音乐
+            if (this.audioManager && audioConfig.music) {
+                for (const [key, config] of Object.entries(audioConfig.music)) {
+                    this.audioManager.addMusic(key, config.file, {
+                        volume: config.volume
+                    });
+                    console.log(`PrologueManager: Registered music '${key}'`);
+                }
+            }
+            
+            // 注册音效
+            if (this.audioManager && audioConfig.sfx) {
+                for (const [key, config] of Object.entries(audioConfig.sfx)) {
+                    this.audioManager.addSound(key, config.file, {
+                        volume: config.volume,
+                        loop: config.loop || false
+                    });
+                    console.log(`PrologueManager: Registered sound '${key}'`);
+                }
+            }
+            
+            // 保存场景音乐映射
+            this.sceneMusic = audioConfig.sceneMusic || {};
+            
+            console.log('PrologueManager: Assets loaded successfully');
+            
+        } catch (error) {
+            console.warn('PrologueManager: Failed to load audio assets', error);
+            // 音频加载失败不应阻止游戏运行
+            // AudioManager 会优雅地处理缺失的音频文件
+        }
+    }
+
+    /**
+     * 加载音频配置文件
+     * @returns {Promise<Object>} 音频配置对象
+     */
+    async loadAudioConfig() {
+        try {
+            const response = await fetch('src/prologue/data/AudioConfig.json');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.warn('PrologueManager: Failed to load audio config', error);
+            return { music: {}, sfx: {}, sceneMusic: {} };
+        }
     }
 
     /**
@@ -264,6 +313,9 @@ export class PrologueManager {
         // 更新当前幕数
         this.currentAct = actNumber;
         
+        // 切换场景音乐
+        this.switchSceneMusic(actNumber);
+        
         // 获取场景名称
         const sceneName = this.actScenes.get(actNumber);
         if (!sceneName) {
@@ -283,6 +335,21 @@ export class PrologueManager {
         // 切换场景
         if (this.sceneManager) {
             this.sceneManager.switchTo(sceneName, sceneData);
+        }
+    }
+
+    /**
+     * 切换场景音乐
+     * @param {number} actNumber - 幕数
+     */
+    switchSceneMusic(actNumber) {
+        if (!this.audioManager) return;
+        
+        const musicKey = this.sceneMusic[`act${actNumber}`];
+        if (musicKey && this.audioManager.hasMusic(musicKey)) {
+            // 淡出当前音乐，淡入新音乐
+            this.audioManager.playMusic(musicKey, true);
+            console.log(`PrologueManager: Switched to music '${musicKey}'`);
         }
     }
 
@@ -598,5 +665,122 @@ export class PrologueManager {
         this.isInitialized = false;
         
         console.log('PrologueManager: Destroyed');
+    }
+
+    // ==================== 音效辅助方法 ====================
+
+    /**
+     * 播放音效
+     * @param {string} soundKey - 音效键名
+     * @param {Object} options - 播放选项
+     */
+    playSound(soundKey, options = {}) {
+        if (this.audioManager && this.audioManager.hasSound(soundKey)) {
+            this.audioManager.playSound(soundKey, options);
+        }
+    }
+
+    /**
+     * 播放音乐
+     * @param {string} musicKey - 音乐键名
+     * @param {boolean} fadeIn - 是否淡入
+     */
+    playMusic(musicKey, fadeIn = true) {
+        if (this.audioManager && this.audioManager.hasMusic(musicKey)) {
+            this.audioManager.playMusic(musicKey, fadeIn);
+        }
+    }
+
+    /**
+     * 停止音乐
+     * @param {boolean} fadeOut - 是否淡出
+     */
+    stopMusic(fadeOut = true) {
+        if (this.audioManager) {
+            this.audioManager.stopMusic(fadeOut);
+        }
+    }
+
+    /**
+     * 播放战斗音乐
+     */
+    playBattleMusic() {
+        this.playMusic('battle_theme', true);
+    }
+
+    /**
+     * 播放史诗战斗音乐
+     */
+    playEpicBattleMusic() {
+        this.playMusic('epic_battle_theme', true);
+    }
+
+    /**
+     * 恢复场景音乐
+     */
+    resumeSceneMusic() {
+        if (this.currentAct > 0) {
+            this.switchSceneMusic(this.currentAct);
+        }
+    }
+
+    /**
+     * 设置音量
+     * @param {string} type - 音量类型 ('master', 'sound', 'music')
+     * @param {number} volume - 音量值 (0-1)
+     */
+    setVolume(type, volume) {
+        if (!this.audioManager) return;
+        
+        switch (type) {
+            case 'master':
+                this.audioManager.setMasterVolume(volume);
+                break;
+            case 'sound':
+                this.audioManager.setSoundVolume(volume);
+                break;
+            case 'music':
+                this.audioManager.setMusicVolume(volume);
+                break;
+            default:
+                console.warn(`PrologueManager: Unknown volume type '${type}'`);
+        }
+    }
+
+    /**
+     * 获取音量
+     * @param {string} type - 音量类型 ('master', 'sound', 'music')
+     * @returns {number} 音量值
+     */
+    getVolume(type) {
+        if (!this.audioManager) return 0;
+        
+        switch (type) {
+            case 'master':
+                return this.audioManager.masterVolume;
+            case 'sound':
+                return this.audioManager.soundVolume;
+            case 'music':
+                return this.audioManager.musicVolume;
+            default:
+                return 0;
+        }
+    }
+
+    /**
+     * 切换静音状态
+     */
+    toggleMute() {
+        if (this.audioManager) {
+            this.audioManager.toggleMute();
+        }
+    }
+
+    /**
+     * 获取静音状态
+     * @returns {boolean}
+     */
+    isMuted() {
+        return this.audioManager ? this.audioManager.muted : false;
     }
 }

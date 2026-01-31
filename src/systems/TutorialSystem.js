@@ -76,12 +76,16 @@ export class TutorialSystem {
    * @returns {boolean} 是否显示成功
    */
   showTutorial(tutorialId, context = {}) {
+    console.log(`TutorialSystem: showTutorial 被调用, ID=${tutorialId}`);
+    
     if (!this.enabled) {
+      console.log('TutorialSystem: 教程系统未启用');
       return false;
     }
 
     // 检查教程是否已完成
     if (this.completedTutorials.has(tutorialId)) {
+      console.log(`TutorialSystem: 教程 ${tutorialId} 已完成`);
       return false;
     }
 
@@ -94,9 +98,11 @@ export class TutorialSystem {
 
     // 检查是否有其他教程正在显示
     if (this.currentTutorial) {
-      console.warn('TutorialSystem: 已有教程正在显示');
+      console.warn('TutorialSystem: 已有教程正在显示:', this.currentTutorial.id);
       return false;
     }
+
+    console.log(`TutorialSystem: 显示教程 ${tutorialId}`);
 
     // 设置当前教程
     this.currentTutorial = tutorial;
@@ -148,7 +154,10 @@ export class TutorialSystem {
 
     // 触发步骤显示回调
     if (this.onShowCallback) {
+      console.log('TutorialSystem: 调用 onShowCallback');
       this.onShowCallback(stepData, context);
+    } else {
+      console.warn('TutorialSystem: onShowCallback 未设置！');
     }
   }
 
@@ -220,20 +229,37 @@ export class TutorialSystem {
 
   /**
    * 完成教程
+   * @param {string} tutorialId - 可选的教程ID，如果不提供则完成当前教程
    */
-  completeTutorial() {
+  completeTutorial(tutorialId = null) {
+    // 如果提供了 tutorialId，直接标记为完成
+    if (tutorialId) {
+      this.completedTutorials.add(tutorialId);
+      
+      // 如果是当前教程，也隐藏它
+      if (this.currentTutorial && this.currentTutorial.id === tutorialId) {
+        // 触发完成回调
+        if (this.onCompleteCallback) {
+          this.onCompleteCallback(tutorialId, this.currentTutorial);
+        }
+        this.hideTutorial();
+      }
+      return;
+    }
+    
+    // 否则完成当前教程
     if (!this.currentTutorial) {
       return;
     }
 
-    const tutorialId = this.currentTutorial.id;
+    const currentTutorialId = this.currentTutorial.id;
 
     // 标记为已完成
-    this.completedTutorials.add(tutorialId);
+    this.completedTutorials.add(currentTutorialId);
 
     // 触发完成回调
     if (this.onCompleteCallback) {
-      this.onCompleteCallback(tutorialId, this.currentTutorial);
+      this.onCompleteCallback(currentTutorialId, this.currentTutorial);
     }
 
     // 隐藏教程

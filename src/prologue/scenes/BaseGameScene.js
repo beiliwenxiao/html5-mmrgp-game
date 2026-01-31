@@ -40,6 +40,8 @@ import { Entity } from '../../ecs/Entity.js';
 import { TransformComponent } from '../../ecs/components/TransformComponent.js';
 import { SpriteComponent } from '../../ecs/components/SpriteComponent.js';
 import { NameComponent } from '../../ecs/components/NameComponent.js';
+import { PerformanceOptimizer } from '../systems/PerformanceOptimizer.js';
+import { PerformanceMonitor } from '../../core/PerformanceMonitor.js';
 
 export class BaseGameScene extends PrologueScene {
   constructor(actNumber, sceneData = {}) {
@@ -67,6 +69,19 @@ export class BaseGameScene extends PrologueScene {
     this.enemyWeaponRenderer = null;
     this.flightSystem = null;
     this.uiClickHandler = new UIClickHandler();
+    
+    // 性能优化系统
+    this.performanceOptimizer = new PerformanceOptimizer({
+      cellSize: 128,
+      spatialGrid: true,
+      batching: true,
+      pooling: true,
+      lod: true
+    });
+    this.performanceMonitor = new PerformanceMonitor({
+      enabled: false,  // 默认关闭，按P键开启
+      showGraph: false
+    });
     
     // 序章系统
     this.tutorialSystem = new TutorialSystem();
@@ -117,6 +132,7 @@ export class BaseGameScene extends PrologueScene {
     this.lastPlayerInfoToggleTime = 0;
     this.lastInventoryToggleTime = 0;
     this.lastPickupTime = 0;
+    this.lastPerformanceToggleTime = 0;
     
     // 场景过渡状态
     this.isTransitioning = false;
@@ -573,6 +589,9 @@ export class BaseGameScene extends PrologueScene {
   update(deltaTime) {
     if (!this.isActive || this.isPaused) return;
     
+    // 性能监控：开始计时
+    const updateStartTime = performance.now();
+    
     // 调试：输出update调用
     if (this._debugNextUpdate) {
       console.log('【更新】update方法被调用, deltaTime=', deltaTime);
@@ -587,6 +606,12 @@ export class BaseGameScene extends PrologueScene {
         return;
       }
     }
+    
+    // 更新性能优化器
+    this.performanceOptimizer.update();
+    
+    // 更新空间分区网格
+    this.performanceOptimizer.updateSpatialGrid(this.entities);
     
     // 更新相机
     this.camera.update(deltaTime);
@@ -644,8 +669,10 @@ export class BaseGameScene extends PrologueScene {
     // 处理敌人选中
     this.handleEnemySelection();
     
-    // 更新AI系统
-    this.aiSystem.update(deltaTime, this.entities, this.combatSystem);
+    // 更新AI系统（使用节流）
+    if (this.performanceOptimizer.shouldUpdate('ai')) {
+      this.aiSystem.update(deltaTime, this.entities, this.combatSystem);
+    }
     
     // 更新战斗系统
     this.combatSystem.update(deltaTime, this.entities);
@@ -664,9 +691,11 @@ export class BaseGameScene extends PrologueScene {
     this.dialogueSystem.update(deltaTime);
     this.questSystem.update(deltaTime);
     
-    // 更新特效
-    this.combatEffects.update(deltaTime);
-    this.skillEffects.update(deltaTime);
+    // 更新特效（使用节流）
+    if (this.performanceOptimizer.shouldUpdate('effects')) {
+      this.combatEffects.update(deltaTime);
+      this.skillEffects.update(deltaTime);
+    }
     this.floatingTextManager.update(deltaTime);
     this.particleSystem.update(deltaTime);
     
@@ -732,11 +761,14 @@ export class BaseGameScene extends PrologueScene {
     // 检查面板切换
     this.checkPlayerInfoToggle();
     this.checkInventoryToggle();
+    this.checkPerformanceMonitorToggle();
     
-    // 更新面板
-    this.inventoryPanel.update(deltaTime);
-    this.playerInfoPanel.update(deltaTime);
-    this.bottomControlBar.update(deltaTime);
+    // 更新面板（使用节流）
+    if (this.performanceOptimizer.shouldUpdate('ui')) {
+      this.inventoryPanel.update(deltaTime);
+      this.playerInfoPanel.update(deltaTime);
+      this.bottomControlBar.update(deltaTime);
+    }
     
     // 更新对话框 - 根据对话系统状态显示/隐藏
     if (this.dialogueBox && this.dialogueSystem) {
@@ -760,6 +792,19 @@ export class BaseGameScene extends PrologueScene {
     
     // 更新输入管理器
     this.inputManager.update();
+    
+    // 性能监控：结束计时并更新
+    const updateEndTime = performance.now();
+    const updateTime = updateEndTime - updateStartTime;
+    
+    // 更新性能监控器
+    this.performanceMonitor.update(deltaTime, {
+      entityCount: this.entities.length,
+      visibleEntityCount: this.renderSystem ? this.renderSystem.cullEntities(this.entities).length : 0,
+      particleCount: this.particleSystem.getActiveCount(),
+      poolStats: this.performanceOptimizer.getPoolStats(),
+      updateTime: updateTime
+    });
   }
 
   /**
@@ -1418,6 +1463,20 @@ export class BaseGameScene extends PrologueScene {
   }
 
   /**
+   * 检查性能监控切换
+   */
+  checkPerformanceMonitorToggle() {
+    if (this.inputManager.isKeyDown('p') || this.inputManager.isKeyDown('P')) {
+      const now = Date.now();
+      if (!this.lastPerformanceToggleTime || now - this.lastPerformanceToggleTime > 300) {
+        this.performanceMonitor.toggle();
+        this.lastPerformanceToggleTime = now;
+        console.log('性能监控:', this.performanceMonitor.enabled ? '开启' : '关闭');
+      }
+    }
+  }
+
+  /**
    * 更新面板悬停状态
    */
   updatePanelHover() {
@@ -1787,6 +1846,11 @@ export class BaseGameScene extends PrologueScene {
     // 渲染场景过渡
     if (this.isTransitioning) {
       this.renderTransition(ctx);
+    }
+    
+    // 渲染性能监控面板
+    if (this.performanceMonitor && this.performanceMonitor.enabled) {
+      this.performanceMonitor.render(ctx);
     }
   }
 
