@@ -134,6 +134,9 @@ export class BaseGameScene extends PrologueScene {
     this.lastPickupTime = 0;
     this.lastPerformanceToggleTime = 0;
     
+    // 对话控制标志
+    this.lastSpacePressed = false;
+    
     // 场景过渡状态
     this.isTransitioning = false;
     this.transitionAlpha = 0;
@@ -762,6 +765,9 @@ export class BaseGameScene extends PrologueScene {
     this.checkPlayerInfoToggle();
     this.checkInventoryToggle();
     this.checkPerformanceMonitorToggle();
+    
+    // 检查空格键继续对话
+    this.checkDialogueContinue();
     
     // 更新面板（使用节流）
     if (this.performanceOptimizer.shouldUpdate('ui')) {
@@ -1472,6 +1478,54 @@ export class BaseGameScene extends PrologueScene {
         this.performanceMonitor.toggle();
         this.lastPerformanceToggleTime = now;
         console.log('性能监控:', this.performanceMonitor.enabled ? '开启' : '关闭');
+      }
+    }
+  }
+
+  /**
+   * 检查空格键继续对话
+   */
+  checkDialogueContinue() {
+    // 检查对话系统是否激活
+    if (!this.dialogueSystem || !this.dialogueSystem.isDialogueActive()) {
+      return;
+    }
+    
+    // 检查空格键是否按下
+    const spacePressed = this.inputManager.isKeyDown('space');
+    if (!spacePressed) {
+      // 重置标志，允许下次按键
+      this.lastSpacePressed = false;
+      return;
+    }
+    
+    // 防止连续触发（按住空格键时只触发一次）
+    if (this.lastSpacePressed) {
+      return;
+    }
+    
+    this.lastSpacePressed = true;
+    
+    // 如果正在打字，跳过打字动画
+    if (this.dialogueSystem.isTyping()) {
+      this.dialogueSystem.skipTypewriter();
+      return;
+    }
+    
+    // 否则继续对话
+    const currentNode = this.dialogueSystem.getCurrentNode();
+    if (currentNode) {
+      // 如果有选项，不自动继续（需要玩家点击选项）
+      if (currentNode.choices && currentNode.choices.length > 0) {
+        return;
+      }
+      
+      // 继续对话
+      this.dialogueSystem.continue();
+      
+      // 如果对话结束，隐藏对话框
+      if (!this.dialogueSystem.isDialogueActive() && this.dialogueBox) {
+        this.dialogueBox.hide();
       }
     }
   }

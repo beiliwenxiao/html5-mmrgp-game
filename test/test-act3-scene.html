@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>第二幕测试 - 符水救灾</title>
+    <title>第三幕测试 - 铜钱法器</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -53,54 +53,45 @@
             <div>阶段: <span id="phase">-</span></div>
         </div>
         <div id="controls-hint">
-            WASD: 移动 | 空格: 继续对话 | B: 背包 | C: 属性
+            WASD: 移动 | 空格: 继续对话 | M: 商店 | H: 强化 | B: 背包
         </div>
     </div>
     
     <script type="module">
-        import { Act2Scene } from '../src/prologue/scenes/Act2Scene.js';
+        import { Act3Scene } from '../src/prologue/scenes/Act3Scene.js';
         import { SceneManager } from '../src/core/SceneManager.js';
-        import { DialogueBox } from '../src/ui/DialogueBox.js';
         
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         
         let sceneManager = new SceneManager();
-        let scene = new Act2Scene();
+        let scene = new Act3Scene();
         let lastTime = performance.now();
         let fps = 60, frameCount = 0, fpsTime = 0;
         
-        // 注册场景
-        sceneManager.registerScene('Act2Scene', scene);
+        sceneManager.registerScene('Act3Scene', scene);
         scene.setSceneManager(sceneManager);
         
-        // 模拟从第一幕传递的数据
         const mockPlayerData = {
             player: {
                 name: '测试玩家',
                 class: 'refugee',
-                level: 1,
-                hp: 100,
-                maxHp: 100,
-                mp: 50,
-                maxMp: 50,
-                attack: 15,
-                defense: 8
+                level: 2,
+                hp: 120,
+                maxHp: 120,
+                mp: 60,
+                maxMp: 60,
+                attack: 20,
+                defense: 12
             },
-            previousAct: 1
+            previousAct: 2
         };
         
-        // 进入场景
-        sceneManager.switchTo('Act2Scene', mockPlayerData);
+        sceneManager.switchTo('Act3Scene', mockPlayerData);
         
-        // 设置教程回调
         if (scene.tutorialSystem) {
-            scene.tutorialSystem.onShow((data) => {
-                console.log('教程显示:', data);
-            });
-            scene.tutorialSystem.onHide(() => {
-                console.log('教程隐藏');
-            });
+            scene.tutorialSystem.onShow((data) => console.log('教程显示:', data));
+            scene.tutorialSystem.onHide(() => console.log('教程隐藏'));
         }
         
         function gameLoop() {
@@ -110,11 +101,7 @@
             
             frameCount++;
             fpsTime += deltaTime;
-            if (fpsTime >= 1.0) {
-                fps = frameCount;
-                frameCount = 0;
-                fpsTime = 0;
-            }
+            if (fpsTime >= 1.0) { fps = frameCount; frameCount = 0; fpsTime = 0; }
             
             ctx.fillStyle = '#2a2a2a';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -129,7 +116,7 @@
         }
         
         gameLoop();
-        console.log('第二幕测试页面已启动');
+        console.log('第三幕测试页面已启动');
     </script>
 </body>
 </html>

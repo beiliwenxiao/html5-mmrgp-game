@@ -8,9 +8,9 @@
  * - AttributeSystem: 属性系统
  */
 
-import { SkillTreeSystem } from '../../systems/SkillTreeSystem.js';
-import { UnitSystem, UnitTypes } from '../../systems/UnitSystem.js';
-import { AttributeSystem, AttributeType } from '../../systems/AttributeSystem.js';
+import { SkillTreeSystem } from './SkillTreeSystem.js';
+import { UnitSystem, UnitTypes } from './UnitSystem.js';
+import { AttributeSystem, AttributeType } from './AttributeSystem.js';
 
 /**
  * 职业类型枚举

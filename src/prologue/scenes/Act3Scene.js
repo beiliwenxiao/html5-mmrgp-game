@@ -377,6 +377,44 @@ export class Act3Scene extends BaseGameScene {
     
     // 第三幕特有：检查对话流程
     this.updateDialogueFlow();
+    
+    // 第三幕特有：检查M键和H键
+    this.checkShopToggle();
+    this.checkEnhancementToggle();
+  }
+
+  /**
+   * 检查商店切换（M键）
+   */
+  checkShopToggle() {
+    const mPressed = this.inputManager.isKeyDown('m') || this.inputManager.isKeyDown('M');
+    if (mPressed) {
+      console.log('Act3Scene: M键被按下, shopSystemInitialized =', this.shopSystemInitialized);
+      const now = Date.now();
+      if (!this.lastShopToggleTime || now - this.lastShopToggleTime > 300) {
+        if (this.shopSystemInitialized) {
+          this.toggleShop();
+        }
+        this.lastShopToggleTime = now;
+      }
+    }
+  }
+
+  /**
+   * 检查强化切换（H键）
+   */
+  checkEnhancementToggle() {
+    const hPressed = this.inputManager.isKeyDown('h') || this.inputManager.isKeyDown('H');
+    if (hPressed) {
+      console.log('Act3Scene: H键被按下, enhancementSystemInitialized =', this.enhancementSystemInitialized);
+      const now = Date.now();
+      if (!this.lastEnhancementToggleTime || now - this.lastEnhancementToggleTime > 300) {
+        if (this.enhancementSystemInitialized) {
+          this.toggleEnhancement();
+        }
+        this.lastEnhancementToggleTime = now;
+      }
+    }
   }
 
   /**
@@ -396,32 +434,50 @@ export class Act3Scene extends BaseGameScene {
         this.shopIntroDialogueCompleted = true;
         setTimeout(() => this.startEnhancementIntroDialogue(), 1000);
       }
-      // 强化介绍对话结束 -> 场景完成
+      // 强化介绍对话结束 -> 场景完成，切换到第四幕
       else if (this.dialoguePhase === 'enhancement_intro' && !this.enhancementIntroDialogueCompleted) {
         this.enhancementIntroDialogueCompleted = true;
         this.isSceneComplete = true;
+        // 延迟切换到第四幕
+        setTimeout(() => this.switchToNextScene(), 2000);
       }
     }
   }
 
-
   /**
-   * 处理输入 - 覆盖父类方法，添加第三幕特有输入
+   * 切换到下一幕（第四幕）
    */
-  handleInput(input) {
-    // 调用父类的输入处理
-    super.handleInput(input);
+  switchToNextScene() {
+    console.log('Act3Scene: 切换到第四幕');
     
-    // M键 - 打开商店
-    if (input.keyPressed('KeyM') && this.shopSystemInitialized) {
-      this.toggleShop();
-    }
+    // 准备传递给第四幕的数据
+    const stats = this.playerEntity?.getComponent('stats');
+    const inventory = this.playerEntity?.getComponent('inventory');
+    const equipment = this.playerEntity?.getComponent('equipment');
     
-    // H键 - 打开强化界面
-    if (input.keyPressed('KeyH') && this.enhancementSystemInitialized) {
-      this.toggleEnhancement();
-    }
+    const sceneData = {
+      player: {
+        name: this.playerEntity?.name || '玩家',
+        class: this.playerEntity?.class || 'refugee',
+        level: stats?.level || 3,
+        hp: stats?.hp || 150,
+        maxHp: stats?.maxHp || 150,
+        mp: stats?.mp || 80,
+        maxMp: stats?.maxMp || 80,
+        attack: stats?.attack || 25,
+        defense: stats?.defense || 15,
+        inventory: inventory?.getAllItems() || [],
+        equipment: equipment?.slots || {}
+      },
+      playerEntity: this.playerEntity,
+      previousAct: 3,
+      gold: this.shopSystem?.getCurrency('gold') || 0
+    };
+    
+    // 使用父类的场景切换方法
+    this.goToNextScene(sceneData);
   }
+
 
   /**
    * 切换商店界面
