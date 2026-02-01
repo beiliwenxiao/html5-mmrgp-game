@@ -363,22 +363,24 @@ export class Act2Scene extends BaseGameScene {
     // 调用父类的 render
     super.render(ctx);
     
-    // 渲染场景标题
+    // 渲染场景标题（UI层，在对话框之后）
     this.renderSceneTitle(ctx);
     
-    // 渲染张角NPC（在相机变换之后）
-    ctx.save();
-    const viewBounds = this.camera.getViewBounds();
-    ctx.translate(-viewBounds.left, -viewBounds.top);
+    // 渲染提示信息（UI层）
+    this.renderHints(ctx);
+  }
+
+  /**
+   * 渲染世界对象 - 覆盖父类方法，添加NPC渲染
+   */
+  renderWorldObjects(ctx) {
+    // 调用父类的渲染（渲染实体）
+    super.renderWorldObjects(ctx);
     
+    // 渲染张角NPC（在相机变换内）
     if (this.zhangjiaoNPC) {
       this.renderNPC(ctx, this.zhangjiaoNPC);
     }
-    
-    ctx.restore();
-    
-    // 渲染提示信息
-    this.renderHints(ctx);
   }
 
   /**

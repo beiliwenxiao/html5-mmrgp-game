@@ -1272,8 +1272,10 @@ export class Act1SceneECS extends BaseGameScene {
       }
     }
     
-    // 添加火堆到渲染队列（只在完成tip_2后显示）
-    if (this.tutorialsCompleted.progressive_tip_2) {
+    // 添加火堆到渲染队列（在移动阶段及之后显示）
+    // 火堆在完成第一个提示后就应该显示，让玩家可以去点燃
+    const showCampfire = this.tutorialPhase !== 'character_creation';
+    if (showCampfire) {
       renderQueue.push({
         type: 'campfire_bottom',
         y: this.campfire.y,
