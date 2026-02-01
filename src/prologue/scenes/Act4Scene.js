@@ -39,6 +39,16 @@ export class Act4Scene extends BaseGameScene {
     this.classSelected = false;
     this.selectedClass = null;
     this.hoveredInstructor = null;
+    this.pendingClassType = null;  // 待选择的职业类型
+    this.showClassConfirmation = false;  // 是否显示职业确认窗口
+    this.confirmButtonHovered = false;  // 确定按钮悬停
+    this.cancelButtonHovered = false;   // 取消按钮悬停
+    
+    // 第四幕特有：兵种选择状态（战士专用）
+    this.showUnitSelection = false;  // 是否显示兵种选择窗口
+    this.selectedUnitType = null;  // 选择的兵种类型
+    this.shieldSoldierButtonHovered = false;  // 刀盾兵按钮悬停
+    this.spearmanButtonHovered = false;  // 长枪兵按钮悬停
     
     // 第四幕特有：对话阶段
     this.dialoguePhase = 'intro';
@@ -52,6 +62,11 @@ export class Act4Scene extends BaseGameScene {
     
     // 第四幕特有：通知回调
     this.onNotification = null;
+    
+    // 第四幕特有：快捷键切换时间戳
+    this.lastSkillTreeToggleTime = 0;
+    this.lastAttributeToggleTime = 0;
+    this.lastUnitInfoToggleTime = 0;
   }
 
   /**
@@ -312,7 +327,7 @@ export class Act4Scene extends BaseGameScene {
       name: '张梁',
       title: '地公将军',
       classType: ClassType.WARRIOR,
-      position: { x: 200, y: 300 },
+      position: { x: 300, y: 300 },
       color: '#FF5722'
     });
 
@@ -322,18 +337,8 @@ export class Act4Scene extends BaseGameScene {
       name: '张宝',
       title: '人公将军',
       classType: ClassType.ARCHER,
-      position: { x: 400, y: 300 },
+      position: { x: 500, y: 300 },
       color: '#4CAF50'
-    });
-
-    // 张角 - 法师教官
-    this.instructors.push({
-      id: 'zhangjiao',
-      name: '张角',
-      title: '天公将军',
-      classType: ClassType.MAGE,
-      position: { x: 600, y: 300 },
-      color: '#2196F3'
     });
   }
 
@@ -364,12 +369,29 @@ export class Act4Scene extends BaseGameScene {
     this.selectedClass = classType;
     this.classSelected = true;
 
-    // 更新玩家实体的职业
+    // 更新玩家实体的职业和兵种
     if (this.playerEntity) {
       const stats = this.playerEntity.getComponent('stats');
       if (stats) {
         stats.class = classType;
         stats.skillPoints = 5; // 给予初始技能点
+        
+        // 根据职业设置兵种类型
+        const classData = this.classSystem.getClassData(classType);
+        if (classData) {
+          // 如果是战士且选择了兵种，使用选择的兵种
+          if (classType === ClassType.WARRIOR && this.selectedUnitType) {
+            if (this.selectedUnitType === 'shield_soldier') {
+              stats.setUnitType(0); // 刀盾兵 SWORD_SHIELD
+            } else if (this.selectedUnitType === 'spearman') {
+              stats.setUnitType(6); // 长枪兵 SPEARMAN
+            }
+          } else {
+            // 其他职业使用默认基础兵种
+            stats.setUnitType(classData.baseUnitType);
+          }
+          console.log(`Act4Scene: 设置兵种类型为 ${stats.getUnitType()}`);
+        }
       }
     }
 
@@ -488,6 +510,24 @@ export class Act4Scene extends BaseGameScene {
    * 更新场景 - 覆盖父类方法，添加第四幕特有逻辑
    */
   update(deltaTime) {
+    // 第四幕特有：先更新教官悬停状态（需要在检查点击之前）
+    this.updateInstructorHover();
+    
+    // 第四幕特有：更新确认窗口悬停状态
+    this.updateConfirmationHover();
+    
+    // 第四幕特有：更新兵种选择窗口悬停状态
+    this.updateUnitSelectionHover();
+    
+    // 第四幕特有：在父类update之前检查教官点击（避免被父类的handleUIClick阻止）
+    this.checkInstructorClick();
+    
+    // 第四幕特有：检查确认窗口点击
+    this.checkConfirmationClick();
+    
+    // 第四幕特有：检查兵种选择窗口点击
+    this.checkUnitSelectionClick();
+    
     // 调用父类的 update
     super.update(deltaTime);
 
@@ -508,9 +548,9 @@ export class Act4Scene extends BaseGameScene {
 
     // 第四幕特有：检查对话流程
     this.updateDialogueFlow();
-
-    // 第四幕特有：检查教官悬停
-    this.updateInstructorHover();
+    
+    // 第四幕特有：检查快捷键
+    this.checkHotkeys();
   }
 
   /**
@@ -521,10 +561,16 @@ export class Act4Scene extends BaseGameScene {
       // 介绍对话结束
       if (this.dialoguePhase === 'intro' && !this.introDialogueCompleted) {
         this.introDialogueCompleted = true;
+        console.log('Act4Scene: 介绍对话完成，可以点击教官选择职业了');
       }
-      // 职业选择对话结束
+      // 职业选择对话结束 - 显示确认窗口
       else if (this.dialoguePhase === 'class_selection' && !this.classSelectionDialogueCompleted) {
-        this.classSelectionDialogueCompleted = true;
+        // 如果有待选择的职业且还没选择职业，显示确认窗口
+        if (this.pendingClassType && !this.classSelected) {
+          console.log('Act4Scene: 显示确认窗口, pendingClassType:', this.pendingClassType);
+          this.showClassConfirmation = true;
+          this.classSelectionDialogueCompleted = true;
+        }
       }
     }
   }
@@ -548,59 +594,213 @@ export class Act4Scene extends BaseGameScene {
 
       if (distance <= 40) {
         this.hoveredInstructor = instructor;
+        console.log('Act4Scene: 悬停在教官上:', instructor.name, 'distance:', distance);
         break;
       }
     }
   }
 
   /**
-   * 处理输入 - 覆盖父类方法，添加第四幕特有输入
+   * 更新确认窗口悬停状态
    */
-  handleInput(input) {
-    // 调用父类的输入处理
-    super.handleInput(input);
-
-    // T键 - 打开技能树
-    if (input.keyPressed('KeyT') && this.classSelected && this.skillTreePanel) {
-      this.skillTreePanel.toggle();
+  updateConfirmationHover() {
+    if (!this.showClassConfirmation || !this.inputManager) {
+      this.confirmButtonHovered = false;
+      this.cancelButtonHovered = false;
+      return;
     }
 
-    // A键 - 打开属性面板
-    if (input.keyPressed('KeyA') && this.classSelected && this.attributePanel) {
-      if (this.attributePanel.isOpen()) {
-        this.attributePanel.hide();
+    const mousePos = this.inputManager.getMousePosition();
+    
+    // 确认窗口位置和尺寸
+    const panelWidth = 400;
+    const panelHeight = 200;
+    const panelX = (this.logicalWidth - panelWidth) / 2;
+    const panelY = (this.logicalHeight - panelHeight) / 2;
+    
+    // 按钮尺寸和位置
+    const buttonWidth = 120;
+    const buttonHeight = 40;
+    const buttonY = panelY + panelHeight - 60;
+    const confirmButtonX = panelX + panelWidth / 2 - buttonWidth - 10;
+    const cancelButtonX = panelX + panelWidth / 2 + 10;
+    
+    // 检查确定按钮悬停
+    this.confirmButtonHovered = (
+      mousePos.x >= confirmButtonX &&
+      mousePos.x <= confirmButtonX + buttonWidth &&
+      mousePos.y >= buttonY &&
+      mousePos.y <= buttonY + buttonHeight
+    );
+    
+    // 检查取消按钮悬停
+    this.cancelButtonHovered = (
+      mousePos.x >= cancelButtonX &&
+      mousePos.x <= cancelButtonX + buttonWidth &&
+      mousePos.y >= buttonY &&
+      mousePos.y <= buttonY + buttonHeight
+    );
+  }
+
+  /**
+   * 检查确认窗口点击
+   */
+  checkConfirmationClick() {
+    if (!this.showClassConfirmation || !this.inputManager) {
+      return;
+    }
+    
+    // 检查鼠标点击
+    if (!this.inputManager.isMouseClicked() || this.inputManager.isMouseClickHandled()) {
+      return;
+    }
+    
+    // 点击确定按钮
+    if (this.confirmButtonHovered) {
+      console.log('Act4Scene: 确认选择职业', this.pendingClassType);
+      
+      // 如果选择的是战士，显示兵种选择窗口
+      if (this.pendingClassType === ClassType.WARRIOR) {
+        this.showClassConfirmation = false;
+        this.showUnitSelection = true;
+        console.log('Act4Scene: 显示兵种选择窗口');
       } else {
-        this.attributePanel.show('player');
+        // 其他职业直接选择
+        this.selectClass(this.pendingClassType);
+        this.showClassConfirmation = false;
+        this.pendingClassType = null;
       }
+      
+      this.inputManager.markMouseClickHandled();
     }
-
-    // U键 - 打开兵种信息面板
-    if (input.keyPressed('KeyU') && this.classSelected && this.unitInfoPanel && this.playerEntity) {
-      if (this.unitInfoPanel.isVisible()) {
-        this.unitInfoPanel.hide();
-      } else {
-        this.unitInfoPanel.show(this.playerEntity);
-      }
-    }
-
-    // 点击教官选择职业
-    if (!this.classSelected && this.inputManager.isMouseClicked() && !this.inputManager.isMouseClickHandled()) {
-      this.handleInstructorClick();
+    // 点击取消按钮
+    else if (this.cancelButtonHovered) {
+      console.log('Act4Scene: 取消选择职业');
+      this.showClassConfirmation = false;
+      this.pendingClassType = null;
+      this.classSelectionDialogueCompleted = false; // 重置对话完成标志，允许重新点击教官
+      this.inputManager.markMouseClickHandled();
     }
   }
 
   /**
-   * 处理教官点击
+   * 更新兵种选择窗口悬停状态
    */
-  handleInstructorClick() {
-    if (!this.hoveredInstructor) return;
+  updateUnitSelectionHover() {
+    if (!this.showUnitSelection || !this.inputManager) {
+      this.shieldSoldierButtonHovered = false;
+      this.spearmanButtonHovered = false;
+      return;
+    }
 
-    const instructor = this.hoveredInstructor;
+    const mousePos = this.inputManager.getMousePosition();
+    
+    // 兵种选择窗口位置和尺寸
+    const panelWidth = 500;
+    const panelHeight = 300;
+    const panelX = (this.logicalWidth - panelWidth) / 2;
+    const panelY = (this.logicalHeight - panelHeight) / 2;
+    
+    // 按钮尺寸和位置
+    const buttonWidth = 200;
+    const buttonHeight = 80;
+    const buttonY = panelY + 140;
+    const shieldButtonX = panelX + 50;
+    const spearButtonX = panelX + panelWidth - buttonWidth - 50;
+    
+    // 检查刀盾兵按钮悬停
+    this.shieldSoldierButtonHovered = (
+      mousePos.x >= shieldButtonX &&
+      mousePos.x <= shieldButtonX + buttonWidth &&
+      mousePos.y >= buttonY &&
+      mousePos.y <= buttonY + buttonHeight
+    );
+    
+    // 检查长枪兵按钮悬停
+    this.spearmanButtonHovered = (
+      mousePos.x >= spearButtonX &&
+      mousePos.x <= spearButtonX + buttonWidth &&
+      mousePos.y >= buttonY &&
+      mousePos.y <= buttonY + buttonHeight
+    );
+  }
 
+  /**
+   * 检查兵种选择窗口点击
+   */
+  checkUnitSelectionClick() {
+    if (!this.showUnitSelection || !this.inputManager) {
+      return;
+    }
+    
+    // 检查鼠标点击
+    if (!this.inputManager.isMouseClicked() || this.inputManager.isMouseClickHandled()) {
+      return;
+    }
+    
+    // 点击刀盾兵按钮
+    if (this.shieldSoldierButtonHovered) {
+      console.log('Act4Scene: 选择刀盾兵');
+      this.selectedUnitType = 'shield_soldier';
+      this.selectClass(ClassType.WARRIOR);
+      this.showUnitSelection = false;
+      this.pendingClassType = null;
+      this.inputManager.markMouseClickHandled();
+    }
+    // 点击长枪兵按钮
+    else if (this.spearmanButtonHovered) {
+      console.log('Act4Scene: 选择长枪兵');
+      this.selectedUnitType = 'spearman';
+      this.selectClass(ClassType.WARRIOR);
+      this.showUnitSelection = false;
+      this.pendingClassType = null;
+      this.inputManager.markMouseClickHandled();
+    }
+  }
+
+  /**
+   * 检查教官点击
+   */
+  checkInstructorClick() {
+    // 只在未选择职业且介绍对话完成后才能点击教官
+    if (this.classSelected || !this.introDialogueCompleted) {
+      return;
+    }
+    
+    // 检查鼠标点击
+    if (!this.inputManager || !this.inputManager.isMouseClicked() || this.inputManager.isMouseClickHandled()) {
+      return;
+    }
+    
+    // 直接检查鼠标位置是否在教官上（不依赖hoveredInstructor）
+    const mouseWorldPos = this.inputManager.getMouseWorldPosition(this.camera);
+    let clickedInstructor = null;
+    
+    for (const instructor of this.instructors) {
+      const dx = mouseWorldPos.x - instructor.position.x;
+      const dy = mouseWorldPos.y - instructor.position.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance <= 40) {
+        clickedInstructor = instructor;
+        break;
+      }
+    }
+    
+    // 如果没有点击在教官上，返回
+    if (!clickedInstructor) {
+      return;
+    }
+    
+    console.log('Act4Scene: 点击教官', clickedInstructor.name, clickedInstructor.classType);
+    
+    // 保存选择的职业类型，用于对话结束后选择
+    this.pendingClassType = clickedInstructor.classType;
+    
     // 开始职业对话
     this.dialoguePhase = 'class_selection';
     
-    switch (instructor.classType) {
+    switch (clickedInstructor.classType) {
       case ClassType.WARRIOR:
         this.dialogueSystem.startDialogue('warrior_intro');
         break;
@@ -611,15 +811,55 @@ export class Act4Scene extends BaseGameScene {
         this.dialogueSystem.startDialogue('mage_intro');
         break;
     }
-
-    // 对话结束后选择职业
-    setTimeout(() => {
-      if (!this.dialogueSystem.isDialogueActive()) {
-        this.selectClass(instructor.classType);
-      }
-    }, 100);
-
+    
     this.inputManager.markMouseClickHandled();
+    
+    console.log('Act4Scene: 开始职业对话', clickedInstructor.name);
+  }
+
+  /**
+   * 检查快捷键
+   */
+  checkHotkeys() {
+    if (!this.classSelected) return;
+    
+    // T键 - 打开技能树
+    const tPressed = this.inputManager.isKeyDown('t') || this.inputManager.isKeyDown('T');
+    if (tPressed && this.skillTreePanel) {
+      const now = Date.now();
+      if (!this.lastSkillTreeToggleTime || now - this.lastSkillTreeToggleTime > 300) {
+        this.skillTreePanel.toggle();
+        this.lastSkillTreeToggleTime = now;
+      }
+    }
+    
+    // P键 - 打开属性面板（不使用A键，因为A是移动键）
+    const pPressed = this.inputManager.isKeyDown('p') || this.inputManager.isKeyDown('P');
+    if (pPressed && this.attributePanel) {
+      const now = Date.now();
+      if (!this.lastAttributeToggleTime || now - this.lastAttributeToggleTime > 300) {
+        if (this.attributePanel.isOpen()) {
+          this.attributePanel.hide();
+        } else {
+          this.attributePanel.show('player');
+        }
+        this.lastAttributeToggleTime = now;
+      }
+    }
+    
+    // U键 - 打开兵种信息面板
+    const uPressed = this.inputManager.isKeyDown('u') || this.inputManager.isKeyDown('U');
+    if (uPressed && this.unitInfoPanel && this.playerEntity) {
+      const now = Date.now();
+      if (!this.lastUnitInfoToggleTime || now - this.lastUnitInfoToggleTime > 300) {
+        if (this.unitInfoPanel.isVisible()) {
+          this.unitInfoPanel.hide();
+        } else {
+          this.unitInfoPanel.show(this.playerEntity);
+        }
+        this.lastUnitInfoToggleTime = now;
+      }
+    }
   }
 
   /**
@@ -679,6 +919,16 @@ export class Act4Scene extends BaseGameScene {
     // 渲染职业选择UI
     if (!this.classSelected && this.introDialogueCompleted) {
       this.renderClassSelectionUI(ctx);
+    }
+    
+    // 渲染确认窗口（最上层）
+    if (this.showClassConfirmation) {
+      this.renderClassConfirmation(ctx);
+    }
+    
+    // 渲染兵种选择窗口（最上层）
+    if (this.showUnitSelection) {
+      this.renderUnitSelection(ctx);
     }
   }
 
@@ -836,7 +1086,7 @@ export class Act4Scene extends BaseGameScene {
     } else if (!this.classSelected && this.introDialogueCompleted) {
       hints.push('点击教官选择职业');
     } else if (this.classSelected) {
-      hints.push('按 T 键打开技能树 | 按 A 键分配属性 | 按 U 键查看兵种');
+      hints.push('按 T 键打开技能树 | 按 P 键分配属性 | 按 U 键查看兵种');
     }
 
     // 渲染提示
@@ -850,6 +1100,162 @@ export class Act4Scene extends BaseGameScene {
       ctx.fillText(hints[0], this.logicalWidth / 2, this.logicalHeight - 35);
     }
 
+    ctx.restore();
+  }
+
+  /**
+   * 渲染职业确认窗口
+   */
+  renderClassConfirmation(ctx) {
+    if (!this.pendingClassType) return;
+    
+    ctx.save();
+    
+    // 半透明遮罩
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
+    
+    // 确认窗口
+    const panelWidth = 400;
+    const panelHeight = 200;
+    const panelX = (this.logicalWidth - panelWidth) / 2;
+    const panelY = (this.logicalHeight - panelHeight) / 2;
+    
+    // 窗口背景
+    ctx.fillStyle = 'rgba(30, 30, 30, 0.95)';
+    ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
+    
+    // 窗口边框
+    ctx.strokeStyle = '#FFD700';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
+    
+    // 标题
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 24px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('确认职业选择', panelX + panelWidth / 2, panelY + 40);
+    
+    // 职业名称
+    const className = ClassNames[this.pendingClassType];
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 20px Arial';
+    ctx.fillText(`你确定要选择 ${className} 吗？`, panelX + panelWidth / 2, panelY + 90);
+    
+    // 提示文字
+    ctx.font = '14px Arial';
+    ctx.fillStyle = '#CCCCCC';
+    ctx.fillText('职业一旦选择将无法更改', panelX + panelWidth / 2, panelY + 120);
+    
+    // 按钮
+    const buttonWidth = 120;
+    const buttonHeight = 40;
+    const buttonY = panelY + panelHeight - 60;
+    const confirmButtonX = panelX + panelWidth / 2 - buttonWidth - 10;
+    const cancelButtonX = panelX + panelWidth / 2 + 10;
+    
+    // 确定按钮
+    ctx.fillStyle = this.confirmButtonHovered ? '#4CAF50' : '#2E7D32';
+    ctx.fillRect(confirmButtonX, buttonY, buttonWidth, buttonHeight);
+    ctx.strokeStyle = this.confirmButtonHovered ? '#FFFFFF' : '#4CAF50';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(confirmButtonX, buttonY, buttonWidth, buttonHeight);
+    
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 18px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('确定', confirmButtonX + buttonWidth / 2, buttonY + buttonHeight / 2 + 6);
+    
+    // 取消按钮
+    ctx.fillStyle = this.cancelButtonHovered ? '#F44336' : '#C62828';
+    ctx.fillRect(cancelButtonX, buttonY, buttonWidth, buttonHeight);
+    ctx.strokeStyle = this.cancelButtonHovered ? '#FFFFFF' : '#F44336';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cancelButtonX, buttonY, buttonWidth, buttonHeight);
+    
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 18px Arial';
+    ctx.fillText('取消', cancelButtonX + buttonWidth / 2, buttonY + buttonHeight / 2 + 6);
+    
+    ctx.restore();
+  }
+
+  /**
+   * 渲染兵种选择窗口
+   */
+  renderUnitSelection(ctx) {
+    ctx.save();
+    
+    // 半透明遮罩
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
+    
+    // 兵种选择窗口
+    const panelWidth = 500;
+    const panelHeight = 300;
+    const panelX = (this.logicalWidth - panelWidth) / 2;
+    const panelY = (this.logicalHeight - panelHeight) / 2;
+    
+    // 窗口背景
+    ctx.fillStyle = 'rgba(30, 30, 30, 0.95)';
+    ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
+    
+    // 窗口边框
+    ctx.strokeStyle = '#FFD700';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
+    
+    // 标题
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 24px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('选择兵种', panelX + panelWidth / 2, panelY + 40);
+    
+    // 提示文字
+    ctx.font = '14px Arial';
+    ctx.fillStyle = '#CCCCCC';
+    ctx.fillText('战士可以选择不同的兵种特化', panelX + panelWidth / 2, panelY + 70);
+    
+    // 按钮尺寸和位置
+    const buttonWidth = 200;
+    const buttonHeight = 80;
+    const buttonY = panelY + 140;
+    const shieldButtonX = panelX + 50;
+    const spearButtonX = panelX + panelWidth - buttonWidth - 50;
+    
+    // 刀盾兵按钮
+    ctx.fillStyle = this.shieldSoldierButtonHovered ? '#2196F3' : '#1565C0';
+    ctx.fillRect(shieldButtonX, buttonY, buttonWidth, buttonHeight);
+    ctx.strokeStyle = this.shieldSoldierButtonHovered ? '#FFFFFF' : '#2196F3';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(shieldButtonX, buttonY, buttonWidth, buttonHeight);
+    
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 18px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('刀盾兵', shieldButtonX + buttonWidth / 2, buttonY + 30);
+    
+    ctx.font = '12px Arial';
+    ctx.fillStyle = '#CCCCCC';
+    ctx.fillText('高防御 | 稳健', shieldButtonX + buttonWidth / 2, buttonY + 50);
+    ctx.fillText('擅长保护队友', shieldButtonX + buttonWidth / 2, buttonY + 65);
+    
+    // 长枪兵按钮
+    ctx.fillStyle = this.spearmanButtonHovered ? '#FF5722' : '#D84315';
+    ctx.fillRect(spearButtonX, buttonY, buttonWidth, buttonHeight);
+    ctx.strokeStyle = this.spearmanButtonHovered ? '#FFFFFF' : '#FF5722';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(spearButtonX, buttonY, buttonWidth, buttonHeight);
+    
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 18px Arial';
+    ctx.fillText('长枪兵', spearButtonX + buttonWidth / 2, buttonY + 30);
+    
+    ctx.font = '12px Arial';
+    ctx.fillStyle = '#CCCCCC';
+    ctx.fillText('高攻击 | 突刺', spearButtonX + buttonWidth / 2, buttonY + 50);
+    ctx.fillText('擅长破甲攻击', spearButtonX + buttonWidth / 2, buttonY + 65);
+    
     ctx.restore();
   }
 

@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>序章测试页面 - 张角黄巾起义序章</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            overflow: hidden;
+        }
+        
+        #test-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* 顶部控制面板 */
+        #control-panel {
+            background-color: #2a2a2a;
+            border-bottom: 2px solid #4CAF50;
+            padding: 15px 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+        }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .control-group label {
+            color: #aaaaaa;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        select {
+            padding: 8px 12px;
+            background-color: #3a3a3a;
+            color: #ffffff;
+            border: 1px solid #4CAF50;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            min-width: 200px;
+        }
+        
+        select:hover {
+            background-color: #4a4a4a;
+        }
+        
+        button {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        button:disabled {
+            background-color: #666666;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        
+        button.danger {
+            background-color: #f44336;
+        }
+        
+        button.danger:hover {
+            background-color: #da190b;
+        }
+        
+        button.secondary {
+            background-color: #2196F3;
+        }
+        
+        button.secondary:hover {
+            background-color: #0b7dda;
+        }
+        
+        /* 游戏区域 */
+        #game-area {
+            flex: 1;
+            display: flex;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* Canvas容器 */
+        #canvas-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #1a1a1a;
+        }
+        
+        #gameCanvas {
+            border: 2px solid #4CAF50;
+            background-color: #2a2a2a;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        
+        /* 调试面板 */
+        #debug-panel {
+            width: 350px;
+            background-color: #2a2a2a;
+            border-left: 2px solid #4CAF50;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: -2px 0 10px rgba(0, 0, 0, 0.5);
+        }
+        
+        #debug-panel h3 {
+            color: #4CAF50;
+            margin-bottom: 15px;
+            font-size: 18px;
+            border-bottom: 1px solid #4CAF50;
+            padding-bottom: 8px;
+        }
+        
+        .debug-section {
+            margin-bottom: 20px;
+        }
+        
+        .debug-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #3a3a3a;
+        }
+        
+        .debug-item label {
+            color: #aaaaaa;
+            font-size: 13px;
+        }
+        
+        .debug-item span {
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 13px;
+        }
+        
+        /* 状态指示器 */
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        
+        .status-indicator.active {
+            background-color: #4CAF50;
+            box-shadow: 0 0 5px #4CAF50;
+        }
+        
+        .status-indicator.inactive {
+            background-color: #666666;
+        }
+        
+        /* 日志区域 */
+        #log-area {
+            background-color: #1a1a1a;
+            border: 1px solid #3a3a3a;
+            border-radius: 4px;
+            padding: 10px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #2a2a2a;
+        }
+        
+        .log-entry.info {
+            color: #2196F3;
+        }
+        
+        .log-entry.success {
+            color: #4CAF50;
+        }
+        
+        .log-entry.warning {
+            color: #ff9800;
+        }
+        
+        .log-entry.error {
+            color: #f44336;
+        }
+        
+        /* 加载屏幕 */
+        #loading-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        #loading-screen.hidden {
+            display: none;
+        }
+        
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #3a3a3a;
+            border-top: 5px solid #4CAF50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            margin-top: 20px;
+            font-size: 18px;
+            color: #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <div id="test-container">
+        <!-- 控制面板 -->
+        <div id="control-panel">
+            <div class="control-group">
+                <label>场景选择:</label>
+                <select id="scene-select">
+                    <option value="act1">第一幕 - 绝望的开始</option>
+                    <option value="act2">第二幕 - 符水救灾</option>
+                    <option value="act3">第三幕 - 铜钱法器</option>
+                    <option value="act4">第四幕 - 职业选择</option>
+                    <option value="act5">第五幕 - 四场战斗</option>
+                    <option value="act6">第六幕 - 结局</option>
+                </select>
+            </div>
+            
+            <button id="load-scene-btn">加载场景</button>
+            <button id="restart-btn" class="secondary">重新开始</button>
+            <button id="save-progress-btn" class="secondary">保存进度</button>
+            <button id="load-progress-btn" class="secondary">加载进度</button>
+            <button id="clear-progress-btn" class="danger">清除进度</button>
+        </div>
+        
+        <!-- 游戏区域 -->
+        <div id="game-area">
+            <!-- Canvas容器 -->
+            <div id="canvas-container">
+                <canvas id="gameCanvas" width="1280" height="720"></canvas>
+            </div>
+            
+            <!-- 调试面板 -->
+            <div id="debug-panel">
+                <h3>调试信息</h3>
+                
+                <div class="debug-section">
+                    <h4 style="color: #aaaaaa; font-size: 14px; margin-bottom: 10px;">场景状态</h4>
+                    <div class="debug-item">
+                        <label>当前场景:</label>
+                        <span id="current-scene">未加载</span>
+                    </div>
+                    <div class="debug-item">
+                        <label>场景状态:</label>
+                        <span id="scene-status">
+                            <span class="status-indicator inactive"></span>
+                            未激活
+                        </span>
+                    </div>
+                    <div class="debug-item">
+                        <label>FPS:</label>
+                        <span id="fps-counter">0</span>
+                    </div>
+                </div>
+                
+                <div class="debug-section">
+                    <h4 style="color: #aaaaaa; font-size: 14px; margin-bottom: 10px;">玩家状态</h4>
+                    <div class="debug-item">
+                        <label>角色名称:</label>
+                        <span id="player-name">未创建</span>
+                    </div>
+                    <div class="debug-item">
+                        <label>等级:</label>
+                        <span id="player-level">-</span>
+                    </div>
+                    <div class="debug-item">
+                        <label>职业:</label>
+                        <span id="player-class">未选择</span>
+                    </div>
+                    <div class="debug-item">
+                        <label>生命值:</label>
+                        <span id="player-health">-/-</span>
+                    </div>
+                    <div class="debug-item">
+                        <label>货币:</label>
+                        <span id="player-currency">0</span>
+                    </div>
+                </div>
+                
+                <div class="debug-section">
+                    <h4 style="color: #aaaaaa; font-size: 14px; margin-bottom: 10px;">系统日志</h4>
+                    <div id="log-area"></div>
+                </div>
+                
+                <div class="debug-section">
+                    <button id="toggle-debug-btn" style="width: 100%;">隐藏调试面板</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 加载屏幕 -->
+        <div id="loading-screen">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">加载中...</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { GameEngine } from '../src/core/GameEngine.js';
+        import { PrologueManager } from '../src/prologue/PrologueManager.js';
+        import { Logger } from '../src/core/Logger.js';
+        
+        // 初始化日志系统
+        const logger = new Logger('PrologueTest');
+        
+        // 游戏引擎和序章管理器
+        let gameEngine = null;
+        let prologueManager = null;
+        let animationFrameId = null;
+        let lastTime = 0;
+        let fpsCounter = 0;
+        let fpsTime = 0;
+        
+        // DOM元素
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const loadingScreen = document.getElementById('loading-screen');
+        const sceneSelect = document.getElementById('scene-select');
+        const loadSceneBtn = document.getElementById('load-scene-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const saveProgressBtn = document.getElementById('save-progress-btn');
+        const loadProgressBtn = document.getElementById('load-progress-btn');
+        const clearProgressBtn = document.getElementById('clear-progress-btn');
+        const toggleDebugBtn = document.getElementById('toggle-debug-btn');
+        const debugPanel = document.getElementById('debug-panel');
+        const logArea = document.getElementById('log-area');
+        
+        // 调试信息元素
+        const currentSceneEl = document.getElementById('current-scene');
+        const sceneStatusEl = document.getElementById('scene-status');
+        const fpsCounterEl = document.getElementById('fps-counter');
+        const playerNameEl = document.getElementById('player-name');
+        const playerLevelEl = document.getElementById('player-level');
+        const playerClassEl = document.getElementById('player-class');
+        const playerHealthEl = document.getElementById('player-health');
+        const playerCurrencyEl = document.getElementById('player-currency');
+        
+        // 日志函数
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            entry.textContent = `[${timestamp}] ${message}`;
+            logArea.appendChild(entry);
+            logArea.scrollTop = logArea.scrollHeight;
+            
+            // 限制日志条目数量
+            while (logArea.children.length > 100) {
+                logArea.removeChild(logArea.firstChild);
+            }
+            
+            logger.log(message);
+        }
+        
+        // 初始化游戏引擎
+        async function initGameEngine() {
+            try {
+                addLog('初始化游戏引擎...', 'info');
+                
+                gameEngine = new GameEngine(canvas);
+                await gameEngine.init();
+                
+                addLog('游戏引擎初始化成功', 'success');
+                return true;
+            } catch (error) {
+                addLog(`游戏引擎初始化失败: ${error.message}`, 'error');
+                console.error(error);
+                return false;
+            }
+        }
+        
+        // 初始化序章管理器
+        async function initPrologueManager() {
+            try {
+                addLog('初始化序章管理器...', 'info');
+                
+                prologueManager = new PrologueManager(gameEngine);
+                await prologueManager.init();
+                
+                addLog('序章管理器初始化成功', 'success');
+                return true;
+            } catch (error) {
+                addLog(`序章管理器初始化失败: ${error.message}`, 'error');
+                console.error(error);
+                return false;
+            }
+        }
+        
+        // 加载场景
+        async function loadScene(actNumber) {
+            try {
+                addLog(`加载第${actNumber}幕场景...`, 'info');
+                
+                if (!prologueManager) {
+                    throw new Error('序章管理器未初始化');
+                }
+                
+                await prologueManager.goToAct(actNumber);
+                
+                currentSceneEl.textContent = `第${actNumber}幕`;
+                sceneStatusEl.innerHTML = '<span class="status-indicator active"></span>激活';
+                
+                addLog(`第${actNumber}幕场景加载成功`, 'success');
+                return true;
+            } catch (error) {
+                addLog(`场景加载失败: ${error.message}`, 'error');
+                console.error(error);
+                return false;
+            }
+        }
+        
+        // 更新调试信息
+        function updateDebugInfo() {
+            if (!prologueManager) return;
+            
+            const player = prologueManager.player;
+            if (player) {
+                playerNameEl.textContent = player.name || '未命名';
+                playerLevelEl.textContent = player.level || 1;
+                playerClassEl.textContent = player.class || '未选择';
+                playerHealthEl.textContent = `${player.health || 0}/${player.maxHealth || 100}`;
+                playerCurrencyEl.textContent = player.currency || 0;
+            }
+        }
+        
+        // 游戏循环
+        function gameLoop(currentTime) {
+            animationFrameId = requestAnimationFrame(gameLoop);
+            
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+            
+            // 更新FPS
+            fpsCounter++;
+            fpsTime += deltaTime;
+            if (fpsTime >= 1.0) {
+                fpsCounterEl.textContent = fpsCounter;
+                fpsCounter = 0;
+                fpsTime = 0;
+            }
+            
+            // 更新游戏
+            if (gameEngine && prologueManager) {
+                try {
+                    prologueManager.update(deltaTime);
+                    prologueManager.render(ctx);
+                    updateDebugInfo();
+                } catch (error) {
+                    addLog(`游戏循环错误: ${error.message}`, 'error');
+                    console.error(error);
+                }
+            }
+        }
+        
+        // 保存进度
+        function saveProgress() {
+            try {
+                if (!prologueManager) {
+                    throw new Error('序章管理器未初始化');
+                }
+                
+                prologueManager.saveProgress();
+                addLog('进度保存成功', 'success');
+            } catch (error) {
+                addLog(`进度保存失败: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+        
+        // 加载进度
+        function loadProgress() {
+            try {
+                if (!prologueManager) {
+                    throw new Error('序章管理器未初始化');
+                }
+                
+                const loaded = prologueManager.loadProgress();
+                if (loaded) {
+                    addLog('进度加载成功', 'success');
+                    updateDebugInfo();
+                } else {
+                    addLog('没有找到保存的进度', 'warning');
+                }
+            } catch (error) {
+                addLog(`进度加载失败: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+        
+        // 清除进度
+        function clearProgress() {
+            if (confirm('确定要清除所有保存的进度吗？此操作不可恢复！')) {
+                try {
+                    localStorage.removeItem('prologue_progress');
+                    addLog('进度已清除', 'success');
+                } catch (error) {
+                    addLog(`清除进度失败: ${error.message}`, 'error');
+                    console.error(error);
+                }
+            }
+        }
+        
+        // 重新开始
+        async function restart() {
+            if (confirm('确定要重新开始吗？当前进度将丢失！')) {
+                try {
+                    addLog('重新开始游戏...', 'info');
+                    
+                    // 停止游戏循环
+                    if (animationFrameId) {
+                        cancelAnimationFrame(animationFrameId);
+                    }
+                    
+                    // 重新初始化
+                    await initPrologueManager();
+                    
+                    // 重新开始游戏循环
+                    lastTime = performance.now();
+                    gameLoop(lastTime);
+                    
+                    addLog('游戏已重新开始', 'success');
+                } catch (error) {
+                    addLog(`重新开始失败: ${error.message}`, 'error');
+                    console.error(error);
+                }
+            }
+        }
+        
+        // 切换调试面板
+        function toggleDebugPanel() {
+            if (debugPanel.style.display === 'none') {
+                debugPanel.style.display = 'block';
+                toggleDebugBtn.textContent = '隐藏调试面板';
+            } else {
+                debugPanel.style.display = 'none';
+                toggleDebugBtn.textContent = '显示调试面板';
+            }
+        }
+        
+        // 事件监听器
+        loadSceneBtn.addEventListener('click', async () => {
+            const selectedScene = sceneSelect.value;
+            const actNumber = parseInt(selectedScene.replace('act', ''));
+            await loadScene(actNumber);
+        });
+        
+        restartBtn.addEventListener('click', restart);
+        saveProgressBtn.addEventListener('click', saveProgress);
+        loadProgressBtn.addEventListener('click', loadProgress);
+        clearProgressBtn.addEventListener('click', clearProgress);
+        toggleDebugBtn.addEventListener('click', toggleDebugPanel);
+        
+        // 键盘快捷键
+        document.addEventListener('keydown', (e) => {
+            // F1: 切换调试面板
+            if (e.key === 'F1') {
+                e.preventDefault();
+                toggleDebugPanel();
+            }
+            // F5: 保存进度
+            if (e.key === 'F5') {
+                e.preventDefault();
+                saveProgress();
+            }
+            // F9: 加载进度
+            if (e.key === 'F9') {
+                e.preventDefault();
+                loadProgress();
+            }
+        });
+        
+        // 初始化应用
+        async function init() {
+            try {
+                addLog('=== 序章测试页面启动 ===', 'info');
+                
+                // 初始化游戏引擎
+                const engineInit = await initGameEngine();
+                if (!engineInit) {
+                    throw new Error('游戏引擎初始化失败');
+                }
+                
+                // 初始化序章管理器
+                const prologueInit = await initPrologueManager();
+                if (!prologueInit) {
+                    throw new Error('序章管理器初始化失败');
+                }
+                
+                // 隐藏加载屏幕
+                loadingScreen.classList.add('hidden');
+                
+                // 启动游戏循环
+                lastTime = performance.now();
+                gameLoop(lastTime);
+                
+                addLog('=== 初始化完成，准备就绪 ===', 'success');
+                addLog('提示: 使用顶部控制面板选择场景进行测试', 'info');
+                addLog('快捷键: F1-切换调试面板, F5-保存进度, F9-加载进度', 'info');
+                
+            } catch (error) {
+                addLog(`初始化失败: ${error.message}`, 'error');
+                console.error(error);
+                loadingScreen.querySelector('.loading-text').textContent = '初始化失败';
+            }
+        }
+        
+        // 启动应用
+        init();
+    </script>
+</body>
+</html>
