@@ -566,7 +566,7 @@ export class Act1SceneECS extends BaseGameScene {
           const baseY = this.campfire.y + 2;
           
           emitter.position.x = baseX + swayAmount;
-          emitter.position.y = baseY;
+          emitter.position.y = baseY - 15;  // 火堆中心位置（底部向上15像素）
           emitter.particleConfig.velocity.x = (Math.random() - 0.5) * 10;
           
           this.particleSystem.updateEmitter(emitter, deltaTime);
@@ -827,9 +827,10 @@ export class Act1SceneECS extends BaseGameScene {
     const playerX = transform.position.x;
     const playerY = transform.position.y;
     
-    // 计算玩家与火堆的距离
+    // 计算玩家与火堆中心的距离（火堆 y 是底部，中心在 y - 15）
+    const campfireCenterY = this.campfire.y - 15;
     const dx = this.campfire.x - playerX;
-    const dy = this.campfire.y - playerY;
+    const dy = campfireCenterY - playerY;
     const distance = Math.sqrt(dx * dx + dy * dy);
     
     // 如果玩家靠近火堆（距离小于60），点燃火堆
@@ -996,7 +997,8 @@ export class Act1SceneECS extends BaseGameScene {
     this.campfire.emitters = [];
     
     // 火堆底部的1个发射点（中心位置）
-    const fireBaseY = this.campfire.y + 2;  // 向上移动8像素
+    // 火堆 y 坐标是底部中心，粒子从火堆中心发射（向上偏移15像素）
+    const fireBaseY = this.campfire.y - 15;
     const firePoint = { x: this.campfire.x, y: fireBaseY };
     
     // 大火焰粒子（7-10像素，向上移动10-15像素，较少）
@@ -1287,50 +1289,51 @@ export class Act1SceneECS extends BaseGameScene {
    */
   renderCampfireBottom(ctx) {
     // 直接使用世界坐标（已经应用了相机变换）
+    // 火堆位置是底部中心点
     const x = this.campfire.x;
     const y = this.campfire.y;
     
     if (!this.campfire.lit) {
       // 渲染熄灭的火堆 - 木材堆（下半部分）
-      // 绘制木材下半部分（使用裁剪）
+      // 绘制木材下半部分（使用裁剪）- 从中心线到底部
       ctx.save();
       ctx.beginPath();
-      ctx.rect(x - 30, y, 60, 30); // 只渲染中心线以下的部分
+      ctx.rect(x - 30, y - 15, 60, 15); // 只渲染中心线以下的部分（底部对齐）
       ctx.clip();
       
       ctx.strokeStyle = '#5a4a3a';
       ctx.lineWidth = 6;
       ctx.lineCap = 'round';
       
-      // 木材1 - 左下到右上
+      // 木材1 - 左下到右上（相对于底部中心）
       ctx.beginPath();
-      ctx.moveTo(x - 20, y + 10);
-      ctx.lineTo(x + 20, y - 10);
+      ctx.moveTo(x - 20, y - 5);
+      ctx.lineTo(x + 20, y - 25);
       ctx.stroke();
       
       // 木材2 - 右下到左上
       ctx.beginPath();
-      ctx.moveTo(x + 20, y + 10);
-      ctx.lineTo(x - 20, y - 10);
+      ctx.moveTo(x + 20, y - 5);
+      ctx.lineTo(x - 20, y - 25);
       ctx.stroke();
       
       // 木材3 - 水平
       ctx.beginPath();
-      ctx.moveTo(x - 18, y);
-      ctx.lineTo(x + 18, y);
+      ctx.moveTo(x - 18, y - 15);
+      ctx.lineTo(x + 18, y - 15);
       ctx.stroke();
       
       // 木材4 - 左侧斜
       ctx.strokeStyle = '#4a3a2a';
       ctx.beginPath();
-      ctx.moveTo(x - 15, y + 8);
-      ctx.lineTo(x - 5, y - 12);
+      ctx.moveTo(x - 15, y - 7);
+      ctx.lineTo(x - 5, y - 27);
       ctx.stroke();
       
       // 木材5 - 右侧斜
       ctx.beginPath();
-      ctx.moveTo(x + 15, y + 8);
-      ctx.lineTo(x + 5, y - 12);
+      ctx.moveTo(x + 15, y - 7);
+      ctx.lineTo(x + 5, y - 27);
       ctx.stroke();
       
       ctx.restore();
@@ -1339,7 +1342,7 @@ export class Act1SceneECS extends BaseGameScene {
       // 绘制燃烧的木材底座下半部分（使用裁剪）
       ctx.save();
       ctx.beginPath();
-      ctx.rect(x - 30, y, 60, 30); // 只渲染中心线以下的部分
+      ctx.rect(x - 30, y - 15, 60, 15); // 只渲染中心线以下的部分
       ctx.clip();
       
       ctx.strokeStyle = '#3a2a1a';
@@ -1348,35 +1351,35 @@ export class Act1SceneECS extends BaseGameScene {
       
       // 木材轮廓（简化，因为火焰会覆盖大部分）
       ctx.beginPath();
-      ctx.moveTo(x - 20, y + 10);
-      ctx.lineTo(x + 20, y - 10);
+      ctx.moveTo(x - 20, y - 5);
+      ctx.lineTo(x + 20, y - 25);
       ctx.stroke();
       
       ctx.beginPath();
-      ctx.moveTo(x + 20, y + 10);
-      ctx.lineTo(x - 20, y - 10);
+      ctx.moveTo(x + 20, y - 5);
+      ctx.lineTo(x - 20, y - 25);
       ctx.stroke();
       
       ctx.restore();
       
-      // 绘制火堆底部的发光效果（大范围）
-      const gradient = ctx.createRadialGradient(x, y, 0, x, y, 60);
+      // 绘制火堆底部的发光效果（大范围）- 以底部中心为圆心
+      const gradient = ctx.createRadialGradient(x, y - 15, 0, x, y - 15, 60);
       gradient.addColorStop(0, 'rgba(255, 200, 0, 0.4)');
       gradient.addColorStop(0.5, 'rgba(255, 100, 0, 0.2)');
       gradient.addColorStop(1, 'rgba(255, 50, 0, 0)');
       ctx.fillStyle = gradient;
       ctx.beginPath();
-      ctx.arc(x, y, 60, 0, Math.PI * 2);
+      ctx.arc(x, y - 15, 60, 0, Math.PI * 2);
       ctx.fill();
       
       // 绘制火堆中心的亮光
-      const centerGlow = ctx.createRadialGradient(x, y, 0, x, y, 20);
+      const centerGlow = ctx.createRadialGradient(x, y - 15, 0, x, y - 15, 20);
       centerGlow.addColorStop(0, 'rgba(255, 255, 200, 0.6)');
       centerGlow.addColorStop(0.5, 'rgba(255, 150, 0, 0.3)');
       centerGlow.addColorStop(1, 'rgba(255, 100, 0, 0)');
       ctx.fillStyle = centerGlow;
       ctx.beginPath();
-      ctx.arc(x, y, 20, 0, Math.PI * 2);
+      ctx.arc(x, y - 15, 20, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -1386,6 +1389,7 @@ export class Act1SceneECS extends BaseGameScene {
    */
   renderCampfireTop(ctx) {
     // 直接使用世界坐标（已经应用了相机变换）
+    // 火堆位置是底部中心点
     const x = this.campfire.x;
     const y = this.campfire.y;
     
@@ -1393,7 +1397,7 @@ export class Act1SceneECS extends BaseGameScene {
       // 渲染熄灭的火堆 - 木材上半部分
       ctx.save();
       ctx.beginPath();
-      ctx.rect(x - 30, y - 30, 60, 30); // 只渲染中心线以上的部分
+      ctx.rect(x - 30, y - 45, 60, 30); // 只渲染中心线以上的部分（底部对齐）
       ctx.clip();
       
       ctx.strokeStyle = '#5a4a3a';
@@ -1402,45 +1406,45 @@ export class Act1SceneECS extends BaseGameScene {
       
       // 木材1 - 左下到右上
       ctx.beginPath();
-      ctx.moveTo(x - 20, y + 10);
-      ctx.lineTo(x + 20, y - 10);
+      ctx.moveTo(x - 20, y - 5);
+      ctx.lineTo(x + 20, y - 25);
       ctx.stroke();
       
       // 木材2 - 右下到左上
       ctx.beginPath();
-      ctx.moveTo(x + 20, y + 10);
-      ctx.lineTo(x - 20, y - 10);
+      ctx.moveTo(x + 20, y - 5);
+      ctx.lineTo(x - 20, y - 25);
       ctx.stroke();
       
       // 木材3 - 水平
       ctx.beginPath();
-      ctx.moveTo(x - 18, y);
-      ctx.lineTo(x + 18, y);
+      ctx.moveTo(x - 18, y - 15);
+      ctx.lineTo(x + 18, y - 15);
       ctx.stroke();
       
       // 木材4 - 左侧斜
       ctx.strokeStyle = '#4a3a2a';
       ctx.beginPath();
-      ctx.moveTo(x - 15, y + 8);
-      ctx.lineTo(x - 5, y - 12);
+      ctx.moveTo(x - 15, y - 7);
+      ctx.lineTo(x - 5, y - 27);
       ctx.stroke();
       
       // 木材5 - 右侧斜
       ctx.beginPath();
-      ctx.moveTo(x + 15, y + 8);
-      ctx.lineTo(x + 5, y - 12);
+      ctx.moveTo(x + 15, y - 7);
+      ctx.lineTo(x + 5, y - 27);
       ctx.stroke();
       
       ctx.restore();
       
-      // 绘制提示文字
+      // 绘制提示文字（在火堆上方）
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 14px Arial';
       ctx.textAlign = 'center';
       ctx.shadowColor = '#000000';
       ctx.shadowBlur = 4;
-      ctx.fillText('熄灭的火堆', x, y - 40);
-      ctx.fillText('按 E 点燃', x, y - 25);
+      ctx.fillText('熄灭的火堆', x, y - 55);
+      ctx.fillText('按 E 点燃', x, y - 40);
       ctx.shadowBlur = 0;
       
       return;
@@ -1450,7 +1454,7 @@ export class Act1SceneECS extends BaseGameScene {
     // 绘制燃烧的木材上半部分（使用裁剪）
     ctx.save();
     ctx.beginPath();
-    ctx.rect(x - 30, y - 30, 60, 30); // 只渲染中心线以上的部分
+    ctx.rect(x - 30, y - 45, 60, 30); // 只渲染中心线以上的部分
     ctx.clip();
     
     ctx.strokeStyle = '#3a2a1a';
@@ -1459,13 +1463,13 @@ export class Act1SceneECS extends BaseGameScene {
     
     // 木材轮廓（简化，因为火焰会覆盖大部分）
     ctx.beginPath();
-    ctx.moveTo(x - 20, y + 10);
-    ctx.lineTo(x + 20, y - 10);
+    ctx.moveTo(x - 20, y - 5);
+    ctx.lineTo(x + 20, y - 25);
     ctx.stroke();
     
     ctx.beginPath();
-    ctx.moveTo(x + 20, y + 10);
-    ctx.lineTo(x - 20, y - 10);
+    ctx.moveTo(x + 20, y - 5);
+    ctx.lineTo(x - 20, y - 25);
     ctx.stroke();
     
     ctx.restore();
@@ -1482,7 +1486,7 @@ export class Act1SceneECS extends BaseGameScene {
       const fireWidth = 40;  // 原来80，现在40
       const fireHeight = 60; // 原来120，现在60
       const fireX = x - fireWidth / 2;
-      const fireY = y - fireHeight + 10; // 向上偏移，让火焰从木材上方升起
+      const fireY = y - fireHeight - 5; // 火焰底部在火堆底部上方5像素
       
       // 绘制当前帧
       ctx.globalAlpha = 0.9;

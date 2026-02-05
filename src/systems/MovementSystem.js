@@ -20,12 +20,12 @@ export class MovementSystem {
     this.camera = config.camera;
     this.statusEffectSystem = config.statusEffectSystem;
     
-    // 地图边界
+    // 地图边界（默认无限大）
     this.mapBounds = config.mapBounds || {
-      minX: 0,
-      minY: 0,
-      maxX: 2000,
-      maxY: 2000
+      minX: -Infinity,
+      minY: -Infinity,
+      maxX: Infinity,
+      maxY: Infinity
     };
     
     // 碰撞层数据（2D数组，true表示有障碍物）

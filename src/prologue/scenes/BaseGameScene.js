@@ -24,7 +24,7 @@ import { AISystem } from '../../systems/AISystem.js';
 import { TutorialSystem } from '../../systems/TutorialSystem.js';
 import { DialogueSystem } from '../../systems/DialogueSystem.js';
 import { QuestSystem } from '../../systems/QuestSystem.js';
-import { RenderSystem } from '../../rendering/RenderSystem.js';
+import { IsometricRenderer } from '../../rendering/IsometricRenderer.js';
 import { CombatEffects } from '../../rendering/CombatEffects.js';
 import { SkillEffects } from '../../rendering/SkillEffects.js';
 import { InventoryPanel } from '../../ui/InventoryPanel.js';
@@ -62,7 +62,7 @@ export class BaseGameScene extends PrologueScene {
     this.movementSystem = null;
     this.equipmentSystem = null;
     this.aiSystem = null;
-    this.renderSystem = null;
+    this.isometricRenderer = null;  // 统一渲染器
     this.combatEffects = null;
     this.skillEffects = null;
     this.weaponRenderer = null;
@@ -99,6 +99,14 @@ export class BaseGameScene extends PrologueScene {
     
     // 粒子系统
     this.particleSystem = new ParticleSystem(500);
+    
+    // 等距渲染器
+    this.isometricRenderer = null;
+    
+    // 等距地图数据
+    this.mapData = null;
+    this.mapWidth = 30;  // 地图宽度（格子数）
+    this.mapHeight = 30; // 地图高度（格子数）
     
     // 玩家实体
     this.playerEntity = null;
@@ -162,12 +170,23 @@ export class BaseGameScene extends PrologueScene {
     
     const ctx = canvas.getContext('2d');
     
-    // 初始化渲染系统（包含 Camera）
-    // 使用场景的 assetManager（如果有的话）
-    this.renderSystem = new RenderSystem(ctx, this.assetManager || null, 800, 600);
-    this.camera = this.renderSystem.getCamera();
-    // 不设置相机边界，允许相机自由移动跟随玩家
-    // this.camera.setBounds(0, 0, 800, 600);
+    // 初始化统一渲染器（包含 Camera）
+    this.isometricRenderer = new IsometricRenderer(ctx, {
+      tileWidth: 64,
+      tileHeight: 32,
+      width: this.logicalWidth,
+      height: this.logicalHeight,
+      assetManager: this.assetManager || null,
+      debug: false,
+      showGrid: false,  // 关闭网格线
+      gridSize: this.mapWidth
+    });
+    
+    // 从渲染器获取相机
+    this.camera = this.isometricRenderer.getCamera();
+    
+    // 生成等距地图
+    this.generateIsometricMap();
     
     // 初始化输入管理器
     this.inputManager = new InputManager(canvas);
@@ -215,8 +234,7 @@ export class BaseGameScene extends PrologueScene {
       inputManager: this.inputManager,
       camera: this.camera
     });
-    // 设置无限地图边界，允许玩家和相机自由移动
-    this.movementSystem.setMapBounds(-Infinity, -Infinity, Infinity, Infinity);
+    // 不设置地图边界，允许玩家自由移动
     
     this.equipmentSystem = new EquipmentSystem();
     
@@ -442,14 +460,57 @@ export class BaseGameScene extends PrologueScene {
   }
 
   /**
+   * 生成等距地图
+   */
+  generateIsometricMap() {
+    // 创建地图数据（2D数组）
+    // 图块类型：0=空, 1=草地, 2=泥土, 3=石头, 4=水, 5=沙地
+    this.mapData = [];
+    
+    for (let y = 0; y < this.mapHeight; y++) {
+      const row = [];
+      for (let x = 0; x < this.mapWidth; x++) {
+        // 生成地形
+        let tileType = 1; // 默认草地
+        
+        // 边缘用石头
+        if (x === 0 || y === 0 || x === this.mapWidth - 1 || y === this.mapHeight - 1) {
+          tileType = 3;
+        }
+        // 随机添加一些变化
+        else if (Math.random() < 0.1) {
+          tileType = 2; // 泥土
+        }
+        else if (Math.random() < 0.05) {
+          tileType = 5; // 沙地
+        }
+        
+        row.push(tileType);
+      }
+      this.mapData.push(row);
+    }
+    
+    // 设置地图数据到等距渲染器
+    if (this.isometricRenderer) {
+      this.isometricRenderer.setMapData(this.mapData, null);
+    }
+    
+    console.log('BaseGameScene: 生成等距地图', this.mapWidth, 'x', this.mapHeight);
+  }
+
+  /**
    * 创建玩家实体 - 子类可覆盖
    */
   createPlayerEntity() {
+    // 玩家初始位置在火堆右下方半个屏幕（火堆位置是 350, 250）
+    const startX = 650;  // 火堆x + 300
+    const startY = 550;  // 火堆y + 300
+    
     this.playerEntity = this.entityFactory.createPlayer({
       name: '玩家',
       class: 'refugee',
       level: 1,
-      position: { x: 400, y: 300 },
+      position: { x: startX, y: startY },
       stats: {
         maxHp: 150,
         hp: 150,
@@ -817,7 +878,7 @@ export class BaseGameScene extends PrologueScene {
     // 更新性能监控器
     this.performanceMonitor.update(deltaTime, {
       entityCount: this.entities.length,
-      visibleEntityCount: this.renderSystem ? this.renderSystem.cullEntities(this.entities).length : 0,
+      visibleEntityCount: this.isometricRenderer ? this.isometricRenderer.cullEntities(this.entities).length : 0,
       particleCount: this.particleSystem.getActiveCount(),
       poolStats: this.performanceOptimizer.getPoolStats(),
       updateTime: updateTime
@@ -1923,14 +1984,20 @@ export class BaseGameScene extends PrologueScene {
    * 渲染世界对象（实体等）- 子类可覆盖以添加自定义渲染顺序
    */
   renderWorldObjects(ctx) {
-    // 默认按Y坐标排序渲染实体
-    const sortedEntities = [...this.entities].sort((a, b) => {
-      const transformA = a.getComponent('transform');
-      const transformB = b.getComponent('transform');
-      const yA = transformA ? transformA.position.y : 0;
-      const yB = transformB ? transformB.position.y : 0;
-      return yA - yB;
-    });
+    // 使用等距渲染器的深度排序（如果可用）
+    let sortedEntities;
+    if (this.isometricRenderer) {
+      sortedEntities = this.isometricRenderer.sortByDepth(this.entities);
+    } else {
+      // 备用：按Y坐标排序
+      sortedEntities = [...this.entities].sort((a, b) => {
+        const transformA = a.getComponent('transform');
+        const transformB = b.getComponent('transform');
+        const yA = transformA ? transformA.position.y : 0;
+        const yB = transformB ? transformB.position.y : 0;
+        return yA - yB;
+      });
+    }
     
     for (const entity of sortedEntities) {
       this.renderEntity(ctx, entity);
@@ -1986,8 +2053,19 @@ export class BaseGameScene extends PrologueScene {
    * 渲染背景 - 子类覆盖
    */
   renderBackground(ctx) {
-    ctx.fillStyle = '#2a2a2a';
-    ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
+    // 渲染等距地图
+    if (this.isometricRenderer && this.mapData) {
+      // 先绘制无限延伸的网格
+      const viewBounds = this.camera.getViewBounds();
+      this.isometricRenderer.drawInfiniteGrid(viewBounds);
+      
+      // 再绘制等距地图（覆盖在网格上）
+      this.isometricRenderer.drawMap();
+    } else {
+      // 备用：简单背景
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
+    }
   }
 
   /**
@@ -1997,15 +2075,21 @@ export class BaseGameScene extends PrologueScene {
     for (const item of this.pickupItems) {
       if (item.picked) continue;
       
+      // 物品位置（世界坐标）
+      const x = item.x;
+      const y = item.y;
+      
+      // 绘制物品圆形（底部对齐）
       ctx.fillStyle = '#ffaa00';
       ctx.beginPath();
-      ctx.arc(item.x, item.y, 10, 0, Math.PI * 2);
+      ctx.arc(x, y - 5, 10, 0, Math.PI * 2);  // 向上偏移5像素，让物品看起来在地面上
       ctx.fill();
       
+      // 绘制物品名称
       ctx.fillStyle = '#ffffff';
       ctx.font = '12px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText(item.name, item.x, item.y - 15);
+      ctx.fillText(item.name, x, y - 20);  // 名称在物品上方
     }
     
     for (const item of this.equipmentItems) {
@@ -2014,15 +2098,17 @@ export class BaseGameScene extends PrologueScene {
       const x = item.x;
       const y = item.y;
       
+      // 绘制装备物品圆形（底部对齐）
       ctx.fillStyle = '#ffaa00';
       ctx.beginPath();
-      ctx.arc(x, y, 10, 0, Math.PI * 2);
+      ctx.arc(x, y - 5, 10, 0, Math.PI * 2);  // 向上偏移5像素
       ctx.fill();
       
+      // 绘制物品名称
       ctx.fillStyle = '#ffffff';
       ctx.font = '12px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText(item.name, x, y - 15);
+      ctx.fillText(item.name, x, y - 20);
     }
   }
 
@@ -2044,12 +2130,13 @@ export class BaseGameScene extends PrologueScene {
     // 检查是否被选中
     const isSelected = this.combatSystem && this.combatSystem.selectedTarget === entity;
     
-    // 渲染精灵
+    // 渲染精灵（使用底部中心锚点）
     if (sprite && sprite.visible) {
+      // 选中高亮框（底部对齐）
       if (isSelected) {
         ctx.strokeStyle = '#ffff00';
         ctx.lineWidth = 3;
-        ctx.strokeRect(x - size/2 - 3, y - height/2 - 3, size + 6, height + 6);
+        ctx.strokeRect(x - size/2 - 3, y - height - 3, size + 6, height + 6);
       }
       
       // 尝试使用九宫格精灵渲染
@@ -2077,31 +2164,31 @@ export class BaseGameScene extends PrologueScene {
           const destWidth = size;
           const destHeight = height;
           
-          // 绘制精灵
+          // 绘制精灵（底部中心锚点：x居中，y在底部）
           ctx.drawImage(
             image,
             sx, sy, cellWidth, cellHeight,  // 源矩形
-            x - destWidth/2, y - destHeight/2, destWidth, destHeight  // 目标矩形
+            x - destWidth/2, y - destHeight, destWidth, destHeight  // 目标矩形（底部对齐）
           );
           rendered = true;
         }
       }
       
-      // 如果没有成功渲染精灵图，使用占位符
+      // 如果没有成功渲染精灵图，使用占位符（底部对齐）
       if (!rendered) {
         ctx.fillStyle = sprite.color || '#00ff00';
-        ctx.fillRect(x - size/2, y - height/2, size, height);
+        ctx.fillRect(x - size/2, y - height, size, height);
         
         ctx.strokeStyle = entity.type === 'player' ? '#4CAF50' : '#ff4444';
         ctx.lineWidth = 2;
-        ctx.strokeRect(x - size/2, y - height/2, size, height);
+        ctx.strokeRect(x - size/2, y - height, size, height);
       }
     }
     
-    // 渲染名字
+    // 渲染名字（在实体上方）
     const nameComponent = entity.getComponent('name');
     if (nameComponent && nameComponent.visible) {
-      const nameY = y - height/2 + (nameComponent.offsetY || -10);
+      const nameY = y - height + (nameComponent.offsetY || -10);
       
       ctx.save();
       ctx.font = `bold ${nameComponent.fontSize || 14}px Arial`;
@@ -2119,12 +2206,12 @@ export class BaseGameScene extends PrologueScene {
       ctx.restore();
     }
     
-    // 渲染生命值条
+    // 渲染生命值条（在实体头顶上方）
     if (stats && stats.maxHp > 0) {
       const barWidth = 40;
       const barHeight = 4;
       const barX = x - barWidth / 2;
-      const barY = y - 30;
+      const barY = y - height - 8;  // 在实体顶部上方8像素
       
       ctx.fillStyle = '#333333';
       ctx.fillRect(barX, barY, barWidth, barHeight);
