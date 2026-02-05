@@ -32,6 +32,10 @@ export class RenderSystem {
     // 调试模式
     this.debugMode = false;
     
+    // 等距投影设置
+    this.isometricEnabled = true;  // 启用等距投影
+    this.isometricRatio = 0.5;     // Y轴压缩比例（0.5 = 2:1等距效果）
+    
     // 离屏Canvas缓存（用于静态背景）
     this.backgroundCache = null;
     this.backgroundCacheEnabled = true;
@@ -122,8 +126,56 @@ export class RenderSystem {
     // 平移到相机位置
     this.ctx.translate(
       halfWidth - this.camera.position.x,
-      halfHeight - this.camera.position.y
+      halfHeight - this.camera.position.y * this.isometricRatio
     );
+    
+    // 应用等距投影变换
+    if (this.isometricEnabled) {
+      this.ctx.scale(1, this.isometricRatio);
+    }
+  }
+
+  /**
+   * 世界坐标转等距坐标
+   * @param {number} x - 世界X坐标
+   * @param {number} y - 世界Y坐标
+   * @returns {{x: number, y: number}} 等距坐标
+   */
+  worldToIsometric(x, y) {
+    if (!this.isometricEnabled) {
+      return { x, y };
+    }
+    return {
+      x: x,
+      y: y * this.isometricRatio
+    };
+  }
+
+  /**
+   * 等距坐标转世界坐标
+   * @param {number} isoX - 等距X坐标
+   * @param {number} isoY - 等距Y坐标
+   * @returns {{x: number, y: number}} 世界坐标
+   */
+  isometricToWorld(isoX, isoY) {
+    if (!this.isometricEnabled) {
+      return { x: isoX, y: isoY };
+    }
+    return {
+      x: isoX,
+      y: isoY / this.isometricRatio
+    };
+  }
+
+  /**
+   * 设置等距投影
+   * @param {boolean} enabled - 是否启用
+   * @param {number} ratio - Y轴压缩比例（默认0.5）
+   */
+  setIsometric(enabled, ratio = 0.5) {
+    this.isometricEnabled = enabled;
+    this.isometricRatio = ratio;
+    this.invalidateBackgroundCache();
   }
 
   /**

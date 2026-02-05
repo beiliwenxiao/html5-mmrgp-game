@@ -33,6 +33,21 @@ export class SpriteComponent extends Component {
     this.alpha = 1.0;
     this.tint = null; // 颜色叠加
     
+    // 九宫格方向支持
+    this.useDirectionalSprite = config.useDirectionalSprite || false;
+    this.direction = config.direction || 'down'; // up, down, left, right, up-left, up-right, down-left, down-right
+    this.directionFrameMap = config.directionFrameMap || {
+      'up-left': 0,
+      'up': 1,
+      'up-right': 2,
+      'left': 3,
+      'idle': 4,
+      'down': 4,  // 默认朝下
+      'right': 5,
+      'down-left': 6,
+      'down-right': 8
+    };
+    
     // 可见性
     this.visible = true;
   }
@@ -103,9 +118,61 @@ export class SpriteComponent extends Component {
    * @returns {number}
    */
   getCurrentFrame() {
+    // 如果使用方向精灵，返回方向对应的帧
+    if (this.useDirectionalSprite) {
+      return this.directionFrameMap[this.direction] || this.directionFrameMap['idle'];
+    }
+    
     const animation = this.animations.get(this.currentAnimation);
     if (!animation) return 0;
     return animation.frames[this.frame] || 0;
+  }
+
+  /**
+   * 设置精灵方向（用于九宫格精灵）
+   * @param {string} direction - 方向 (up, down, left, right, up-left, up-right, down-left, down-right)
+   */
+  setDirection(direction) {
+    if (this.useDirectionalSprite) {
+      this.direction = direction;
+    }
+  }
+
+  /**
+   * 根据速度向量设置方向
+   * @param {number} vx - X方向速度
+   * @param {number} vy - Y方向速度
+   */
+  setDirectionFromVelocity(vx, vy) {
+    if (!this.useDirectionalSprite) return;
+    
+    // 如果速度为0，保持当前方向
+    if (vx === 0 && vy === 0) {
+      return;
+    }
+    
+    // 计算角度
+    const angle = Math.atan2(vy, vx);
+    const degrees = angle * 180 / Math.PI;
+    
+    // 根据角度确定方向（8方向）
+    if (degrees >= -22.5 && degrees < 22.5) {
+      this.direction = 'right';
+    } else if (degrees >= 22.5 && degrees < 67.5) {
+      this.direction = 'down-right';
+    } else if (degrees >= 67.5 && degrees < 112.5) {
+      this.direction = 'down';
+    } else if (degrees >= 112.5 && degrees < 157.5) {
+      this.direction = 'down-left';
+    } else if (degrees >= 157.5 || degrees < -157.5) {
+      this.direction = 'left';
+    } else if (degrees >= -157.5 && degrees < -112.5) {
+      this.direction = 'up-left';
+    } else if (degrees >= -112.5 && degrees < -67.5) {
+      this.direction = 'up';
+    } else if (degrees >= -67.5 && degrees < -22.5) {
+      this.direction = 'up-right';
+    }
   }
 
   /**

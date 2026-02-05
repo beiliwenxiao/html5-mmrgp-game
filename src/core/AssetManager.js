@@ -229,6 +229,15 @@ export class AssetManager {
     }
 
     /**
+     * 获取资源（getImage的别名，用于兼容）
+     * @param {string} key - 资源键名
+     * @returns {HTMLImageElement|null}
+     */
+    getAsset(key) {
+        return this.getImage(key);
+    }
+
+    /**
      * 获取音频资源
      * @param {string} key - 资源键名
      * @returns {HTMLAudioElement|null}
@@ -311,9 +320,14 @@ export class AssetManager {
     loadPlaceholderAssets() {
         console.log('AssetManager: Loading placeholder assets...');
 
-        // 角色精灵
-        const characterClasses = ['warrior', 'mage', 'archer'];
+        // 九宫格方向精灵（用于玩家）
+        const characterClasses = ['warrior', 'mage', 'archer', 'refugee'];
         characterClasses.forEach(className => {
+            // 尝试加载真实图片，如果失败则使用占位符
+            const realImagePath = `assets/${className}.png`;
+            this.loadDirectionalSpriteImage(className, realImagePath);
+            
+            // 保留旧的单帧精灵作为备用
             const sprite = this.placeholderAssets.createCharacterSprite(className, 64);
             this.images.set(`character_${className}`, sprite);
         });
@@ -353,6 +367,31 @@ export class AssetManager {
         });
 
         console.log('AssetManager: Placeholder assets loaded successfully');
+        console.log('AssetManager: 已加载的图片资源:', Array.from(this.images.keys()));
+    }
+
+    /**
+     * 加载九宫格方向精灵图片
+     * @param {string} className - 职业名称
+     * @param {string} imagePath - 图片路径
+     */
+    loadDirectionalSpriteImage(className, imagePath) {
+        const key = `directional_${className}`;
+        
+        // 先设置占位符
+        const placeholder = this.placeholderAssets.createDirectionalSprite(className, 32);
+        this.images.set(key, placeholder);
+        
+        // 尝试加载真实图片
+        const img = new Image();
+        img.onload = () => {
+            this.images.set(key, img);
+            console.log(`AssetManager: 成功加载真实精灵图 ${key} (${img.width}x${img.height})`);
+        };
+        img.onerror = () => {
+            console.log(`AssetManager: 无法加载 ${imagePath}，使用占位符`);
+        };
+        img.src = imagePath;
     }
 
     /**

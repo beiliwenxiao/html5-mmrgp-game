@@ -163,7 +163,8 @@ export class BaseGameScene extends PrologueScene {
     const ctx = canvas.getContext('2d');
     
     // 初始化渲染系统（包含 Camera）
-    this.renderSystem = new RenderSystem(ctx, null, 800, 600);
+    // 使用场景的 assetManager（如果有的话）
+    this.renderSystem = new RenderSystem(ctx, this.assetManager || null, 800, 600);
     this.camera = this.renderSystem.getCamera();
     // 不设置相机边界，允许相机自由移动跟随玩家
     // this.camera.setBounds(0, 0, 800, 600);
@@ -534,6 +535,16 @@ export class BaseGameScene extends PrologueScene {
     });
     
     this.entities.push(this.playerEntity);
+    
+    // 调试：检查精灵组件
+    const sprite = this.playerEntity.getComponent('sprite');
+    console.log('BaseGameScene: 玩家精灵组件', {
+      spriteSheet: sprite?.spriteSheet,
+      useDirectionalSprite: sprite?.useDirectionalSprite,
+      direction: sprite?.direction,
+      width: sprite?.width,
+      height: sprite?.height
+    });
     
     // 设置相机跟随玩家
     const transform = this.playerEntity.getComponent('transform');
@@ -2041,12 +2052,50 @@ export class BaseGameScene extends PrologueScene {
         ctx.strokeRect(x - size/2 - 3, y - height/2 - 3, size + 6, height + 6);
       }
       
-      ctx.fillStyle = sprite.color || '#00ff00';
-      ctx.fillRect(x - size/2, y - height/2, size, height);
+      // 尝试使用九宫格精灵渲染
+      let rendered = false;
+      if (sprite.useDirectionalSprite && this.assetManager) {
+        const image = this.assetManager.getAsset(sprite.spriteSheet);
+        // canvas 元素没有 complete 属性，但可以直接使用
+        const isImageReady = image && (image.complete !== false || image instanceof HTMLCanvasElement);
+        if (isImageReady) {
+          // 获取当前方向对应的帧索引
+          const frameIndex = sprite.getCurrentFrame();
+          const framesPerRow = 3; // 九宫格是3x3
+          const row = Math.floor(frameIndex / framesPerRow);
+          const col = frameIndex % framesPerRow;
+          
+          // 计算每个格子的尺寸（图片尺寸 / 3）
+          const cellWidth = image.width / 3;
+          const cellHeight = image.height / 3;
+          
+          // 源矩形（从九宫格精灵图中裁剪）
+          const sx = col * cellWidth;
+          const sy = row * cellHeight;
+          
+          // 目标尺寸（可以根据需要缩放）
+          const destWidth = size;
+          const destHeight = height;
+          
+          // 绘制精灵
+          ctx.drawImage(
+            image,
+            sx, sy, cellWidth, cellHeight,  // 源矩形
+            x - destWidth/2, y - destHeight/2, destWidth, destHeight  // 目标矩形
+          );
+          rendered = true;
+        }
+      }
       
-      ctx.strokeStyle = entity.type === 'player' ? '#4CAF50' : '#ff4444';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(x - size/2, y - height/2, size, height);
+      // 如果没有成功渲染精灵图，使用占位符
+      if (!rendered) {
+        ctx.fillStyle = sprite.color || '#00ff00';
+        ctx.fillRect(x - size/2, y - height/2, size, height);
+        
+        ctx.strokeStyle = entity.type === 'player' ? '#4CAF50' : '#ff4444';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x - size/2, y - height/2, size, height);
+      }
     }
     
     // 渲染名字

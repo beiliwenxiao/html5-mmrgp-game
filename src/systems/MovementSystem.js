@@ -303,6 +303,11 @@ export class MovementSystem {
       const newX = transform.position.x + movement.velocity.x * deltaTime;
       const newY = transform.position.y + movement.velocity.y * deltaTime;
       
+      // 更新精灵方向（如果使用方向精灵）
+      if (sprite && sprite.useDirectionalSprite) {
+        sprite.setDirectionFromVelocity(movement.velocity.x, movement.velocity.y);
+      }
+      
       // 碰撞检测
       const canMove = this.canMoveTo(newX, newY, entity);
       

@@ -415,6 +415,7 @@
         import { Act5Scene } from './src/prologue/scenes/Act5Scene.js';
         import { Act6Scene } from './src/prologue/scenes/Act6Scene.js';
         import { SceneManager } from './src/core/SceneManager.js';
+        import { AssetManager } from './src/core/AssetManager.js';
         import { DialogueBox } from './src/ui/DialogueBox.js';
         import { SkillTreePanel } from './src/ui/SkillTreePanel.js';
         import { NotificationSystem } from './src/ui/NotificationSystem.js';
@@ -424,6 +425,7 @@
         
         // 场景管理器
         let sceneManager = null;
+        let assetManager = null;
         
         // UI组件
         let dialogueBox = null;
@@ -598,6 +600,9 @@
                 await sleep(500);
                 
                 updateLoading(25, '加载核心系统...');
+                // 创建并初始化 AssetManager
+                assetManager = new AssetManager();
+                assetManager.loadPlaceholderAssets(); // 加载占位符资源
                 await sleep(500);
                 
                 updateLoading(50, '创建场景管理器...');
@@ -607,27 +612,33 @@
                 updateLoading(60, '注册场景...');
                 // 创建并注册第一幕场景
                 const act1Scene = new Act1SceneECS();
+                act1Scene.assetManager = assetManager; // 传递 AssetManager
                 sceneManager.registerScene('Act1Scene', act1Scene);
                 sceneManager.registerScene('Act1SceneECS', act1Scene); // 兼容旧名称
                 
                 // 创建并注册第二幕场景
                 const act2Scene = new Act2Scene();
+                act2Scene.assetManager = assetManager;
                 sceneManager.registerScene('Act2Scene', act2Scene);
                 
                 // 创建并注册第三幕场景
                 const act3Scene = new Act3Scene();
+                act3Scene.assetManager = assetManager;
                 sceneManager.registerScene('Act3Scene', act3Scene);
                 
                 // 创建并注册第四幕场景
                 const act4Scene = new Act4Scene();
+                act4Scene.assetManager = assetManager;
                 sceneManager.registerScene('Act4Scene', act4Scene);
                 
                 // 创建并注册第五幕场景
                 const act5Scene = new Act5Scene();
+                act5Scene.assetManager = assetManager;
                 sceneManager.registerScene('Act5Scene', act5Scene);
                 
                 // 创建并注册第六幕场景
                 const act6Scene = new Act6Scene();
+                act6Scene.assetManager = assetManager;
                 sceneManager.registerScene('Act6Scene', act6Scene);
                 
                 // 设置场景管理器引用

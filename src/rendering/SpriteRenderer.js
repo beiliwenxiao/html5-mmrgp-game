@@ -58,6 +58,11 @@ export class SpriteRenderer {
     // 获取精灵图资源
     const image = this.assetManager ? this.assetManager.getAsset(sprite.spriteSheet) : null;
 
+    // 调试：检查精灵图是否加载
+    if (entity.type === 'player' && !image) {
+      console.warn('SpriteRenderer: 玩家精灵图未找到', sprite.spriteSheet);
+    }
+
     if (image && image.complete) {
       // 渲染精灵图
       this.renderSprite(ctx, image, sprite);

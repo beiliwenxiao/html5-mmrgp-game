@@ -373,6 +373,104 @@ export class PlaceholderAssets {
     }
 
     /**
+     * 创建九宫格方向精灵（3x3网格）
+     * @param {string} className - 职业名称
+     * @param {number} spriteSize - 单个精灵大小
+     * @returns {HTMLCanvasElement}
+     */
+    createDirectionalSprite(className, spriteSize = 32) {
+        const key = `directional_${className}_${spriteSize}`;
+        if (this.cache.has(key)) {
+            return this.cache.get(key);
+        }
+
+        // 创建3x3网格的canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = spriteSize * 3;
+        canvas.height = spriteSize * 3;
+        const ctx = canvas.getContext('2d');
+
+        // 根据职业选择颜色
+        const colors = {
+            warrior: { primary: '#FF6B6B', secondary: '#C92A2A', accent: '#FFE066' },
+            mage: { primary: '#4DABF7', secondary: '#1971C2', accent: '#74C0FC' },
+            archer: { primary: '#51CF66', secondary: '#2F9E44', accent: '#8CE99A' },
+            refugee: { primary: '#868E96', secondary: '#495057', accent: '#ADB5BD' }
+        };
+
+        const color = colors[className] || colors.refugee;
+
+        // 九宫格布局：
+        // [0:上左] [1:上]   [2:上右]
+        // [3:左]   [4:静止] [5:右]
+        // [6:下左] [7:下]   [8:下右]
+
+        const directions = [
+            { row: 0, col: 0, angle: -135 }, // 上左
+            { row: 0, col: 1, angle: -90 },  // 上
+            { row: 0, col: 2, angle: -45 },  // 上右
+            { row: 1, col: 0, angle: 180 },  // 左
+            { row: 1, col: 1, angle: 0 },    // 静止/下（默认）
+            { row: 1, col: 2, angle: 0 },    // 右
+            { row: 2, col: 0, angle: 135 },  // 下左
+            { row: 2, col: 1, angle: 90 },   // 下
+            { row: 2, col: 2, angle: 45 }    // 下右
+        ];
+
+        directions.forEach((dir, index) => {
+            const x = dir.col * spriteSize + spriteSize / 2;
+            const y = dir.row * spriteSize + spriteSize / 2;
+
+            ctx.save();
+            ctx.translate(x, y);
+
+            // 绘制身体（椭圆形，适应等距视角）
+            ctx.fillStyle = color.primary;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, spriteSize * 0.35, spriteSize * 0.25, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 绘制头部（圆形）
+            ctx.fillStyle = '#FFE0B2';
+            ctx.beginPath();
+            ctx.arc(0, -spriteSize * 0.15, spriteSize * 0.2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 根据方向绘制朝向指示器
+            if (index !== 4) { // 非静止状态
+                ctx.rotate(dir.angle * Math.PI / 180);
+                
+                // 绘制方向箭头
+                ctx.fillStyle = color.accent;
+                ctx.beginPath();
+                ctx.moveTo(spriteSize * 0.25, 0);
+                ctx.lineTo(spriteSize * 0.15, -spriteSize * 0.08);
+                ctx.lineTo(spriteSize * 0.15, spriteSize * 0.08);
+                ctx.closePath();
+                ctx.fill();
+            } else {
+                // 静止状态：绘制职业标识
+                ctx.fillStyle = color.secondary;
+                ctx.font = `bold ${spriteSize * 0.4}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                const symbols = { warrior: '⚔', mage: '✦', archer: '➶', refugee: '?' };
+                ctx.fillText(symbols[className] || '?', 0, spriteSize * 0.1);
+            }
+
+            ctx.restore();
+
+            // 绘制网格线（调试用）
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(dir.col * spriteSize, dir.row * spriteSize, spriteSize, spriteSize);
+        });
+
+        this.cache.set(key, canvas);
+        return canvas;
+    }
+
+    /**
      * 清除缓存
      */
     clearCache() {

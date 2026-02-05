@@ -69,12 +69,25 @@ export class EntityFactory {
       unitType: stats.unitType || 0
     }));
     
-    // 添加精灵组件
+    // 添加精灵组件（使用九宫格方向精灵）
     const spriteSheet = this.getSpriteSheetForClass(characterData.class);
     const sprite = new SpriteComponent(spriteSheet, {
-      width: 32,
-      height: 32,
-      defaultAnimation: 'idle'
+      width: 64,   // 放大两倍：32 -> 64
+      height: 64,  // 放大两倍：32 -> 64
+      defaultAnimation: 'idle',
+      useDirectionalSprite: true,  // 启用方向精灵
+      direction: 'down',            // 默认朝下
+      directionFrameMap: {
+        'up-left': 0,
+        'up': 1,
+        'up-right': 2,
+        'left': 3,
+        'idle': 4,
+        'down': 4,
+        'right': 5,
+        'down-left': 6,
+        'down-right': 8
+      }
     });
     
     // 添加基础动画
@@ -207,12 +220,14 @@ export class EntityFactory {
    * @returns {string}
    */
   getSpriteSheetForClass(className) {
+    // 返回九宫格方向精灵的名称
     const spriteSheets = {
-      'warrior': 'warrior_sprite',
-      'mage': 'mage_sprite',
-      'archer': 'archer_sprite'
+      'warrior': 'directional_warrior',
+      'mage': 'directional_mage',
+      'archer': 'directional_archer',
+      'refugee': 'directional_refugee'
     };
-    return spriteSheets[className] || 'default_sprite';
+    return spriteSheets[className] || 'directional_refugee';
   }
 
   /**
