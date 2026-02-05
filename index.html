@@ -411,6 +411,9 @@
         import { Act1SceneECS } from './src/prologue/scenes/Act1SceneECS.js';
         import { Act2Scene } from './src/prologue/scenes/Act2Scene.js';
         import { Act3Scene } from './src/prologue/scenes/Act3Scene.js';
+        import { Act4Scene } from './src/prologue/scenes/Act4Scene.js';
+        import { Act5Scene } from './src/prologue/scenes/Act5Scene.js';
+        import { Act6Scene } from './src/prologue/scenes/Act6Scene.js';
         import { SceneManager } from './src/core/SceneManager.js';
         import { DialogueBox } from './src/ui/DialogueBox.js';
         import { SkillTreePanel } from './src/ui/SkillTreePanel.js';
@@ -615,10 +618,25 @@
                 const act3Scene = new Act3Scene();
                 sceneManager.registerScene('Act3Scene', act3Scene);
                 
+                // 创建并注册第四幕场景
+                const act4Scene = new Act4Scene();
+                sceneManager.registerScene('Act4Scene', act4Scene);
+                
+                // 创建并注册第五幕场景
+                const act5Scene = new Act5Scene();
+                sceneManager.registerScene('Act5Scene', act5Scene);
+                
+                // 创建并注册第六幕场景
+                const act6Scene = new Act6Scene();
+                sceneManager.registerScene('Act6Scene', act6Scene);
+                
                 // 设置场景管理器引用
                 act1Scene.setSceneManager(sceneManager);
                 act2Scene.setSceneManager(sceneManager);
                 act3Scene.setSceneManager(sceneManager);
+                act4Scene.setSceneManager(sceneManager);
+                act5Scene.setSceneManager(sceneManager);
+                act6Scene.setSceneManager(sceneManager);
                 
                 // 初始化通知系统
                 notificationSystem = new NotificationSystem({
@@ -740,13 +758,6 @@
             const currentTime = performance.now();
             const deltaTime = (currentTime - lastTime) / 1000;
             lastTime = currentTime;
-            
-            // 调试：每60帧输出一次
-            if (!window._gameLoopFrameCount) window._gameLoopFrameCount = 0;
-            window._gameLoopFrameCount++;
-            if (window._gameLoopFrameCount % 60 === 0) {
-                console.log('gameLoop 运行中，sceneManager 存在:', !!sceneManager);
-            }
             
             // 计算 FPS
             frameCount++;

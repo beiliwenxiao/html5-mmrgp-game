@@ -87,13 +87,6 @@ export class SceneManager {
             return;
         }
 
-        // 调试：检查场景状态
-        if (!this._debugFrameCount) this._debugFrameCount = 0;
-        this._debugFrameCount++;
-        if (this._debugFrameCount % 60 === 0) {
-            console.log('SceneManager: update 调用，currentScene =', this.currentScene?.name, 'isActive =', this.currentScene?.isActive);
-        }
-
         // 更新当前场景
         if (this.currentScene && this.currentScene.isActive) {
             this.currentScene.update(deltaTime);

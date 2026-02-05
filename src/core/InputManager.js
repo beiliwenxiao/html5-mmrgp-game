@@ -53,7 +53,8 @@ export class InputManager {
             'Enter': 'enter',
             'Shift': 'shift',
             'Control': 'ctrl',
-            'Tab': 'tab'
+            'Tab': 'tab',
+            // 注意：m, h, r 等字母键不需要映射，直接使用原始键名
         };
         
         // 相机偏移（用于坐标转换）
@@ -68,9 +69,11 @@ export class InputManager {
      * 初始化事件监听器
      */
     initEventListeners() {
-        // 键盘事件
+        // 键盘事件 - 绑定到 window，确保能捕获所有按键
         window.addEventListener('keydown', (e) => this.handleKeyDown(e));
         window.addEventListener('keyup', (e) => this.handleKeyUp(e));
+        
+        console.log('InputManager: 键盘事件监听器已绑定到 window');
         
         // 鼠标事件
         this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
@@ -93,9 +96,18 @@ export class InputManager {
         const key = event.key;
         const mappedKey = this.keyMap[key] || key;
         
+        // 调试：输出所有按键信息
+        console.log('InputManager: handleKeyDown 被调用', { 
+            key, 
+            mappedKey,
+            eventType: event.type,
+            target: event.target.tagName 
+        });
+        
         // 如果键已经按下，不重复触发
         if (!this.keys.get(mappedKey)) {
             this.keysPressed.set(mappedKey, true);
+            console.log('InputManager: keysPressed.set', mappedKey, true);
         }
         
         this.keys.set(mappedKey, true);

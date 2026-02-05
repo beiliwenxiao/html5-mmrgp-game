@@ -502,13 +502,6 @@ export class Act1SceneECS extends BaseGameScene {
       }
     }
     
-    // 调试：每60帧输出一次状态
-    if (!this._debugFrameCount) this._debugFrameCount = 0;
-    this._debugFrameCount++;
-    if (this._debugFrameCount % 60 === 0) {
-      console.log('Act1SceneECS: update 运行中，tutorialPhase =', this.tutorialPhase);
-    }
-    
     // 更新教程阶段（第一幕特有）
     this.updateTutorialPhase(deltaTime);
     
@@ -588,25 +581,12 @@ export class Act1SceneECS extends BaseGameScene {
     this.tutorialPhaseHandlers = {
       'character_creation': {
         check: () => {
-          // 检查是否按下任意键（检查映射后的键名）
-          const mappedKeys = ['up', 'down', 'left', 'right'];
-          
-          // 调试：检查每个键的状态
-          const keyStates = mappedKeys.map(key => ({
-            key,
-            isDown: this.inputManager.isKeyDown(key)
-          }));
-          const anyPressed = keyStates.some(state => state.isDown);
-          
-          // 每60帧输出一次调试信息
-          if (!this._debugCharCreationCount) this._debugCharCreationCount = 0;
-          this._debugCharCreationCount++;
-          if (this._debugCharCreationCount % 60 === 0) {
-            console.log('Act1SceneECS: character_creation 检查中，按键状态:', keyStates);
-          }
+          // 检查是否按下任意键
+          const anyPressed = this.inputManager.isAnyKeyPressed();
           
           if (anyPressed) {
-            console.log('Act1SceneECS: 检测到按键！', keyStates.filter(s => s.isDown));
+            const pressedKeys = this.inputManager.getKeysPressed();
+            console.log('Act1SceneECS: 检测到按键！', pressedKeys);
           }
           
           return anyPressed;

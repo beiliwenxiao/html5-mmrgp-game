@@ -29,6 +29,7 @@ export class Act3Scene extends BaseGameScene {
     this.coinArtifactDialogueCompleted = false;
     this.shopIntroDialogueCompleted = false;
     this.enhancementIntroDialogueCompleted = false;
+    this.readyDialogueCompleted = false;
     
     // 第三幕特有：物品获得标志
     this.hasReceivedCoinSword = false;
@@ -211,6 +212,38 @@ export class Act3Scene extends BaseGameScene {
         }
       }
     });
+
+    // 准备前往下一幕对话
+    this.dialogueSystem.registerDialogue('ready_for_next', {
+      title: '准备前往下一幕',
+      startNode: 'start',
+      nodes: {
+        start: { 
+          speaker: '张角', 
+          portrait: 'zhangjiao', 
+          text: '你已经掌握了货币和交易的基本知识。', 
+          nextNode: 'zhangjiao_question' 
+        },
+        zhangjiao_question: { 
+          speaker: '张角', 
+          portrait: 'zhangjiao', 
+          text: '接下来，我将带你了解更深层的修炼之道。你准备好了吗？', 
+          nextNode: 'player_ready' 
+        },
+        player_ready: { 
+          speaker: '你', 
+          portrait: 'player', 
+          text: '我准备好了！', 
+          nextNode: 'zhangjiao_encourage' 
+        },
+        zhangjiao_encourage: { 
+          speaker: '张角', 
+          portrait: 'zhangjiao', 
+          text: '很好！记住今天学到的一切，它们将在未来的旅途中帮助你。', 
+          nextNode: null 
+        }
+      }
+    });
   }
 
   /**
@@ -298,6 +331,14 @@ export class Act3Scene extends BaseGameScene {
   }
 
   /**
+   * 开始准备前往下一幕对话
+   */
+  startReadyForNextDialogue() {
+    this.dialoguePhase = 'ready_for_next';
+    this.dialogueSystem.startDialogue('ready_for_next');
+  }
+
+  /**
    * 给予铜钱剑（带负属性）
    */
   giveCoinSword() {
@@ -367,6 +408,11 @@ export class Act3Scene extends BaseGameScene {
    * 更新场景 - 覆盖父类方法，添加第三幕特有逻辑
    */
   update(deltaTime) {
+    // 第三幕特有：在父类update之前检查按键（避免keysPressed被清空）
+    this.checkShopToggle();
+    this.checkEnhancementToggle();
+    this.checkReadyForNext();
+    
     // 调用父类的 update
     super.update(deltaTime);
     
@@ -377,25 +423,24 @@ export class Act3Scene extends BaseGameScene {
     
     // 第三幕特有：检查对话流程
     this.updateDialogueFlow();
-    
-    // 第三幕特有：检查M键和H键
-    this.checkShopToggle();
-    this.checkEnhancementToggle();
   }
 
   /**
    * 检查商店切换（M键）
    */
   checkShopToggle() {
-    const mPressed = this.inputManager.isKeyDown('m') || this.inputManager.isKeyDown('M');
+    // 对话进行中或场景已完成时，禁用商店切换
+    if (this.dialogueSystem?.isDialogueActive() || this.isSceneComplete) {
+      return;
+    }
+    
+    // 使用原始键名 'm' 和 'M'
+    const mPressed = this.inputManager.isKeyPressed('m') || this.inputManager.isKeyPressed('M');
+    
     if (mPressed) {
-      console.log('Act3Scene: M键被按下, shopSystemInitialized =', this.shopSystemInitialized);
-      const now = Date.now();
-      if (!this.lastShopToggleTime || now - this.lastShopToggleTime > 300) {
-        if (this.shopSystemInitialized) {
-          this.toggleShop();
-        }
-        this.lastShopToggleTime = now;
+      console.log('Act3Scene: M键被按下，shopIntroDialogueCompleted =', this.shopIntroDialogueCompleted);
+      if (this.shopSystemInitialized && this.shopIntroDialogueCompleted) {
+        this.toggleShop();
       }
     }
   }
@@ -404,16 +449,40 @@ export class Act3Scene extends BaseGameScene {
    * 检查强化切换（H键）
    */
   checkEnhancementToggle() {
-    const hPressed = this.inputManager.isKeyDown('h') || this.inputManager.isKeyDown('H');
+    // 对话进行中或场景已完成时，禁用强化切换
+    if (this.dialogueSystem?.isDialogueActive() || this.isSceneComplete) {
+      return;
+    }
+    
+    // 使用原始键名 'h' 和 'H'
+    const hPressed = this.inputManager.isKeyPressed('h') || this.inputManager.isKeyPressed('H');
+    
     if (hPressed) {
-      console.log('Act3Scene: H键被按下, enhancementSystemInitialized =', this.enhancementSystemInitialized);
-      const now = Date.now();
-      if (!this.lastEnhancementToggleTime || now - this.lastEnhancementToggleTime > 300) {
-        if (this.enhancementSystemInitialized) {
-          this.toggleEnhancement();
-        }
-        this.lastEnhancementToggleTime = now;
+      console.log('Act3Scene: H键被按下，enhancementIntroDialogueCompleted =', this.enhancementIntroDialogueCompleted);
+      if (this.enhancementSystemInitialized && this.enhancementIntroDialogueCompleted) {
+        this.toggleEnhancement();
       }
+    }
+  }
+
+  /**
+   * 检查准备前往下一幕（R键）
+   */
+  checkReadyForNext() {
+    // 只有在强化介绍对话完成后，且没有对话进行中，且场景未完成时才能触发
+    if (!this.enhancementIntroDialogueCompleted || 
+        this.dialogueSystem?.isDialogueActive() || 
+        this.readyDialogueCompleted ||
+        this.isSceneComplete) {
+      return;
+    }
+    
+    // 使用原始键名 'r' 和 'R'
+    const rPressed = this.inputManager.isKeyPressed('r') || this.inputManager.isKeyPressed('R');
+    
+    if (rPressed) {
+      console.log('Act3Scene: R键被按下，开始准备对话');
+      this.startReadyForNextDialogue();
     }
   }
 
@@ -424,6 +493,7 @@ export class Act3Scene extends BaseGameScene {
     if (this.dialogueSystem && !this.dialogueSystem.isDialogueActive()) {
       // 铜钱法器对话结束 -> 给予铜钱剑和金币
       if (this.dialoguePhase === 'coin_artifact' && !this.coinArtifactDialogueCompleted) {
+        console.log('Act3Scene: 铜钱法器对话完成');
         this.coinArtifactDialogueCompleted = true;
         this.giveCoinSword();
         setTimeout(() => this.giveGold(), 500);
@@ -431,15 +501,26 @@ export class Act3Scene extends BaseGameScene {
       }
       // 商店介绍对话结束 -> 触发商店教程
       else if (this.dialoguePhase === 'shop_intro' && !this.shopIntroDialogueCompleted) {
+        console.log('Act3Scene: 商店介绍对话完成');
         this.shopIntroDialogueCompleted = true;
         setTimeout(() => this.startEnhancementIntroDialogue(), 1000);
       }
-      // 强化介绍对话结束 -> 场景完成，切换到第四幕
+      // 强化介绍对话结束 -> 允许玩家体验系统
       else if (this.dialoguePhase === 'enhancement_intro' && !this.enhancementIntroDialogueCompleted) {
+        console.log('Act3Scene: 强化介绍对话完成，等待玩家按R键');
         this.enhancementIntroDialogueCompleted = true;
+        // 不再自动切换，等待玩家按R键触发准备对话
+      }
+      // 准备对话结束 -> 切换到第四幕
+      else if (this.dialoguePhase === 'ready_for_next' && !this.readyDialogueCompleted) {
+        console.log('Act3Scene: 准备对话完成，即将切换到第四幕');
+        this.readyDialogueCompleted = true;
         this.isSceneComplete = true;
         // 延迟切换到第四幕
-        setTimeout(() => this.switchToNextScene(), 2000);
+        setTimeout(() => {
+          console.log('Act3Scene: 执行场景切换');
+          this.switchToNextScene();
+        }, 2000);
       }
     }
   }
@@ -448,7 +529,7 @@ export class Act3Scene extends BaseGameScene {
    * 切换到下一幕（第四幕）
    */
   switchToNextScene() {
-    console.log('Act3Scene: 切换到第四幕');
+    console.log('Act3Scene: switchToNextScene 被调用');
     
     // 准备传递给第四幕的数据
     const stats = this.playerEntity?.getComponent('stats');
@@ -474,8 +555,12 @@ export class Act3Scene extends BaseGameScene {
       gold: this.shopSystem?.getCurrency('gold') || 0
     };
     
+    console.log('Act3Scene: 准备切换到第四幕，数据：', sceneData);
+    
     // 使用父类的场景切换方法
     this.goToNextScene(sceneData);
+    
+    console.log('Act3Scene: goToNextScene 已调用');
   }
 
 
@@ -620,16 +705,19 @@ export class Act3Scene extends BaseGameScene {
     
     if (this.dialogueSystem && this.dialogueSystem.isDialogueActive()) {
       hints.push('按 空格键 继续对话');
+    } else if (this.isSceneComplete) {
+      hints.push('第三幕完成！即将进入第四幕...');
+    } else if (this.enhancementIntroDialogueCompleted && !this.readyDialogueCompleted) {
+      hints.push('按 M 键打开商店 | 按 H 键打开强化 | 按 R 键准备前往下一幕');
     } else if (this.shopSystemInitialized && this.enhancementSystemInitialized) {
       hints.push('按 M 键打开商店 | 按 H 键打开强化');
-    } else if (this.isSceneComplete) {
-      hints.push('第三幕完成！');
     }
     
     // 渲染提示
     if (hints.length > 0) {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      ctx.fillRect(this.logicalWidth / 2 - 200, this.logicalHeight - 60, 400, 40);
+      const hintWidth = Math.max(400, ctx.measureText(hints[0]).width + 40);
+      ctx.fillRect(this.logicalWidth / 2 - hintWidth / 2, this.logicalHeight - 60, hintWidth, 40);
       
       ctx.fillStyle = '#FFFFFF';
       ctx.font = '16px Arial';
