@@ -2061,13 +2061,15 @@ export class BaseGameScene extends PrologueScene {
    */
   renderBackground(ctx) {
     // 渲染等距地图
-    if (this.isometricRenderer && this.mapData) {
+    if (this.isometricRenderer) {
       // 先绘制无限延伸的网格
       const viewBounds = this.camera.getViewBounds();
       this.isometricRenderer.drawInfiniteGrid(viewBounds);
       
       // 再绘制等距地图（覆盖在网格上）
-      this.isometricRenderer.drawMap();
+      if (this.mapData) {
+        this.isometricRenderer.drawMap();
+      }
     } else {
       // 备用：简单背景
       ctx.fillStyle = '#2a2a2a';
