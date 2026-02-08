@@ -1961,20 +1961,32 @@ export class CombatSystem {
   generateLoot(entity) {
     const loot = [];
     
-    // 随机掉落1个药瓶（50%红瓶，50%蓝瓶）
+    // 30%概率不掉落任何东西
+    if (Math.random() < 0.3) {
+      return loot;
+    }
+    
+    // 70%概率掉落，其中50%红瓶，50%蓝瓶
     if (Math.random() < 0.5) {
-      // 掉落红瓶
       loot.push({
         type: 'health_potion',
         name: '生命药水',
         value: 50
       });
     } else {
-      // 掉落蓝瓶
       loot.push({
         type: 'mana_potion',
         name: '魔法药水',
         value: 30
+      });
+    }
+    
+    // 10%概率额外掉落第二瓶
+    if (Math.random() < 0.1) {
+      loot.push({
+        type: Math.random() < 0.5 ? 'health_potion' : 'mana_potion',
+        name: Math.random() < 0.5 ? '生命药水' : '魔法药水',
+        value: Math.random() < 0.5 ? 50 : 30
       });
     }
     

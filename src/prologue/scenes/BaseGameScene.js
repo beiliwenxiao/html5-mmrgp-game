@@ -2239,12 +2239,17 @@ export class BaseGameScene extends PrologueScene {
       
       // 如果没有成功渲染精灵图，使用占位符（底部对齐）
       if (!rendered) {
-        ctx.fillStyle = sprite.color || '#00ff00';
-        ctx.fillRect(x - size/2, y - height, size, height);
-        
-        ctx.strokeStyle = entity.type === 'player' ? '#4CAF50' : '#ff4444';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(x - size/2, y - height, size, height);
+        if (entity.type === 'loot' && entity.itemData) {
+          // 掉落物：绘制瓶子形状
+          this.renderPotionSprite(ctx, x, y, entity.itemData.type);
+        } else {
+          ctx.fillStyle = sprite.color || '#00ff00';
+          ctx.fillRect(x - size/2, y - height, size, height);
+          
+          ctx.strokeStyle = entity.type === 'player' ? '#4CAF50' : '#ff4444';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x - size/2, y - height, size, height);
+        }
       }
     }
     
@@ -2287,6 +2292,62 @@ export class BaseGameScene extends PrologueScene {
       ctx.lineWidth = 1;
       ctx.strokeRect(barX, barY, barWidth, barHeight);
     }
+  }
+
+  /**
+   * 渲染药瓶精灵
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {number} x - 底部中心X
+   * @param {number} y - 底部Y
+   * @param {string} potionType - 'health_potion' 或 'mana_potion'
+   */
+  renderPotionSprite(ctx, x, y, potionType) {
+    const isHealth = potionType === 'health_potion';
+    const bodyColor = isHealth ? '#ff3333' : '#3366ff';
+    const liquidColor = isHealth ? '#cc0000' : '#0033cc';
+    const highlightColor = isHealth ? '#ff8888' : '#88aaff';
+
+    ctx.save();
+    ctx.translate(x, y);
+
+    // 瓶身（圆角矩形）
+    const bw = 12, bh = 16;
+    ctx.fillStyle = bodyColor;
+    ctx.beginPath();
+    ctx.moveTo(-bw/2, -4);
+    ctx.quadraticCurveTo(-bw/2, -bh - 2, -3, -bh - 2);
+    ctx.lineTo(3, -bh - 2);
+    ctx.quadraticCurveTo(bw/2, -bh - 2, bw/2, -4);
+    ctx.quadraticCurveTo(bw/2, 0, 0, 0);
+    ctx.quadraticCurveTo(-bw/2, 0, -bw/2, -4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // 液体（下半部分）
+    ctx.fillStyle = liquidColor;
+    ctx.fillRect(-bw/2 + 1, -bh/2, bw - 2, bh/2 - 1);
+
+    // 高光
+    ctx.fillStyle = highlightColor;
+    ctx.globalAlpha = 0.5;
+    ctx.fillRect(-bw/2 + 2, -bh, 3, bh - 4);
+    ctx.globalAlpha = 1.0;
+
+    // 瓶口
+    ctx.fillStyle = '#8B4513';
+    ctx.fillRect(-3, -bh - 6, 6, 5);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(-3, -bh - 6, 6, 5);
+
+    // 瓶盖
+    ctx.fillStyle = '#654321';
+    ctx.fillRect(-4, -bh - 8, 8, 3);
+
+    ctx.restore();
   }
 
   /**
