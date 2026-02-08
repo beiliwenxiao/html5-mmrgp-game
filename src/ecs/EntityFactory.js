@@ -69,24 +69,27 @@ export class EntityFactory {
       unitType: stats.unitType || 0
     }));
     
-    // 添加精灵组件（使用九宫格方向精灵）
-    const spriteSheet = this.getSpriteSheetForClass(characterData.class);
+    // 添加精灵组件（使用4x8动画精灵）
+    const spriteSheet = 'player_animated'; // 使用新的精灵图
     const sprite = new SpriteComponent(spriteSheet, {
       width: 64,   // 放大两倍：32 -> 64
       height: 64,  // 放大两倍：32 -> 64
       defaultAnimation: 'idle',
-      useDirectionalSprite: true,  // 启用方向精灵
-      direction: 'down',            // 默认朝下
-      directionFrameMap: {
-        'up-left': 0,
-        'up': 1,
-        'up-right': 2,
-        'left': 3,
-        'idle': 4,
-        'down': 4,
+      useAnimatedSprite: true,   // 启用动画精灵
+      spriteColumns: 4,          // 4列（动画帧）
+      spriteRows: 8,             // 8行（方向）
+      direction: 'down',         // 默认朝下
+      walkFrameDuration: 150,    // 每帧150ms
+      directionRowMap: {
+        'down-left': 0,
+        'up-right': 1,
+        'up-left': 2,
+        'down-right': 3,
+        'left': 4,
         'right': 5,
-        'down-left': 6,
-        'down-right': 8
+        'up': 6,
+        'down': 7,
+        'idle': 7       // idle用down行
       }
     });
     

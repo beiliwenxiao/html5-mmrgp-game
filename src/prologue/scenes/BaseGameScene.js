@@ -697,7 +697,14 @@ export class BaseGameScene extends PrologueScene {
       const transform = this.playerEntity.getComponent('transform');
       if (transform) {
         const currentTime = performance.now() / 1000; // 转换为秒
-        this.weaponRenderer.updateMouseAngle(mouseWorldPos, transform.position, currentTime);
+        // 使用人物中心位置（脚底上移半个精灵高度）
+        const sprite = this.playerEntity.getComponent('sprite');
+        const spriteHeight = sprite?.height || 64;
+        const playerCenter = {
+          x: transform.position.x,
+          y: transform.position.y - spriteHeight / 2
+        };
+        this.weaponRenderer.updateMouseAngle(mouseWorldPos, playerCenter, currentTime);
         
         // 检测攻击（鼠标移动时自动攻击）
         if (this.weaponRenderer.canAutoAttack(currentTime, this.playerEntity)) {
@@ -2139,9 +2146,58 @@ export class BaseGameScene extends PrologueScene {
         ctx.strokeRect(x - size/2 - 3, y - height - 3, size + 6, height + 6);
       }
       
-      // 尝试使用九宫格精灵渲染
       let rendered = false;
-      if (sprite.useDirectionalSprite && this.assetManager) {
+      
+      // 4x9格式精灵渲染
+      if (sprite.useAnimatedSprite && this.assetManager) {
+        const image = this.assetManager.getAsset(sprite.spriteSheet);
+        // Image对象需要complete且naturalWidth>0才算加载完成
+        const isImageReady = image && (
+          (image instanceof HTMLCanvasElement) ||
+          (image.complete && image.naturalWidth > 0)
+        );
+        if (isImageReady) {
+          // 调试：首次输出图片信息
+          if (!this._debugSpriteLogged) {
+            const cellW = image.width / sprite.spriteColumns;
+            const cellH = image.height / sprite.spriteRows;
+            console.log(`【精灵调试】图片尺寸: ${image.width}x${image.height}, 列数: ${sprite.spriteColumns}, 行数: ${sprite.spriteRows}, 单元格: ${cellW}x${cellH}`);
+            this._debugSpriteLogged = true;
+          }
+          // 每次方向变化时输出
+          if (this._lastDebugDir !== sprite.direction) {
+            const dbgFrame = sprite.getAnimatedFrame();
+            console.log(`【方向调试】方向: ${sprite.direction} → 行: ${dbgFrame.row}, 列: ${dbgFrame.col}`);
+            this._lastDebugDir = sprite.direction;
+          }
+          // 获取当前帧的行和列
+          const frameInfo = sprite.getAnimatedFrame();
+          const row = frameInfo.row;
+          const col = frameInfo.col;
+          
+          // 计算每个格子的尺寸
+          const cellWidth = image.width / sprite.spriteColumns;
+          const cellHeight = image.height / sprite.spriteRows;
+          
+          // 源矩形
+          const sx = col * cellWidth;
+          const sy = row * cellHeight;
+          
+          // 目标尺寸
+          const destWidth = size;
+          const destHeight = height;
+          
+          // 绘制精灵（底部中心锚点）
+          ctx.drawImage(
+            image,
+            sx, sy, cellWidth, cellHeight,
+            x - destWidth/2, y - destHeight, destWidth, destHeight
+          );
+          rendered = true;
+        }
+      }
+      // 旧格式九宫格精灵渲染
+      else if (sprite.useDirectionalSprite && this.assetManager) {
         const image = this.assetManager.getAsset(sprite.spriteSheet);
         // canvas 元素没有 complete 属性，但可以直接使用
         const isImageReady = image && (image.complete !== false || image instanceof HTMLCanvasElement);

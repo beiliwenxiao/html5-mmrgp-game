@@ -158,6 +158,10 @@ export class MovementSystem {
       if (movement.movementType === 'keyboard') {
         movement.stop();
         
+        // 停止行走动画
+        if (sprite && sprite.useAnimatedSprite) {
+          sprite.setWalking(false);
+        }
         // 切换到待机动画
         if (sprite && sprite.currentAnimation !== 'idle') {
           sprite.playAnimation('idle');
@@ -265,6 +269,9 @@ export class MovementSystem {
       movement.velocity.x = 0;
       movement.velocity.y = 0;
       movement.clearPath();
+      if (sprite && sprite.useAnimatedSprite) {
+        sprite.setWalking(false);
+      }
       if (sprite && sprite.currentAnimation !== 'idle') {
         sprite.playAnimation('idle');
       }
@@ -288,6 +295,9 @@ export class MovementSystem {
           const hasMore = movement.moveToNextPathPoint();
           if (!hasMore) {
             // 路径结束，切换到待机动画
+            if (sprite && sprite.useAnimatedSprite) {
+              sprite.setWalking(false);
+            }
             if (sprite && sprite.currentAnimation !== 'idle') {
               sprite.playAnimation('idle');
             }
@@ -303,8 +313,8 @@ export class MovementSystem {
       const newX = transform.position.x + movement.velocity.x * deltaTime;
       const newY = transform.position.y + movement.velocity.y * deltaTime;
       
-      // 更新精灵方向（如果使用方向精灵）
-      if (sprite && sprite.useDirectionalSprite) {
+      // 更新精灵方向（如果使用方向精灵或动画精灵）
+      if (sprite && (sprite.useDirectionalSprite || sprite.useAnimatedSprite)) {
         sprite.setDirectionFromVelocity(movement.velocity.x, movement.velocity.y);
       }
       
@@ -317,6 +327,9 @@ export class MovementSystem {
         // 碰撞，停止移动
         if (movement.movementType === 'path') {
           movement.clearPath();
+          if (sprite && sprite.useAnimatedSprite) {
+            sprite.setWalking(false);
+          }
           if (sprite && sprite.currentAnimation !== 'idle') {
             sprite.playAnimation('idle');
           }

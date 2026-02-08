@@ -471,12 +471,18 @@ export class WeaponRenderer {
     
     const transform = entity.getComponent('transform');
     const equipment = entity.getComponent('equipment');
+    const sprite = entity.getComponent('sprite');
     
     if (!transform || !equipment) return;
     
-    // 直接使用世界坐标（因为ctx已经应用了相机变换）
+    // 武器根部在人物中心（身体中间位置）
+    // transform.position 是脚底，中心在上方 height/2 处
+    const spriteHeight = sprite?.height || 64;
     const worldX = Math.round(transform.position.x);
-    const worldY = Math.round(transform.position.y);
+    const worldY = Math.round(transform.position.y - spriteHeight / 2);
+    
+    // 记录精灵高度供renderWeapon使用
+    this.playerSpriteHeight = spriteHeight;
     
     // 渲染主手武器
     const mainhandWeapon = equipment.slots.mainhand;
@@ -546,14 +552,16 @@ export class WeaponRenderer {
     
     ctx.save();
     
-    // 移动到玩家位置
-    ctx.translate(x, y);
+    // 人物中心为圆心，半径为人物高度一半，武器根部在圆周上
+    const radius = this.playerSpriteHeight ? this.playerSpriteHeight / 2 : 32;
+    const offsetX = Math.cos(this.currentMouseAngle) * radius;
+    const offsetY = Math.sin(this.currentMouseAngle) * radius;
     
-    // 武器始终指向鼠标方向，不播放攻击动画
+    // 移动到圆周上的点（武器根部）
+    ctx.translate(x + offsetX, y + offsetY);
+    
+    // 武器朝向鼠标方向
     ctx.rotate(this.currentMouseAngle);
-    
-    // 武器起点在玩家边缘（半径16像素）
-    ctx.translate(16, 0);
     
     // 绘制武器
     this.drawWeapon(ctx, config);

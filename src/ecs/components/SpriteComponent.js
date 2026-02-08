@@ -33,9 +33,17 @@ export class SpriteComponent extends Component {
     this.alpha = 1.0;
     this.tint = null; // 颜色叠加
     
-    // 九宫格方向支持
+    // 九宫格方向支持（旧格式 3x3）
     this.useDirectionalSprite = config.useDirectionalSprite || false;
+    
+    // 新格式：4列x9行精灵图支持
+    this.useAnimatedSprite = config.useAnimatedSprite || false;
+    this.spriteColumns = config.spriteColumns || 4;  // 列数（动画帧数）
+    this.spriteRows = config.spriteRows || 8;        // 行数（方向数）
+    
     this.direction = config.direction || 'down'; // up, down, left, right, up-left, up-right, down-left, down-right
+    
+    // 旧格式方向映射（3x3）
     this.directionFrameMap = config.directionFrameMap || {
       'up-left': 0,
       'up': 1,
@@ -47,6 +55,26 @@ export class SpriteComponent extends Component {
       'down-left': 6,
       'down-right': 8
     };
+    
+    // 新格式方向到行的映射（4x8）
+    this.directionRowMap = config.directionRowMap || {
+      'down-left': 0,
+      'up-right': 1,
+      'up-left': 2,
+      'down-right': 3,
+      'left': 4,
+      'right': 5,
+      'up': 6,
+      'down': 7,
+      'idle': 7       // idle用down行
+    };
+    
+    // 行走动画状态
+    this.isWalking = false;
+    this.isStopping = false;
+    this.walkFrame = 0;
+    this.walkFrameTime = 0;
+    this.walkFrameDuration = config.walkFrameDuration || 150; // 每帧150ms
     
     // 可见性
     this.visible = true;
@@ -89,15 +117,39 @@ export class SpriteComponent extends Component {
 
   /**
    * 更新动画
-   * @param {number} deltaTime - 帧间隔时间（毫秒）
+   * @param {number} deltaTime - 帧间隔时间（秒）
    */
   update(deltaTime) {
     if (!this.visible) return;
     
+    // 转换为毫秒
+    const deltaMs = deltaTime * 1000;
+    
+    // 4x9格式的行走动画更新
+    if (this.useAnimatedSprite) {
+      if (this.isWalking || this.isStopping) {
+        this.walkFrameTime += deltaMs;
+        if (this.walkFrameTime >= this.walkFrameDuration) {
+          this.walkFrameTime -= this.walkFrameDuration;
+          this.walkFrame = (this.walkFrame + 1) % this.spriteColumns;
+          
+          // 如果正在停止且回到第0帧，完成停止
+          if (this.isStopping && this.walkFrame === 0) {
+            this.isWalking = false;
+            this.isStopping = false;
+            this.walkFrame = 0;
+            this.walkFrameTime = 0;
+          }
+        }
+      }
+      return;
+    }
+    
+    // 旧格式动画更新
     const animation = this.animations.get(this.currentAnimation);
     if (!animation) return;
     
-    this.frameTime += deltaTime;
+    this.frameTime += deltaMs;
     
     if (this.frameTime >= animation.frameDuration) {
       this.frameTime -= animation.frameDuration;
@@ -118,7 +170,14 @@ export class SpriteComponent extends Component {
    * @returns {number}
    */
   getCurrentFrame() {
-    // 如果使用方向精灵，返回方向对应的帧
+    // 4x9格式：返回行和列信息
+    if (this.useAnimatedSprite) {
+      const row = this.directionRowMap[this.direction] ?? this.directionRowMap['idle'];
+      const col = this.walkFrame;
+      return { row, col };
+    }
+    
+    // 旧格式：如果使用方向精灵，返回方向对应的帧
     if (this.useDirectionalSprite) {
       return this.directionFrameMap[this.direction] || this.directionFrameMap['idle'];
     }
@@ -126,6 +185,36 @@ export class SpriteComponent extends Component {
     const animation = this.animations.get(this.currentAnimation);
     if (!animation) return 0;
     return animation.frames[this.frame] || 0;
+  }
+
+  /**
+   * 获取4x9格式的帧信息
+   * @returns {{row: number, col: number}}
+   */
+  getAnimatedFrame() {
+    const row = this.directionRowMap[this.direction] ?? this.directionRowMap['idle'];
+    const col = this.isWalking ? this.walkFrame : 0;
+    return { row, col };
+  }
+
+  /**
+   * 设置行走状态
+   * @param {boolean} walking - 是否在行走
+   */
+  setWalking(walking) {
+    if (walking) {
+      // 开始行走时，如果之前不在走，立即切到第1帧（跳过静止帧0）
+      if (!this.isWalking) {
+        this.isWalking = true;
+        this.walkFrame = 1;
+        this.walkFrameTime = 0;
+      }
+    } else {
+      // 停止行走：标记为停止中，让当前循环播完
+      if (this.isWalking) {
+        this.isStopping = true;
+      }
+    }
   }
 
   /**
@@ -144,12 +233,16 @@ export class SpriteComponent extends Component {
    * @param {number} vy - Y方向速度
    */
   setDirectionFromVelocity(vx, vy) {
-    if (!this.useDirectionalSprite) return;
+    if (!this.useDirectionalSprite && !this.useAnimatedSprite) return;
     
-    // 如果速度为0，保持当前方向
+    // 如果速度为0，停止行走
     if (vx === 0 && vy === 0) {
+      this.setWalking(false);
       return;
     }
+    
+    // 有速度时设置行走状态
+    this.setWalking(true);
     
     // 计算角度
     const angle = Math.atan2(vy, vx);

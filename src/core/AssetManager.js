@@ -320,6 +320,9 @@ export class AssetManager {
     loadPlaceholderAssets() {
         console.log('AssetManager: Loading placeholder assets...');
 
+        // 加载4x9动画精灵（玩家角色）
+        this.loadAnimatedSpriteImage('player_animated', 'assets/girl.png');
+
         // 九宫格方向精灵（用于玩家）
         const characterClasses = ['warrior', 'mage', 'archer', 'refugee'];
         characterClasses.forEach(className => {
@@ -390,6 +393,25 @@ export class AssetManager {
         };
         img.onerror = () => {
             console.log(`AssetManager: 无法加载 ${imagePath}，使用占位符`);
+        };
+        img.src = imagePath;
+    }
+
+    /**
+     * 加载4x9动画精灵图片
+     * @param {string} key - 资源键名
+     * @param {string} imagePath - 图片路径
+     */
+    loadAnimatedSpriteImage(key, imagePath) {
+        // 不设置占位符，让渲染走fallback路径直到真实图片加载完成
+        // 尝试加载真实图片
+        const img = new Image();
+        img.onload = () => {
+            this.images.set(key, img);
+            console.log(`AssetManager: 成功加载动画精灵图 ${key} (${img.width}x${img.height})`);
+        };
+        img.onerror = () => {
+            console.log(`AssetManager: 无法加载 ${imagePath}，使用占位符渲染`);
         };
         img.src = imagePath;
     }
