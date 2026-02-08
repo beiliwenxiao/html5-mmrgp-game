@@ -71,6 +71,21 @@ export class CombatSystem {
     // Map<enemyId, number> - 记录上次碰撞时间
     this.weaponCollisionCooldowns = new Map();
     
+    // 技能范围指示器列表
+    this.skillRangeIndicators = [];
+    
+    // 技能颜色映射
+    this.skillColorMap = {
+      'flame_palm': '#ff6600',
+      'ice_finger': '#00ccff',
+      'inferno_palm': '#ff3300',
+      'heal': '#00ff00',
+      'meditation': '#88ccff',
+      'fireball': '#ff6600',
+      'ice_lance': '#00ccff',
+      'flame_burst': '#ff3300'
+    };
+    
     console.log('CombatSystem: Initialized');
   }
 
@@ -118,6 +133,9 @@ export class CombatSystem {
     
     // 更新伤害数字
     this.updateDamageNumbers(deltaTime);
+    
+    // 更新技能范围指示器
+    this.updateSkillRangeIndicators(deltaTime);
     
     // 更新战斗组件
     for (const entity of entities) {
@@ -1334,6 +1352,11 @@ export class CombatSystem {
     
     // 应用AOE技能效果
     this.applyAOESkillEffects(caster, targetPos, skill, currentTime, entities);
+    
+    // 创建技能影响范围指示器（在技能落点处显示）
+    if (caster.type === 'player') {
+      this.addSkillRangeIndicator(casterTransform.position, targetPos, skill);
+    }
     
     console.log(`${caster.name || caster.id} 在位置 (${Math.floor(targetPos.x)}, ${Math.floor(targetPos.y)}) 使用技能 ${skill.name}`);
     return true;
@@ -2825,6 +2848,199 @@ export class CombatSystem {
     // 应用击退
     transform.position.x += direction.x * strength;
     transform.position.y += direction.y * strength;
+  }
+
+  /**
+   * 添加技能影响范围指示器
+   * @param {Object} casterPos - 施法者位置 {x, y}
+   * @param {Object} targetPos - 技能落点位置 {x, y}
+   * @param {Object} skill - 技能数据
+   */
+  addSkillRangeIndicator(casterPos, targetPos, skill) {
+    const color = this.skillColorMap[skill.effectType] || '#ffff00';
+    
+    // 治疗和打坐不显示范围
+    if (skill.id === 'heal' || skill.id === 'meditation') return;
+    
+    // 寒冰指：线性路径 + 终点圆
+    if (skill.id === 'ice_finger') {
+      this.skillRangeIndicators.push({
+        type: 'path',
+        startX: casterPos.x,
+        startY: casterPos.y,
+        endX: targetPos.x,
+        endY: targetPos.y,
+        pathWidth: 30,
+        endRadius: 50,
+        color: color,
+        life: 2.0,
+        maxLife: 2.0,
+        dashOffset: 0,
+        skillName: skill.name
+      });
+      return;
+    }
+    
+    // 火焰掌：主AOE + 溅射范围
+    if (skill.id === 'flame_palm') {
+      this.skillRangeIndicators.push({
+        type: 'circle',
+        x: targetPos.x,
+        y: targetPos.y,
+        radius: skill.aoeRadius || 150,
+        color: color,
+        life: 2.0,
+        maxLife: 2.0,
+        dashOffset: 0,
+        skillName: skill.name
+      });
+      // 溅射范围（内圈）
+      this.skillRangeIndicators.push({
+        type: 'circle',
+        x: targetPos.x,
+        y: targetPos.y,
+        radius: 80,
+        color: '#ffaa00',
+        life: 2.0,
+        maxLife: 2.0,
+        dashOffset: 0,
+        skillName: '溅射'
+      });
+      return;
+    }
+    
+    // 其他AOE技能：圆形范围
+    const aoeRadius = skill.aoeRadius || 150;
+    this.skillRangeIndicators.push({
+      type: 'circle',
+      x: targetPos.x,
+      y: targetPos.y,
+      radius: aoeRadius,
+      color: color,
+      life: 2.0,
+      maxLife: 2.0,
+      dashOffset: 0,
+      skillName: skill.name
+    });
+  }
+
+  /**
+   * 更新技能范围指示器
+   * @param {number} deltaTime - 帧间隔时间（秒）
+   */
+  updateSkillRangeIndicators(deltaTime) {
+    for (let i = this.skillRangeIndicators.length - 1; i >= 0; i--) {
+      const indicator = this.skillRangeIndicators[i];
+      indicator.life -= deltaTime;
+      // 虚线旋转动画
+      indicator.dashOffset += deltaTime * 20;
+      if (indicator.life <= 0) {
+        this.skillRangeIndicators.splice(i, 1);
+      }
+    }
+  }
+
+  /**
+   * 渲染技能影响范围指示器（在世界坐标系中调用）
+   * @param {CanvasRenderingContext2D} ctx - 渲染上下文（已应用相机变换）
+   */
+  renderSkillRangeIndicators(ctx) {
+    if (this.skillRangeIndicators.length === 0) return;
+
+    ctx.save();
+    for (const indicator of this.skillRangeIndicators) {
+      // 根据剩余生命计算透明度（最后0.5秒淡出）
+      let alpha = 1.0;
+      if (indicator.life < 0.5) {
+        alpha = indicator.life / 0.5;
+      }
+
+      if (indicator.type === 'path') {
+        // 线性路径指示器（寒冰指）
+        this.renderPathIndicator(ctx, indicator, alpha);
+      } else {
+        // 圆形AOE指示器
+        this.renderCircleIndicator(ctx, indicator, alpha);
+      }
+    }
+    ctx.restore();
+  }
+
+  /**
+   * 渲染圆形范围指示器
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {Object} indicator
+   * @param {number} alpha
+   */
+  renderCircleIndicator(ctx, indicator, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.6;
+    ctx.strokeStyle = indicator.color;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([8, 6]);
+    ctx.lineDashOffset = -indicator.dashOffset;
+
+    // 虚线圆圈
+    ctx.beginPath();
+    ctx.arc(indicator.x, indicator.y, indicator.radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 技能名称
+    ctx.setLineDash([]);
+    ctx.globalAlpha = alpha * 0.8;
+    ctx.fillStyle = indicator.color;
+    ctx.font = 'bold 12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(indicator.skillName, indicator.x, indicator.y - indicator.radius - 8);
+    ctx.restore();
+  }
+
+  /**
+   * 渲染路径范围指示器（寒冰指）
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {Object} indicator
+   * @param {number} alpha
+   */
+  renderPathIndicator(ctx, indicator, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.5;
+    ctx.strokeStyle = indicator.color;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([8, 6]);
+    ctx.lineDashOffset = -indicator.dashOffset;
+
+    // 计算路径方向
+    const dx = indicator.endX - indicator.startX;
+    const dy = indicator.endY - indicator.startY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 1) { ctx.restore(); return; }
+
+    const nx = -dy / dist; // 法线方向
+    const ny = dx / dist;
+    const hw = indicator.pathWidth; // 半宽
+
+    // 绘制路径矩形（虚线边框）
+    ctx.beginPath();
+    ctx.moveTo(indicator.startX + nx * hw, indicator.startY + ny * hw);
+    ctx.lineTo(indicator.endX + nx * hw, indicator.endY + ny * hw);
+    ctx.lineTo(indicator.endX - nx * hw, indicator.endY - ny * hw);
+    ctx.lineTo(indicator.startX - nx * hw, indicator.startY - ny * hw);
+    ctx.closePath();
+    ctx.stroke();
+
+    // 终点AOE圆圈
+    ctx.beginPath();
+    ctx.arc(indicator.endX, indicator.endY, indicator.endRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 技能名称
+    ctx.setLineDash([]);
+    ctx.globalAlpha = alpha * 0.8;
+    ctx.fillStyle = indicator.color;
+    ctx.font = 'bold 12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(indicator.skillName, indicator.endX, indicator.endY - indicator.endRadius - 8);
+    ctx.restore();
   }
 }
 

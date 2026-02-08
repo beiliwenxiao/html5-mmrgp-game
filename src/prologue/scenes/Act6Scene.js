@@ -622,25 +622,8 @@ export class Act6Scene extends BaseGameScene {
    * 渲染背景 - 覆盖父类方法，渲染第六幕背景
    */
   renderBackground(ctx) {
-    // 绘制夜空背景
-    const gradient = ctx.createLinearGradient(0, 0, 0, this.logicalHeight);
-    gradient.addColorStop(0, '#0a0a1a');
-    gradient.addColorStop(1, '#1a1a2e');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, this.logicalWidth * 2, this.logicalHeight * 2);
-    
-    // 绘制星星
-    ctx.fillStyle = '#ffffff';
-    for (let i = 0; i < 100; i++) {
-      const x = Math.random() * this.logicalWidth * 2;
-      const y = Math.random() * this.logicalHeight;
-      const size = Math.random() * 2;
-      ctx.fillRect(x, y, size, size);
-    }
-    
-    // 绘制地面
-    ctx.fillStyle = '#2a2a3e';
-    ctx.fillRect(0, this.logicalHeight - 100, this.logicalWidth * 2, 100);
+    // 调用父类渲染网格背景
+    super.renderBackground(ctx);
   }
 
   /**
@@ -677,16 +660,22 @@ export class Act6Scene extends BaseGameScene {
    * 渲染场景标题
    */
   renderSceneTitle(ctx) {
+    if (!this._titleStartTime) {
+      this._titleStartTime = performance.now();
+    }
+    const elapsed = (performance.now() - this._titleStartTime) / 1000;
+    if (elapsed > 5) return;
+    
+    let alpha = 1;
+    if (elapsed > 4) alpha = 1 - (elapsed - 4);
+    
     ctx.save();
-    
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillStyle = `rgba(0, 0, 0, ${0.7 * alpha})`;
     ctx.fillRect(0, 0, this.logicalWidth, 80);
-    
-    ctx.fillStyle = '#FFD700';
+    ctx.fillStyle = `rgba(255, 215, 0, ${alpha})`;
     ctx.font = 'bold 32px Arial';
     ctx.textAlign = 'center';
     ctx.fillText('第六幕：结局', this.logicalWidth / 2, 50);
-    
     ctx.restore();
   }
 

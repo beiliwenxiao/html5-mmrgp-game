@@ -334,26 +334,8 @@ export class Act2Scene extends BaseGameScene {
    * 渲染背景 - 覆盖父类方法，渲染粥棚背景
    */
   renderBackground(ctx) {
-    // 绘制粥棚背景
-    ctx.fillStyle = '#8B4513';
-    ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
-    
-    // 绘制地面
-    ctx.fillStyle = '#654321';
-    ctx.fillRect(0, this.logicalHeight - 100, this.logicalWidth, 100);
-    
-    // 绘制粥棚结构
-    ctx.fillStyle = '#A0522D';
-    ctx.fillRect(100, 150, 600, 300);
-    
-    // 绘制屋顶
-    ctx.fillStyle = '#8B4513';
-    ctx.beginPath();
-    ctx.moveTo(50, 150);
-    ctx.lineTo(400, 50);
-    ctx.lineTo(750, 150);
-    ctx.closePath();
-    ctx.fill();
+    // 调用父类渲染网格背景
+    super.renderBackground(ctx);
   }
 
   /**
@@ -387,12 +369,25 @@ export class Act2Scene extends BaseGameScene {
    * 渲染场景标题
    */
   renderSceneTitle(ctx) {
+    // 标题显示5秒后消失
+    if (!this._titleStartTime) {
+      this._titleStartTime = performance.now();
+    }
+    const elapsed = (performance.now() - this._titleStartTime) / 1000;
+    if (elapsed > 5) return;
+    
+    // 最后1秒淡出
+    let alpha = 1;
+    if (elapsed > 4) {
+      alpha = 1 - (elapsed - 4);
+    }
+    
     ctx.save();
     
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillStyle = `rgba(0, 0, 0, ${0.7 * alpha})`;
     ctx.fillRect(0, 0, this.logicalWidth, 80);
     
-    ctx.fillStyle = '#FFD700';
+    ctx.fillStyle = `rgba(255, 215, 0, ${alpha})`;
     ctx.font = 'bold 32px Arial';
     ctx.textAlign = 'center';
     ctx.fillText('第二幕：符水救灾', this.logicalWidth / 2, 50);

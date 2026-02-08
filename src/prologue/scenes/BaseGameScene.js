@@ -1931,6 +1931,11 @@ export class BaseGameScene extends PrologueScene {
       this._debugParticleFrames--;
     }
     
+    // 渲染技能范围指示器（在世界坐标系中）
+    if (this.combatSystem) {
+      this.combatSystem.renderSkillRangeIndicators(ctx);
+    }
+    
     // 恢复上下文状态
     ctx.restore();
     

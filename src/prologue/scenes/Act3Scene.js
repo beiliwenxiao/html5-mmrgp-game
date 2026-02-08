@@ -586,34 +586,8 @@ export class Act3Scene extends BaseGameScene {
    * 渲染背景 - 覆盖父类方法，渲染第三幕背景
    */
   renderBackground(ctx) {
-    // 绘制市集背景
-    ctx.fillStyle = '#D2B48C';
-    ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
-    
-    // 绘制地面
-    ctx.fillStyle = '#8B7355';
-    ctx.fillRect(0, this.logicalHeight - 100, this.logicalWidth, 100);
-    
-    // 绘制商铺
-    ctx.fillStyle = '#A0522D';
-    ctx.fillRect(500, 200, 200, 200);
-    
-    // 绘制商铺屋顶
-    ctx.fillStyle = '#8B4513';
-    ctx.beginPath();
-    ctx.moveTo(480, 200);
-    ctx.lineTo(600, 150);
-    ctx.lineTo(720, 200);
-    ctx.closePath();
-    ctx.fill();
-    
-    // 绘制商铺招牌
-    ctx.fillStyle = '#FFD700';
-    ctx.fillRect(550, 180, 100, 30);
-    ctx.fillStyle = '#000000';
-    ctx.font = 'bold 16px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('杂货铺', 600, 200);
+    // 调用父类渲染网格背景
+    super.renderBackground(ctx);
   }
 
 
@@ -655,16 +629,22 @@ export class Act3Scene extends BaseGameScene {
    * 渲染场景标题
    */
   renderSceneTitle(ctx) {
+    if (!this._titleStartTime) {
+      this._titleStartTime = performance.now();
+    }
+    const elapsed = (performance.now() - this._titleStartTime) / 1000;
+    if (elapsed > 5) return;
+    
+    let alpha = 1;
+    if (elapsed > 4) alpha = 1 - (elapsed - 4);
+    
     ctx.save();
-    
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillStyle = `rgba(0, 0, 0, ${0.7 * alpha})`;
     ctx.fillRect(0, 0, this.logicalWidth, 80);
-    
-    ctx.fillStyle = '#FFD700';
+    ctx.fillStyle = `rgba(255, 215, 0, ${alpha})`;
     ctx.font = 'bold 32px Arial';
     ctx.textAlign = 'center';
     ctx.fillText('第三幕：铜钱法器', this.logicalWidth / 2, 50);
-    
     ctx.restore();
   }
 

@@ -1282,26 +1282,8 @@ export class Act5Scene extends BaseGameScene {
    * 渲染背景 - 覆盖父类方法，渲染第五幕背景
    */
   renderBackground(ctx) {
-    // 绘制战场背景
-    ctx.fillStyle = '#3E2723';
-    ctx.fillRect(0, 0, this.logicalWidth * 2, this.logicalHeight * 2);
-    
-    // 绘制地面
-    ctx.fillStyle = '#5D4037';
-    ctx.fillRect(0, this.logicalHeight - 200, this.logicalWidth * 2, 200);
-    
-    // 绘制战场标记
-    ctx.strokeStyle = '#8D6E63';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([20, 10]);
-    
-    // 友军区域
-    ctx.strokeRect(100, 300, 400, 300);
-    
-    // 敌军区域
-    ctx.strokeRect(600, 100, 600, 400);
-    
-    ctx.setLineDash([]);
+    // 调用父类渲染网格背景
+    super.renderBackground(ctx);
   }
 
   /**
@@ -1333,16 +1315,22 @@ export class Act5Scene extends BaseGameScene {
    * 渲染场景标题
    */
   renderSceneTitle(ctx) {
+    if (!this._titleStartTime) {
+      this._titleStartTime = performance.now();
+    }
+    const elapsed = (performance.now() - this._titleStartTime) / 1000;
+    if (elapsed > 5) return;
+    
+    let alpha = 1;
+    if (elapsed > 4) alpha = 1 - (elapsed - 4);
+    
     ctx.save();
-    
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillStyle = `rgba(0, 0, 0, ${0.7 * alpha})`;
     ctx.fillRect(0, 0, this.logicalWidth, 80);
-    
-    ctx.fillStyle = '#FFD700';
+    ctx.fillStyle = `rgba(255, 215, 0, ${alpha})`;
     ctx.font = 'bold 32px Arial';
     ctx.textAlign = 'center';
     ctx.fillText('第五幕：四场战斗', this.logicalWidth / 2, 50);
-    
     ctx.restore();
   }
 
