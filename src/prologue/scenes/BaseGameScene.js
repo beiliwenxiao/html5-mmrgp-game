@@ -1721,26 +1721,49 @@ export class BaseGameScene extends PrologueScene {
    * 拾取掉落物
    */
   pickupLoot(lootEntity) {
-    const itemData = lootEntity.itemData;
-    if (!itemData) return;
-    
-    const stats = this.playerEntity.getComponent('stats');
-    if (!stats) return;
-    
-    if (itemData.type === 'health_potion') {
-      const healAmount = stats.heal(itemData.value);
-      const transform = this.playerEntity.getComponent('transform');
-      if (transform && healAmount > 0) {
-        this.floatingTextManager.addHeal(transform.position.x, transform.position.y - 30, healAmount);
-      }
-    } else if (itemData.type === 'mana_potion') {
-      const manaAmount = stats.restoreMana(itemData.value);
-      const transform = this.playerEntity.getComponent('transform');
-      if (transform && manaAmount > 0) {
-        this.floatingTextManager.addManaRestore(transform.position.x, transform.position.y - 50, manaAmount);
+      const itemData = lootEntity.itemData;
+      if (!itemData) return;
+
+      // 将掉落物添加到背包，而不是直接使用
+      const inventory = this.playerEntity.getComponent('inventory');
+      if (inventory) {
+        const item = {
+          id: itemData.id || itemData.type,
+          name: itemData.name,
+          type: 'consumable',
+          subType: itemData.type,
+          description: itemData.description || '',
+          rarity: itemData.rarity || 'common',
+          maxStack: itemData.maxStack || 20,
+          usable: true,
+          effect: itemData.effect || null,
+          stats: {}
+        };
+
+        // 如果没有 effect 字段，根据类型自动生成
+        if (!item.effect) {
+          if (itemData.type === 'health_potion') {
+            item.effect = { type: 'heal', value: itemData.value || 50 };
+          } else if (itemData.type === 'mana_potion') {
+            item.effect = { type: 'restore_mana', value: itemData.value || 30 };
+          }
+        }
+
+        inventory.addItem(item);
+
+        const transform = this.playerEntity.getComponent('transform');
+        if (transform) {
+          this.floatingTextManager.addText(
+            transform.position.x,
+            transform.position.y - 30,
+            `获得: ${item.name}`,
+            '#00ff00'
+          );
+        }
+        console.log('BaseGameScene: 掉落物已添加到背包', item);
       }
     }
-  }
+
 
   /**
    * 生成掉落物
